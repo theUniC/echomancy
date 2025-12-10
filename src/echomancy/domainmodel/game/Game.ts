@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+
 const Step = {
     UNTAP: "UNTAP",
     UPKEEP: "UPKEEP",
@@ -18,6 +20,10 @@ export type GameSteps = typeof Step[keyof typeof Step];
 export class Game {
     constructor(
         public id: string,
-        public players: string[],
+        public playerIds: string[],
     ) { }
+
+    static start(playerIds: string[]): Game {
+        return new Game(uuidv4(), playerIds);
+    }
 }
