@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { validate as isValidUUID } from 'uuid'
 import { Game } from './Game'
 import { Player } from '../player/Player'
 
@@ -12,7 +13,6 @@ test('it generates UUID for game when using start factory', () => {
     const player1 = new Player("Player 1");
     const player2 = new Player("Player 2");
     const game = Game.start([player1.id, player2.id]);
-    
-    expect(game.id).toBeTruthy();
-    expect(game.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+
+    expect(isValidUUID(game.id)).toBe(true);
 })
