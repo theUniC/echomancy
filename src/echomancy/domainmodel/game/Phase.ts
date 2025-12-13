@@ -1,1 +1,0 @@
-export type Phase = "LOBBY" | "IN_PROGRESS" | "COMPLETED";
