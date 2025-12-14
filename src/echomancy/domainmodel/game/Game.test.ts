@@ -3,6 +3,7 @@ import { validate as isValidUUID } from 'uuid'
 import { Game } from './Game'
 import { Player } from './Player'
 import { AdvanceStep } from './actions/AdvanceStep'
+import { InvalidPlayerCountError, InvalidStartingPlayerError, InvalidPlayerActionError } from './GameErrors'
 
 test('it can be instantiated', () => {
     const player1 = new Player("Player 1")
@@ -56,7 +57,7 @@ test('it can apply AdvanceStep action', () => {
     const player2 = new Player("Player 2")
     const game = Game.start([player1, player2], player1.id)
 
-    game.apply(new AdvanceStep(player1.id))
+    game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
 
     expect(game.currentStep).toBe("UPKEEP")
 })
@@ -67,8 +68,8 @@ test('it throws error when non-current player tries to advance step', () => {
     const game = Game.start([player1, player2], player1.id)
 
     expect(() => {
-        game.apply(new AdvanceStep(player2.id))
-    }).toThrow('Only the current player can advance the step')
+        game.apply({ type: "ADVANCE_STEP", playerId: player2.id })
+    }).toThrow(InvalidPlayerActionError)
 })
 
 test('it advances to next player when completing a turn', () => {
@@ -82,7 +83,7 @@ test('it advances to next player when completing a turn', () => {
         "END_OF_COMBAT", "SECOND_MAIN", "END_STEP", "CLEANUP"]
 
     for (let i = 0; i < steps.length; i++) {
-        game.apply(new AdvanceStep(game.currentPlayerId))
+        game.apply({ type: "ADVANCE_STEP", playerId: game.currentPlayerId })
     }
 
     expect(game.currentStep).toBe("UNTAP")
@@ -95,7 +96,7 @@ test('it validates starting player is in player list', () => {
 
     expect(() => {
         Game.start([player1, player2], "invalid-id")
-    }).toThrow('Starting player must be in player list')
+    }).toThrow(InvalidStartingPlayerError)
 })
 
 test('it requires at least 2 players', () => {
@@ -103,5 +104,5 @@ test('it requires at least 2 players', () => {
 
     expect(() => {
         Game.start([player1], player1.id)
-    }).toThrow('Game requires at least 2 players')
+    }).toThrow(InvalidPlayerCountError)
 })

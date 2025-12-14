@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Player } from './Player';
-import { Action } from './Action';
 import { AdvanceStep } from './actions/AdvanceStep';
+import { match, P } from 'ts-pattern';
+import { InvalidPlayerCountError, InvalidStartingPlayerError, InvalidPlayerActionError, PlayerNotFoundError } from './GameErrors';
 
 const Step = {
     UNTAP: "UNTAP",
@@ -35,6 +36,9 @@ const STEP_ORDER: GameSteps[] = [
     Step.CLEANUP
 ];
 
+type Actions =
+    | { type: "ADVANCE_STEP", playerId: string };
+
 export class Game {
     constructor(
         public readonly id: string,
@@ -48,12 +52,12 @@ export class Game {
         startingPlayerId: string
     ): Game {
         if (players.length < 2) {
-            throw new Error('Game requires at least 2 players');
+            throw new InvalidPlayerCountError(players.length);
         }
 
         const playerIds = players.map(p => p.id);
         if (!playerIds.includes(startingPlayerId)) {
-            throw new Error('Starting player must be in player list');
+            throw new InvalidStartingPlayerError(startingPlayerId);
         }
 
         return new Game(
@@ -64,15 +68,15 @@ export class Game {
         );
     }
 
-    apply(action: Action): void {
-        if (action instanceof AdvanceStep) {
-            this.advanceStep(action);
-        }
+    apply(action: Actions): void {
+        match(action)
+            .with({ type: "ADVANCE_STEP", playerId: P.string }, (action) => this.advanceStep(new AdvanceStep(action.playerId)))
+            .exhaustive();
     }
 
     private advanceStep(action: AdvanceStep): void {
         if (action.playerId !== this.currentPlayerId) {
-            throw new Error('Only the current player can advance the step');
+            throw new InvalidPlayerActionError(action.playerId, 'ADVANCE_STEP');
         }
 
         const currentStepIndex = STEP_ORDER.indexOf(this.currentStep);
@@ -93,7 +97,7 @@ export class Game {
     getCurrentPlayer(): Player {
         const player = this.players.find(p => p.id === this.currentPlayerId);
         if (!player) {
-            throw new Error('Current player not found');
+            throw new PlayerNotFoundError(this.currentPlayerId);
         }
         return player;
     }
