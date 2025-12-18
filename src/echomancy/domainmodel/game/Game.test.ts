@@ -1,14 +1,14 @@
-import { expect, test } from "vitest"
 import { validate as isValidUUID, v4 as uuidv4 } from "uuid"
+import { expect, test } from "vitest"
+import { advanceToStep, createStartedGame } from "./__tests__/helpers"
 import { Game } from "./Game"
-import { Player } from "./Player"
 import {
+  InvalidEndTurnError,
+  InvalidPlayerActionError,
   InvalidPlayerCountError,
   InvalidStartingPlayerError,
-  InvalidPlayerActionError,
-  InvalidEndTurnError,
 } from "./GameErrors"
-import { createStartedGame, advanceToStep } from "./__tests__/helpers"
+import { Player } from "./Player"
 
 test("it can be instantiated", () => {
   const player1 = new Player("p1")
@@ -18,7 +18,18 @@ test("it can be instantiated", () => {
     [player2.id, player2],
   ])
   const turnOrder = [player1.id, player2.id]
-  const game = new Game("game-id", playersById, turnOrder, player1.id, "UNTAP")
+  const playerStates = new Map([
+    [player1.id, { hand: { cards: [] }, battlefield: { cards: [] } }],
+    [player2.id, { hand: { cards: [] }, battlefield: { cards: [] } }],
+  ])
+  const game = new Game(
+    "game-id",
+    playersById,
+    turnOrder,
+    player1.id,
+    "UNTAP",
+    playerStates,
+  )
 
   expect(game).toBeInstanceOf(Game)
   expect(game.id).toBe("game-id")

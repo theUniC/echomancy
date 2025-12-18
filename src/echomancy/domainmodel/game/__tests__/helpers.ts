@@ -1,9 +1,7 @@
 import { v4 as uuidv4 } from "uuid"
 import { Game } from "../Game"
-import type { GameSteps } from "../Steps"
 import { Player } from "../Player"
-
-export const DUMMY_CARD_ID = "test-card-id"
+import type { GameSteps } from "../Steps"
 
 export function createStartedGame() {
   const player1 = new Player("p1")
@@ -15,7 +13,10 @@ export function createStartedGame() {
     startingPlayerId: player1.id,
   })
 
-  return { game, player1, player2 }
+  // The instanceId of the dummy land card in player1's hand
+  const dummyLandInstanceId = `${player1.id}-dummy-land-instance`
+
+  return { game, player1, player2, dummyLandInstanceId }
 }
 
 export function advanceToStep(game: Game, targetStep: GameSteps): void {

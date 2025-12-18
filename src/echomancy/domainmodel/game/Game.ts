@@ -1,16 +1,21 @@
-import type { Player } from "./Player"
 import { match, P } from "ts-pattern"
+import type { CardDefinition } from "../cards/CardDefinition"
+import type { CardInstance } from "../cards/CardInstance"
 import {
-  InvalidPlayerCountError,
-  InvalidStartingPlayerError,
-  InvalidPlayerActionError,
-  PlayerNotFoundError,
+  CardIsNotLandError,
+  CardNotFoundInHandError,
   InvalidEndTurnError,
+  InvalidPlayerActionError,
+  InvalidPlayerCountError,
   InvalidPlayLandStepError,
+  InvalidStartingPlayerError,
   LandLimitExceededError,
+  PlayerNotFoundError,
 } from "./GameErrors"
+import type { Player } from "./Player"
+import type { PlayerState } from "./PlayerState"
 import { advance } from "./StepMachine"
-import { Step, type GameSteps } from "./Steps"
+import { type GameSteps, Step } from "./Steps"
 
 type AdvanceStep = { type: "ADVANCE_STEP"; playerId: string }
 type EndTurn = { type: "END_TURN"; playerId: string }
@@ -28,6 +33,7 @@ type GameParams = {
 
 export class Game {
   private playedLands: number
+  private playerStates: Map<string, PlayerState>
 
   constructor(
     public readonly id: string,
@@ -35,8 +41,10 @@ export class Game {
     private readonly turnOrder: string[],
     public currentPlayerId: string,
     public currentStep: GameSteps,
+    playerStates: Map<string, PlayerState>,
   ) {
     this.playedLands = 0
+    this.playerStates = playerStates
   }
 
   static start({ id, players, startingPlayerId }: GameParams): Game {
@@ -46,7 +54,40 @@ export class Game {
     const playersById = new Map(players.map((p) => [p.id, p]))
     const turnOrder = players.map((p) => p.id)
 
-    return new Game(id, playersById, turnOrder, startingPlayerId, Step.UNTAP)
+    // Create dummy land card for MVP
+    const dummyLandDefinition: CardDefinition = {
+      id: "dummy-land",
+      name: "Dummy Land",
+      type: "LAND",
+    }
+
+    // Initialize player states with one land in hand
+    const playerStates = new Map(
+      players.map((player) => {
+        const dummyLandInstance: CardInstance = {
+          instanceId: `${player.id}-dummy-land-instance`,
+          definition: dummyLandDefinition,
+          ownerId: player.id,
+        }
+
+        return [
+          player.id,
+          {
+            hand: { cards: [dummyLandInstance] },
+            battlefield: { cards: [] },
+          },
+        ]
+      }),
+    )
+
+    return new Game(
+      id,
+      playersById,
+      turnOrder,
+      startingPlayerId,
+      Step.UNTAP,
+      playerStates,
+    )
   }
 
   apply(action: Actions): void {
@@ -70,6 +111,14 @@ export class Game {
       throw new PlayerNotFoundError(this.currentPlayerId)
     }
     return player
+  }
+
+  getPlayerState(playerId: string): PlayerState {
+    const playerState = this.playerStates.get(playerId)
+    if (!playerState) {
+      throw new PlayerNotFoundError(playerId)
+    }
+    return playerState
   }
 
   hasPlayer(playerId: string): boolean {
@@ -135,6 +184,31 @@ export class Game {
     if (this.playedLands > 0) {
       throw new LandLimitExceededError()
     }
+
+    const playerState = this.playerStates.get(action.playerId)
+    if (!playerState) {
+      throw new PlayerNotFoundError(action.playerId)
+    }
+
+    // Find card in hand
+    const cardIndex = playerState.hand.cards.findIndex(
+      (card) => card.instanceId === action.cardId,
+    )
+
+    if (cardIndex === -1) {
+      throw new CardNotFoundInHandError(action.cardId, action.playerId)
+    }
+
+    const card = playerState.hand.cards[cardIndex]
+
+    // Verify it's a land
+    if (card.definition.type !== "LAND") {
+      throw new CardIsNotLandError(action.cardId)
+    }
+
+    // Move card from hand to battlefield
+    playerState.hand.cards.splice(cardIndex, 1)
+    playerState.battlefield.cards.push(card)
 
     this.playedLands += 1
   }

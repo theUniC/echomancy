@@ -48,3 +48,15 @@ export class LandLimitExceededError extends GameError {
     super("Cannot play more than one land per turn")
   }
 }
+
+export class CardNotFoundInHandError extends GameError {
+  constructor(cardId: string, playerId: string) {
+    super(`Card '${cardId}' not found in hand of player '${playerId}'`)
+  }
+}
+
+export class CardIsNotLandError extends GameError {
+  constructor(cardId: string) {
+    super(`Card '${cardId}' is not a land`)
+  }
+}
