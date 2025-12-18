@@ -15,6 +15,8 @@ type EndTurn = { type: "END_TURN"; playerId: string }
 
 type Actions = AdvanceStep | EndTurn
 
+export type AllowedAction = "ADVANCE_STEP" | "END_TURN"
+
 type GameParams = {
   id: string
   players: Player[]
@@ -65,6 +67,18 @@ export class Game {
 
   getPlayersInTurnOrder(): readonly string[] {
     return [...this.turnOrder]
+  }
+
+  getAllowedActionsFor(playerId: string): AllowedAction[] {
+    if (playerId !== this.currentPlayerId) {
+      return []
+    }
+
+    if (this.currentStep === Step.CLEANUP) {
+      return []
+    }
+
+    return ["ADVANCE_STEP", "END_TURN"]
   }
 
   private advanceStep(action: AdvanceStep): void {
