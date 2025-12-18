@@ -34,28 +34,20 @@ export class Game {
     return new Game(id, players, startingPlayerId, Step.UNTAP)
   }
 
-  private static assertStartingPlayerExists(
-    players: Player[],
-    startingPlayerId: string,
-  ) {
-    const playerIds = players.map((p) => p.id)
-    if (!playerIds.includes(startingPlayerId)) {
-      throw new InvalidStartingPlayerError(startingPlayerId)
-    }
-  }
-
-  private static assertMoreThanOnePlayer(players: Player[]) {
-    if (players.length < 2) {
-      throw new InvalidPlayerCountError(players.length)
-    }
-  }
-
   apply(action: Actions): void {
     match(action)
       .with({ type: "ADVANCE_STEP", playerId: P.string }, (action) =>
         this.advanceStep(action),
       )
       .exhaustive()
+  }
+
+  getCurrentPlayer(): Player {
+    const player = this.players.find((p) => p.id === this.currentPlayerId)
+    if (!player) {
+      throw new PlayerNotFoundError(this.currentPlayerId)
+    }
+    return player
   }
 
   private advanceStep(action: AdvanceStep): void {
@@ -79,11 +71,19 @@ export class Game {
     this.currentPlayerId = this.players[nextIndex].id
   }
 
-  getCurrentPlayer(): Player {
-    const player = this.players.find((p) => p.id === this.currentPlayerId)
-    if (!player) {
-      throw new PlayerNotFoundError(this.currentPlayerId)
+  private static assertStartingPlayerExists(
+    players: Player[],
+    startingPlayerId: string,
+  ) {
+    const playerIds = players.map((p) => p.id)
+    if (!playerIds.includes(startingPlayerId)) {
+      throw new InvalidStartingPlayerError(startingPlayerId)
     }
-    return player
+  }
+
+  private static assertMoreThanOnePlayer(players: Player[]) {
+    if (players.length < 2) {
+      throw new InvalidPlayerCountError(players.length)
+    }
   }
 }
