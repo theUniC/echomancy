@@ -30,3 +30,9 @@ export class PlayerNotFoundError extends GameError {
     super(`Player with id '${playerId}' not found in game`)
   }
 }
+
+export class InvalidEndTurnError extends GameError {
+  constructor() {
+    super("Cannot end turn from CLEANUP step")
+  }
+}

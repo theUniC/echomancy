@@ -6,6 +6,7 @@ import {
   InvalidPlayerCountError,
   InvalidStartingPlayerError,
   InvalidPlayerActionError,
+  InvalidEndTurnError,
 } from "./GameErrors"
 
 test("it can be instantiated", () => {
@@ -161,4 +162,93 @@ test("it requires at least 2 players", () => {
       startingPlayerId: player1.id,
     })
   }).toThrow(InvalidPlayerCountError)
+})
+
+test("it can end turn from any step except CLEANUP", () => {
+  const player1 = new Player("Player 1")
+  const player2 = new Player("Player 2")
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
+
+  // Avanzar a DRAW
+  game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
+  game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
+
+  expect(game.currentStep).toBe("DRAW")
+
+  // END_TURN debe llevar al siguiente jugador
+  game.apply({ type: "END_TURN", playerId: player1.id })
+
+  expect(game.currentStep).toBe("UNTAP")
+  expect(game.currentPlayerId).toBe(player2.id)
+})
+
+test("it throws error when non-current player tries to end turn", () => {
+  const player1 = new Player("Player 1")
+  const player2 = new Player("Player 2")
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
+
+  expect(() => {
+    game.apply({ type: "END_TURN", playerId: player2.id })
+  }).toThrow(InvalidPlayerActionError)
+})
+
+test("it throws error when trying to end turn from CLEANUP", () => {
+  const player1 = new Player("Player 1")
+  const player2 = new Player("Player 2")
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
+
+  // Avanzar hasta CLEANUP
+  const steps = [
+    "UNTAP",
+    "UPKEEP",
+    "DRAW",
+    "MAIN1",
+    "BEGINNING_OF_COMBAT",
+    "DECLARE_ATTACKERS",
+    "DECLARE_BLOCKERS",
+    "COMBAT_DAMAGE",
+    "END_OF_COMBAT",
+    "SECOND_MAIN",
+    "END_STEP",
+  ]
+
+  for (let i = 0; i < steps.length; i++) {
+    game.apply({ type: "ADVANCE_STEP", playerId: game.currentPlayerId })
+  }
+
+  expect(game.currentStep).toBe("CLEANUP")
+
+  expect(() => {
+    game.apply({ type: "END_TURN", playerId: game.currentPlayerId })
+  }).toThrow(InvalidEndTurnError)
+})
+
+test("it advances through all remaining steps when ending turn", () => {
+  const player1 = new Player("Player 1")
+  const player2 = new Player("Player 2")
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
+
+  expect(game.currentStep).toBe("UNTAP")
+  expect(game.currentPlayerId).toBe(player1.id)
+
+  game.apply({ type: "END_TURN", playerId: player1.id })
+
+  expect(game.currentStep).toBe("UNTAP")
+  expect(game.currentPlayerId).toBe(player2.id)
 })
