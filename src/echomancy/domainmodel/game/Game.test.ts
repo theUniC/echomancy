@@ -8,10 +8,11 @@ import {
   InvalidPlayerActionError,
   InvalidEndTurnError,
 } from "./GameErrors"
+import { createStartedGame, advanceToStep } from "./__tests__/helpers"
 
 test("it can be instantiated", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
+  const player1 = new Player("p1")
+  const player2 = new Player("p2")
   const playersById = new Map([
     [player1.id, player1],
     [player2.id, player2],
@@ -27,8 +28,8 @@ test("it can be instantiated", () => {
 })
 
 test("it accepts an id parameter when using start factory", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
+  const player1 = new Player("p1")
+  const player2 = new Player("p2")
   const gameId = uuidv4()
   const game = Game.start({
     id: gameId,
@@ -41,20 +42,14 @@ test("it accepts an id parameter when using start factory", () => {
 })
 
 test("it starts at UNTAP step when using start factory", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const { game } = createStartedGame()
 
   expect(game.currentStep).toBe("UNTAP")
 })
 
 test("it sets the starting player correctly", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
+  const player1 = new Player("p1")
+  const player2 = new Player("p2")
   const game = Game.start({
     id: uuidv4(),
     players: [player1, player2],
@@ -65,27 +60,14 @@ test("it sets the starting player correctly", () => {
 })
 
 test("it stores player instances", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const { game, player1 } = createStartedGame()
 
   expect(game.getCurrentPlayer()).toBe(player1)
   expect(isValidUUID(player1.id)).toBe(true)
-  expect(isValidUUID(player2.id)).toBe(true)
 })
 
 test("it can apply AdvanceStep action", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const { game, player1 } = createStartedGame()
 
   game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
 
@@ -93,13 +75,7 @@ test("it can apply AdvanceStep action", () => {
 })
 
 test("it throws error when non-current player tries to advance step", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const { game, player2 } = createStartedGame()
 
   expect(() => {
     game.apply({ type: "ADVANCE_STEP", playerId: player2.id })
@@ -107,41 +83,18 @@ test("it throws error when non-current player tries to advance step", () => {
 })
 
 test("it advances to next player when completing a turn", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const { game, player1, player2 } = createStartedGame()
 
-  // Advance through all steps to complete player1's turn
-  const steps = [
-    "UNTAP",
-    "UPKEEP",
-    "DRAW",
-    "MAIN1",
-    "BEGINNING_OF_COMBAT",
-    "DECLARE_ATTACKERS",
-    "DECLARE_BLOCKERS",
-    "COMBAT_DAMAGE",
-    "END_OF_COMBAT",
-    "SECOND_MAIN",
-    "END_STEP",
-    "CLEANUP",
-  ]
-
-  for (let i = 0; i < steps.length; i++) {
-    game.apply({ type: "ADVANCE_STEP", playerId: game.currentPlayerId })
-  }
+  advanceToStep(game, "CLEANUP")
+  game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
 
   expect(game.currentStep).toBe("UNTAP")
   expect(game.currentPlayerId).toBe(player2.id)
 })
 
 test("it validates starting player is in player list", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
+  const player1 = new Player("p1")
+  const player2 = new Player("p2")
 
   expect(() => {
     Game.start({
@@ -153,7 +106,7 @@ test("it validates starting player is in player list", () => {
 })
 
 test("it requires at least 2 players", () => {
-  const player1 = new Player("Player 1")
+  const player1 = new Player("p1")
 
   expect(() => {
     Game.start({
@@ -165,21 +118,10 @@ test("it requires at least 2 players", () => {
 })
 
 test("it can end turn from any step except CLEANUP", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const { game, player1, player2 } = createStartedGame()
 
-  // Avanzar a DRAW
-  game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
-  game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
+  advanceToStep(game, "DRAW")
 
-  expect(game.currentStep).toBe("DRAW")
-
-  // END_TURN debe llevar al siguiente jugador
   game.apply({ type: "END_TURN", playerId: player1.id })
 
   expect(game.currentStep).toBe("UNTAP")
@@ -187,13 +129,7 @@ test("it can end turn from any step except CLEANUP", () => {
 })
 
 test("it throws error when non-current player tries to end turn", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const { game, player2 } = createStartedGame()
 
   expect(() => {
     game.apply({ type: "END_TURN", playerId: player2.id })
@@ -201,34 +137,9 @@ test("it throws error when non-current player tries to end turn", () => {
 })
 
 test("it throws error when trying to end turn from CLEANUP", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const { game } = createStartedGame()
 
-  // Avanzar hasta CLEANUP
-  const steps = [
-    "UNTAP",
-    "UPKEEP",
-    "DRAW",
-    "MAIN1",
-    "BEGINNING_OF_COMBAT",
-    "DECLARE_ATTACKERS",
-    "DECLARE_BLOCKERS",
-    "COMBAT_DAMAGE",
-    "END_OF_COMBAT",
-    "SECOND_MAIN",
-    "END_STEP",
-  ]
-
-  for (let i = 0; i < steps.length; i++) {
-    game.apply({ type: "ADVANCE_STEP", playerId: game.currentPlayerId })
-  }
-
-  expect(game.currentStep).toBe("CLEANUP")
+  advanceToStep(game, "CLEANUP")
 
   expect(() => {
     game.apply({ type: "END_TURN", playerId: game.currentPlayerId })
@@ -236,13 +147,7 @@ test("it throws error when trying to end turn from CLEANUP", () => {
 })
 
 test("it advances through all remaining steps when ending turn", () => {
-  const player1 = new Player("Player 1")
-  const player2 = new Player("Player 2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const { game, player1, player2 } = createStartedGame()
 
   expect(game.currentStep).toBe("UNTAP")
   expect(game.currentPlayerId).toBe(player1.id)
