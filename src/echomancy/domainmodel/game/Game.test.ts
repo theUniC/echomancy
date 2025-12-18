@@ -11,11 +11,16 @@ import {
 test("it can be instantiated", () => {
   const player1 = new Player("Player 1")
   const player2 = new Player("Player 2")
-  const game = new Game("game-id", [player1, player2], player1.id, "UNTAP")
+  const playersById = new Map([
+    [player1.id, player1],
+    [player2.id, player2],
+  ])
+  const turnOrder = [player1.id, player2.id]
+  const game = new Game("game-id", playersById, turnOrder, player1.id, "UNTAP")
 
   expect(game).toBeInstanceOf(Game)
   expect(game.id).toBe("game-id")
-  expect(game.players).toEqual([player1, player2])
+  expect(game.getCurrentPlayer()).toBe(player1)
   expect(game.currentPlayerId).toBe(player1.id)
   expect(game.currentStep).toBe("UNTAP")
 })
@@ -67,10 +72,9 @@ test("it stores player instances", () => {
     startingPlayerId: player1.id,
   })
 
-  expect(game.players[0]).toBe(player1)
-  expect(game.players[1]).toBe(player2)
-  expect(isValidUUID(game.players[0].id)).toBe(true)
-  expect(isValidUUID(game.players[1].id)).toBe(true)
+  expect(game.getCurrentPlayer()).toBe(player1)
+  expect(isValidUUID(player1.id)).toBe(true)
+  expect(isValidUUID(player2.id)).toBe(true)
 })
 
 test("it can apply AdvanceStep action", () => {

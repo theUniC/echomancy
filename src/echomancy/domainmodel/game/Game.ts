@@ -22,7 +22,8 @@ type GameParams = {
 export class Game {
   constructor(
     public readonly id: string,
-    public readonly players: Player[],
+    private readonly playersById: Map<string, Player>,
+    private readonly turnOrder: string[],
     public currentPlayerId: string,
     public currentStep: GameSteps,
   ) {}
@@ -31,7 +32,10 @@ export class Game {
     Game.assertMoreThanOnePlayer(players)
     Game.assertStartingPlayerExists(players, startingPlayerId)
 
-    return new Game(id, players, startingPlayerId, Step.UNTAP)
+    const playersById = new Map(players.map((p) => [p.id, p]))
+    const turnOrder = players.map((p) => p.id)
+
+    return new Game(id, playersById, turnOrder, startingPlayerId, Step.UNTAP)
   }
 
   apply(action: Actions): void {
@@ -43,7 +47,7 @@ export class Game {
   }
 
   getCurrentPlayer(): Player {
-    const player = this.players.find((p) => p.id === this.currentPlayerId)
+    const player = this.playersById.get(this.currentPlayerId)
     if (!player) {
       throw new PlayerNotFoundError(this.currentPlayerId)
     }
@@ -64,19 +68,21 @@ export class Game {
   }
 
   private advanceToNextPlayer(): void {
-    const currentIndex = this.players.findIndex(
-      (p) => p.id === this.currentPlayerId,
-    )
-    const nextIndex = (currentIndex + 1) % this.players.length
-    this.currentPlayerId = this.players[nextIndex].id
+    const currentIndex = this.turnOrder.indexOf(this.currentPlayerId)
+    if (currentIndex < 0) {
+      throw new PlayerNotFoundError(this.currentPlayerId)
+    }
+
+    const nextIndex = (currentIndex + 1) % this.turnOrder.length
+    this.currentPlayerId = this.turnOrder[nextIndex]
   }
 
   private static assertStartingPlayerExists(
     players: Player[],
     startingPlayerId: string,
   ) {
-    const playerIds = players.map((p) => p.id)
-    if (!playerIds.includes(startingPlayerId)) {
+    const exists = players.some((p) => p.id === startingPlayerId)
+    if (!exists) {
       throw new InvalidStartingPlayerError(startingPlayerId)
     }
   }
