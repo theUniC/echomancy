@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from "uuid"
 import type { Player } from "./Player"
 import { match, P } from "ts-pattern"
 import {
@@ -22,7 +21,7 @@ export class Game {
     public currentStep: GameSteps,
   ) {}
 
-  static start(players: Player[], startingPlayerId: string): Game {
+  static start(id: string, players: Player[], startingPlayerId: string): Game {
     if (players.length < 2) {
       throw new InvalidPlayerCountError(players.length)
     }
@@ -32,7 +31,7 @@ export class Game {
       throw new InvalidStartingPlayerError(startingPlayerId)
     }
 
-    return new Game(uuidv4(), players, startingPlayerId, Step.UNTAP)
+    return new Game(id, players, startingPlayerId, Step.UNTAP)
   }
 
   apply(action: Actions): void {
