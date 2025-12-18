@@ -24,7 +24,11 @@ test("it accepts an id parameter when using start factory", () => {
   const player1 = new Player("Player 1")
   const player2 = new Player("Player 2")
   const gameId = uuidv4()
-  const game = Game.start(gameId, [player1, player2], player1.id)
+  const game = Game.start({
+    id: gameId,
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
 
   expect(game.id).toBe(gameId)
   expect(isValidUUID(game.id)).toBe(true)
@@ -33,7 +37,11 @@ test("it accepts an id parameter when using start factory", () => {
 test("it starts at UNTAP step when using start factory", () => {
   const player1 = new Player("Player 1")
   const player2 = new Player("Player 2")
-  const game = Game.start(uuidv4(), [player1, player2], player1.id)
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
 
   expect(game.currentStep).toBe("UNTAP")
 })
@@ -41,7 +49,11 @@ test("it starts at UNTAP step when using start factory", () => {
 test("it sets the starting player correctly", () => {
   const player1 = new Player("Player 1")
   const player2 = new Player("Player 2")
-  const game = Game.start(uuidv4(), [player1, player2], player2.id)
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player2.id,
+  })
 
   expect(game.currentPlayerId).toBe(player2.id)
 })
@@ -49,7 +61,11 @@ test("it sets the starting player correctly", () => {
 test("it stores player instances", () => {
   const player1 = new Player("Player 1")
   const player2 = new Player("Player 2")
-  const game = Game.start(uuidv4(), [player1, player2], player1.id)
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
 
   expect(game.players[0]).toBe(player1)
   expect(game.players[1]).toBe(player2)
@@ -60,7 +76,11 @@ test("it stores player instances", () => {
 test("it can apply AdvanceStep action", () => {
   const player1 = new Player("Player 1")
   const player2 = new Player("Player 2")
-  const game = Game.start(uuidv4(), [player1, player2], player1.id)
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
 
   game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
 
@@ -70,7 +90,11 @@ test("it can apply AdvanceStep action", () => {
 test("it throws error when non-current player tries to advance step", () => {
   const player1 = new Player("Player 1")
   const player2 = new Player("Player 2")
-  const game = Game.start(uuidv4(), [player1, player2], player1.id)
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
 
   expect(() => {
     game.apply({ type: "ADVANCE_STEP", playerId: player2.id })
@@ -80,7 +104,11 @@ test("it throws error when non-current player tries to advance step", () => {
 test("it advances to next player when completing a turn", () => {
   const player1 = new Player("Player 1")
   const player2 = new Player("Player 2")
-  const game = Game.start(uuidv4(), [player1, player2], player1.id)
+  const game = Game.start({
+    id: uuidv4(),
+    players: [player1, player2],
+    startingPlayerId: player1.id,
+  })
 
   // Advance through all steps to complete player1's turn
   const steps = [
@@ -111,7 +139,11 @@ test("it validates starting player is in player list", () => {
   const player2 = new Player("Player 2")
 
   expect(() => {
-    Game.start(uuidv4(), [player1, player2], "invalid-id")
+    Game.start({
+      id: uuidv4(),
+      players: [player1, player2],
+      startingPlayerId: "invalid-id",
+    })
   }).toThrow(InvalidStartingPlayerError)
 })
 
@@ -119,6 +151,10 @@ test("it requires at least 2 players", () => {
   const player1 = new Player("Player 1")
 
   expect(() => {
-    Game.start(uuidv4(), [player1], player1.id)
+    Game.start({
+      id: uuidv4(),
+      players: [player1],
+      startingPlayerId: player1.id,
+    })
   }).toThrow(InvalidPlayerCountError)
 })

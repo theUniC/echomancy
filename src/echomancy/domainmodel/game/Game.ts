@@ -13,6 +13,12 @@ type AdvanceStep = { type: "ADVANCE_STEP"; playerId: string }
 
 type Actions = AdvanceStep
 
+type GameParams = {
+  id: string
+  players: Player[]
+  startingPlayerId: string
+}
+
 export class Game {
   constructor(
     public readonly id: string,
@@ -21,7 +27,7 @@ export class Game {
     public currentStep: GameSteps,
   ) {}
 
-  static start(id: string, players: Player[], startingPlayerId: string): Game {
+  static start({ id, players, startingPlayerId }: GameParams): Game {
     if (players.length < 2) {
       throw new InvalidPlayerCountError(players.length)
     }
