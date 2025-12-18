@@ -36,3 +36,15 @@ export class InvalidEndTurnError extends GameError {
     super("Cannot end turn from CLEANUP step")
   }
 }
+
+export class InvalidPlayLandStepError extends GameError {
+  constructor() {
+    super("Can only play lands during main phases")
+  }
+}
+
+export class LandLimitExceededError extends GameError {
+  constructor() {
+    super("Cannot play more than one land per turn")
+  }
+}

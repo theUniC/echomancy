@@ -4,7 +4,7 @@ const STEP_ORDER: GameSteps[] = [
   Step.UNTAP,
   Step.UPKEEP,
   Step.DRAW,
-  Step.MAIN1,
+  Step.FIRST_MAIN,
   Step.BEGINNING_OF_COMBAT,
   Step.DECLARE_ATTACKERS,
   Step.DECLARE_BLOCKERS,

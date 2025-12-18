@@ -6,16 +6,19 @@ import {
   InvalidPlayerActionError,
   PlayerNotFoundError,
   InvalidEndTurnError,
+  InvalidPlayLandStepError,
+  LandLimitExceededError,
 } from "./GameErrors"
 import { advance } from "./StepMachine"
 import { Step, type GameSteps } from "./Steps"
 
 type AdvanceStep = { type: "ADVANCE_STEP"; playerId: string }
 type EndTurn = { type: "END_TURN"; playerId: string }
+type PlayLand = { type: "PLAY_LAND"; playerId: string; cardId: string }
 
-type Actions = AdvanceStep | EndTurn
+type Actions = AdvanceStep | EndTurn | PlayLand
 
-export type AllowedAction = "ADVANCE_STEP" | "END_TURN"
+export type AllowedAction = "ADVANCE_STEP" | "END_TURN" | "PLAY_LAND"
 
 type GameParams = {
   id: string
@@ -24,13 +27,17 @@ type GameParams = {
 }
 
 export class Game {
+  private playedLands: number
+
   constructor(
     public readonly id: string,
     private readonly playersById: Map<string, Player>,
     private readonly turnOrder: string[],
     public currentPlayerId: string,
     public currentStep: GameSteps,
-  ) {}
+  ) {
+    this.playedLands = 0
+  }
 
   static start({ id, players, startingPlayerId }: GameParams): Game {
     Game.assertMoreThanOnePlayer(players)
@@ -49,6 +56,10 @@ export class Game {
       )
       .with({ type: "END_TURN", playerId: P.string }, (action) =>
         this.endTurn(action),
+      )
+      .with(
+        { type: "PLAY_LAND", playerId: P.string, cardId: P.string },
+        (action) => this.playLand(action),
       )
       .exhaustive()
   }
@@ -78,7 +89,17 @@ export class Game {
       return []
     }
 
-    return ["ADVANCE_STEP", "END_TURN"]
+    const actions: AllowedAction[] = ["ADVANCE_STEP", "END_TURN"]
+
+    if (
+      this.playedLands === 0 &&
+      (this.currentStep === Step.FIRST_MAIN ||
+        this.currentStep === Step.SECOND_MAIN)
+    ) {
+      actions.push("PLAY_LAND")
+    }
+
+    return actions
   }
 
   private advanceStep(action: AdvanceStep): void {
@@ -99,6 +120,23 @@ export class Game {
 
     // Advance once more from CLEANUP to move to the next player
     this.performStepAdvance()
+  }
+
+  private playLand(action: PlayLand): void {
+    this.assertIsCurrentPlayer(action.playerId, "PLAY_LAND")
+
+    if (
+      this.currentStep !== Step.FIRST_MAIN &&
+      this.currentStep !== Step.SECOND_MAIN
+    ) {
+      throw new InvalidPlayLandStepError()
+    }
+
+    if (this.playedLands > 0) {
+      throw new LandLimitExceededError()
+    }
+
+    this.playedLands += 1
   }
 
   private performStepAdvance(): void {
@@ -124,6 +162,7 @@ export class Game {
 
     const nextIndex = (currentIndex + 1) % this.turnOrder.length
     this.currentPlayerId = this.turnOrder[nextIndex]
+    this.playedLands = 0
   }
 
   private static assertStartingPlayerExists(
