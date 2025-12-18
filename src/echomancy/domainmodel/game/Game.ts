@@ -28,16 +28,26 @@ export class Game {
   ) {}
 
   static start({ id, players, startingPlayerId }: GameParams): Game {
-    if (players.length < 2) {
-      throw new InvalidPlayerCountError(players.length)
-    }
+    Game.assertMoreThanOnePlayer(players)
+    Game.assertStartingPlayerExists(players, startingPlayerId)
 
+    return new Game(id, players, startingPlayerId, Step.UNTAP)
+  }
+
+  private static assertStartingPlayerExists(
+    players: Player[],
+    startingPlayerId: string,
+  ) {
     const playerIds = players.map((p) => p.id)
     if (!playerIds.includes(startingPlayerId)) {
       throw new InvalidStartingPlayerError(startingPlayerId)
     }
+  }
 
-    return new Game(id, players, startingPlayerId, Step.UNTAP)
+  private static assertMoreThanOnePlayer(players: Player[]) {
+    if (players.length < 2) {
+      throw new InvalidPlayerCountError(players.length)
+    }
   }
 
   apply(action: Actions): void {
