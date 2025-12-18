@@ -2,7 +2,6 @@ import { expect, test } from "vitest"
 import { validate as isValidUUID } from "uuid"
 import { Game } from "./Game"
 import { Player } from "./Player"
-import { AdvanceStep } from "./actions/AdvanceStep"
 import {
   InvalidPlayerCountError,
   InvalidStartingPlayerError,
@@ -87,7 +86,7 @@ test("it advances to next player when completing a turn", () => {
     "UPKEEP",
     "DRAW",
     "MAIN1",
-    "BEGINING_OF_COMBAT",
+    "BEGINNING_OF_COMBAT",
     "DECLARE_ATTACKERS",
     "DECLARE_BLOCKERS",
     "COMBAT_DAMAGE",
