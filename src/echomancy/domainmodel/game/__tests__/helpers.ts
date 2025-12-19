@@ -24,3 +24,29 @@ export function advanceToStep(game: Game, targetStep: GameSteps): void {
     game.apply({ type: "ADVANCE_STEP", playerId: game.currentPlayerId })
   }
 }
+
+export function createTestSpell(ownerId: string) {
+  return {
+    instanceId: "test-spell-instance",
+    definition: {
+      id: "test-spell",
+      name: "Test Spell",
+      type: "SPELL" as const,
+    },
+    ownerId,
+  }
+}
+
+export function castSpellInMainPhase(game: Game, playerId: string) {
+  const playerState = game.getPlayerState(playerId)
+  const spellCard = createTestSpell(playerId)
+  playerState.hand.cards.push(spellCard)
+
+  game.apply({
+    type: "CAST_SPELL",
+    playerId,
+    cardId: spellCard.instanceId,
+  })
+
+  return spellCard
+}

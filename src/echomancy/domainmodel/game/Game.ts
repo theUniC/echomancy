@@ -23,14 +23,16 @@ type AdvanceStep = { type: "ADVANCE_STEP"; playerId: string }
 type EndTurn = { type: "END_TURN"; playerId: string }
 type PlayLand = { type: "PLAY_LAND"; playerId: string; cardId: string }
 type CastSpell = { type: "CAST_SPELL"; playerId: string; cardId: string }
+type PassPriority = { type: "PASS_PRIORITY"; playerId: string }
 
-type Actions = AdvanceStep | EndTurn | PlayLand | CastSpell
+type Actions = AdvanceStep | EndTurn | PlayLand | CastSpell | PassPriority
 
 export type AllowedAction =
   | "ADVANCE_STEP"
   | "END_TURN"
   | "PLAY_LAND"
   | "CAST_SPELL"
+  | "PASS_PRIORITY"
 
 export type SpellOnStack = {
   card: CardInstance
@@ -51,6 +53,8 @@ export class Game {
   private playedLands: number
   private playerStates: Map<string, PlayerState>
   private stack: Stack
+  private priorityPlayerId: string | null
+  private hasPassedPriority: Set<string>
 
   constructor(
     public readonly id: string,
@@ -63,6 +67,8 @@ export class Game {
     this.playedLands = 0
     this.playerStates = playerStates
     this.stack = { spells: [] }
+    this.priorityPlayerId = null
+    this.hasPassedPriority = new Set()
   }
 
   static start({ id, players, startingPlayerId }: GameParams): Game {
@@ -93,12 +99,13 @@ export class Game {
           {
             hand: { cards: [dummyLandInstance] },
             battlefield: { cards: [] },
+            graveyard: { cards: [] },
           },
         ]
       }),
     )
 
-    return new Game(
+    const game = new Game(
       id,
       playersById,
       turnOrder,
@@ -106,6 +113,8 @@ export class Game {
       Step.UNTAP,
       playerStates,
     )
+    game.priorityPlayerId = startingPlayerId
+    return game
   }
 
   apply(action: Actions): void {
@@ -123,6 +132,9 @@ export class Game {
       .with(
         { type: "CAST_SPELL", playerId: P.string, cardId: P.string },
         (action) => this.castSpell(action),
+      )
+      .with({ type: "PASS_PRIORITY", playerId: P.string }, (action) =>
+        this.passPriority(action),
       )
       .exhaustive()
   }
@@ -147,6 +159,11 @@ export class Game {
     return [...this.stack.spells]
   }
 
+  getGraveyard(playerId: string): readonly CardInstance[] {
+    const playerState = this.getPlayerState(playerId)
+    return [...playerState.graveyard.cards]
+  }
+
   hasPlayer(playerId: string): boolean {
     return this.playersById.has(playerId)
   }
@@ -166,16 +183,16 @@ export class Game {
 
     const actions: AllowedAction[] = ["ADVANCE_STEP", "END_TURN"]
 
-    const isMainPhase =
-      this.currentStep === Step.FIRST_MAIN ||
-      this.currentStep === Step.SECOND_MAIN
-
-    if (this.playedLands === 0 && isMainPhase) {
+    if (this.playedLands === 0 && this.isMainPhase()) {
       actions.push("PLAY_LAND")
     }
 
-    if (isMainPhase && this.playerHasSpellInHand(playerId)) {
+    if (this.isMainPhase() && this.playerHasSpellInHand(playerId)) {
       actions.push("CAST_SPELL")
+    }
+
+    if (this.priorityPlayerId === playerId && this.stack.spells.length > 0) {
+      actions.push("PASS_PRIORITY")
     }
 
     return actions
@@ -203,13 +220,7 @@ export class Game {
 
   private playLand(action: PlayLand): void {
     this.assertIsCurrentPlayer(action.playerId, "PLAY_LAND")
-
-    if (
-      this.currentStep !== Step.FIRST_MAIN &&
-      this.currentStep !== Step.SECOND_MAIN
-    ) {
-      throw new InvalidPlayLandStepError()
-    }
+    this.assertIsMainPhase()
 
     if (this.playedLands > 0) {
       throw new LandLimitExceededError()
@@ -280,10 +291,7 @@ export class Game {
   private castSpell(action: CastSpell): void {
     this.assertIsCurrentPlayer(action.playerId, "CAST_SPELL")
 
-    if (
-      this.currentStep !== Step.FIRST_MAIN &&
-      this.currentStep !== Step.SECOND_MAIN
-    ) {
+    if (!this.isMainPhase()) {
       throw new InvalidCastSpellStepError()
     }
 
@@ -315,6 +323,62 @@ export class Game {
     return playerState.hand.cards.some(
       (card) => card.definition.type === "SPELL",
     )
+  }
+
+  private isMainPhase(): boolean {
+    return (
+      this.currentStep === Step.FIRST_MAIN ||
+      this.currentStep === Step.SECOND_MAIN
+    )
+  }
+
+  private assertIsMainPhase(): void {
+    if (!this.isMainPhase()) {
+      throw new InvalidPlayLandStepError()
+    }
+  }
+
+  private passPriority(action: PassPriority): void {
+    // Only the player with priority can pass
+    if (action.playerId !== this.priorityPlayerId) {
+      throw new InvalidPlayerActionError(action.playerId, "PASS_PRIORITY")
+    }
+
+    // Register that the player has passed
+    this.hasPassedPriority.add(action.playerId)
+
+    // Change priority to the other player
+    const otherPlayerId = this.turnOrder.find((id) => id !== action.playerId)
+    if (!otherPlayerId) {
+      throw new PlayerNotFoundError(action.playerId)
+    }
+    this.priorityPlayerId = otherPlayerId
+
+    // Detect double pass (both players have passed)
+    if (this.hasPassedPriority.size === this.turnOrder.length) {
+      this.resolveTopOfStack()
+    }
+  }
+
+  private resolveTopOfStack(): void {
+    // If stack is empty, do nothing
+    if (this.stack.spells.length === 0) {
+      return
+    }
+
+    // Extract the top spell (LIFO)
+    const spell = this.stack.spells.pop()
+    if (!spell) {
+      return
+    }
+
+    // Apply dummy effect: move card to controller's graveyard
+    const controllerState = this.getPlayerState(spell.controllerId)
+    controllerState.graveyard.cards.push(spell.card)
+
+    // Clear priority state
+    this.hasPassedPriority.clear()
+    this.priorityPlayerId = this.currentPlayerId
   }
 
   private static assertStartingPlayerExists(
