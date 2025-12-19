@@ -1,13 +1,13 @@
 import { expect, test } from "vitest"
-import type { CardInstance } from "../cards/CardInstance"
-import { advanceToStep, createStartedGame } from "./__tests__/helpers"
+import type { CardInstance } from "../../cards/CardInstance"
+import { advanceToStep, createStartedGame } from "./helpers"
 import {
   CardIsNotSpellError,
   CardNotFoundInHandError,
   InvalidCastSpellStepError,
   InvalidPlayerActionError,
-} from "./GameErrors"
-import { Step } from "./Steps"
+} from "../GameErrors"
+import { Step } from "../Steps"
 
 test("it moves a spell card from hand to stack when casting a spell", () => {
   const { game, player1 } = createStartedGame()

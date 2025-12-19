@@ -3,9 +3,9 @@ import {
   advanceToStep,
   castSpellInMainPhase,
   createStartedGame,
-} from "./__tests__/helpers"
-import { InvalidPlayerActionError } from "./GameErrors"
-import { Step } from "./Steps"
+} from "./helpers"
+import { InvalidPlayerActionError } from "../GameErrors"
+import { Step } from "../Steps"
 
 test("it allows PASS_PRIORITY only when there is a spell on the stack", () => {
   const { game, player1 } = createStartedGame()
