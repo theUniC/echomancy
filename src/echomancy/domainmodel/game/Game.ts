@@ -63,6 +63,7 @@ export class Game {
   private priorityPlayerId: string | null
   private hasPassedPriority: Set<string>
   private scheduledSteps: GameSteps[]
+  private resumeStepAfterScheduled?: GameSteps
 
   constructor(
     public readonly id: string,
@@ -78,6 +79,7 @@ export class Game {
     this.priorityPlayerId = null
     this.hasPassedPriority = new Set()
     this.scheduledSteps = []
+    this.resumeStepAfterScheduled = undefined
   }
 
   static start({ id, players, startingPlayerId }: GameParams): Game {
@@ -182,6 +184,21 @@ export class Game {
   }
 
   addScheduledSteps(steps: GameSteps[]): void {
+    if (this.scheduledSteps.length === 0) {
+      // Calcular el punto de reanudación: el siguiente paso en el flujo normal
+      // que NO esté en las fases extra insertadas
+      const insertedSteps = new Set(steps)
+      let tempStep = this.currentStep
+
+      // Avanzar hasta encontrar un step que no esté en las fases insertadas
+      do {
+        const { nextStep } = advance(tempStep)
+        tempStep = nextStep
+      } while (insertedSteps.has(tempStep))
+
+      this.resumeStepAfterScheduled = tempStep
+    }
+
     this.scheduledSteps.push(...steps)
   }
 
@@ -322,7 +339,15 @@ export class Game {
       return
     }
 
-    // 2. Flujo normal
+    // 2. Si no hay fases extra pendientes pero hay un punto de reanudación,
+    //    saltar directamente ahí sin usar advance()
+    if (this.resumeStepAfterScheduled) {
+      this.currentStep = this.resumeStepAfterScheduled
+      this.resumeStepAfterScheduled = undefined
+      return
+    }
+
+    // 3. Flujo normal
     const { nextStep, shouldAdvancePlayer } = advance(this.currentStep)
     this.currentStep = nextStep
 
