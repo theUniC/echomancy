@@ -3,7 +3,9 @@ import type { CardDefinition } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import {
   CardIsNotLandError,
+  CardIsNotSpellError,
   CardNotFoundInHandError,
+  InvalidCastSpellStepError,
   InvalidEndTurnError,
   InvalidPlayerActionError,
   InvalidPlayerCountError,
@@ -20,10 +22,24 @@ import { type GameSteps, Step } from "./Steps"
 type AdvanceStep = { type: "ADVANCE_STEP"; playerId: string }
 type EndTurn = { type: "END_TURN"; playerId: string }
 type PlayLand = { type: "PLAY_LAND"; playerId: string; cardId: string }
+type CastSpell = { type: "CAST_SPELL"; playerId: string; cardId: string }
 
-type Actions = AdvanceStep | EndTurn | PlayLand
+type Actions = AdvanceStep | EndTurn | PlayLand | CastSpell
 
-export type AllowedAction = "ADVANCE_STEP" | "END_TURN" | "PLAY_LAND"
+export type AllowedAction =
+  | "ADVANCE_STEP"
+  | "END_TURN"
+  | "PLAY_LAND"
+  | "CAST_SPELL"
+
+export type SpellOnStack = {
+  card: CardInstance
+  controllerId: string
+}
+
+type Stack = {
+  spells: SpellOnStack[]
+}
 
 type GameParams = {
   id: string
@@ -34,6 +50,7 @@ type GameParams = {
 export class Game {
   private playedLands: number
   private playerStates: Map<string, PlayerState>
+  private stack: Stack
 
   constructor(
     public readonly id: string,
@@ -45,6 +62,7 @@ export class Game {
   ) {
     this.playedLands = 0
     this.playerStates = playerStates
+    this.stack = { spells: [] }
   }
 
   static start({ id, players, startingPlayerId }: GameParams): Game {
@@ -102,6 +120,10 @@ export class Game {
         { type: "PLAY_LAND", playerId: P.string, cardId: P.string },
         (action) => this.playLand(action),
       )
+      .with(
+        { type: "CAST_SPELL", playerId: P.string, cardId: P.string },
+        (action) => this.castSpell(action),
+      )
       .exhaustive()
   }
 
@@ -119,6 +141,10 @@ export class Game {
       throw new PlayerNotFoundError(playerId)
     }
     return playerState
+  }
+
+  getStack(): readonly SpellOnStack[] {
+    return [...this.stack.spells]
   }
 
   hasPlayer(playerId: string): boolean {
@@ -140,12 +166,16 @@ export class Game {
 
     const actions: AllowedAction[] = ["ADVANCE_STEP", "END_TURN"]
 
-    if (
-      this.playedLands === 0 &&
-      (this.currentStep === Step.FIRST_MAIN ||
-        this.currentStep === Step.SECOND_MAIN)
-    ) {
+    const isMainPhase =
+      this.currentStep === Step.FIRST_MAIN ||
+      this.currentStep === Step.SECOND_MAIN
+
+    if (this.playedLands === 0 && isMainPhase) {
       actions.push("PLAY_LAND")
+    }
+
+    if (isMainPhase && this.playerHasSpellInHand(playerId)) {
+      actions.push("CAST_SPELL")
     }
 
     return actions
@@ -185,23 +215,13 @@ export class Game {
       throw new LandLimitExceededError()
     }
 
-    const playerState = this.playerStates.get(action.playerId)
-    if (!playerState) {
-      throw new PlayerNotFoundError(action.playerId)
-    }
-
-    // Find card in hand
-    const cardIndex = playerState.hand.cards.findIndex(
-      (card) => card.instanceId === action.cardId,
+    const playerState = this.getPlayerState(action.playerId)
+    const { card, cardIndex } = this.findCardInHandByInstanceId(
+      playerState,
+      action.cardId,
+      action.playerId,
     )
 
-    if (cardIndex === -1) {
-      throw new CardNotFoundInHandError(action.cardId, action.playerId)
-    }
-
-    const card = playerState.hand.cards[cardIndex]
-
-    // Verify it's a land
     if (card.definition.type !== "LAND") {
       throw new CardIsNotLandError(action.cardId)
     }
@@ -237,6 +257,64 @@ export class Game {
     const nextIndex = (currentIndex + 1) % this.turnOrder.length
     this.currentPlayerId = this.turnOrder[nextIndex]
     this.playedLands = 0
+  }
+
+  private findCardInHandByInstanceId(
+    playerState: PlayerState,
+    cardId: string,
+    playerId: string,
+  ): { card: CardInstance; cardIndex: number } {
+    const cardIndex = playerState.hand.cards.findIndex(
+      (card) => card.instanceId === cardId,
+    )
+
+    if (cardIndex === -1) {
+      throw new CardNotFoundInHandError(cardId, playerId)
+    }
+
+    const card = playerState.hand.cards[cardIndex]
+
+    return { card, cardIndex }
+  }
+
+  private castSpell(action: CastSpell): void {
+    this.assertIsCurrentPlayer(action.playerId, "CAST_SPELL")
+
+    if (
+      this.currentStep !== Step.FIRST_MAIN &&
+      this.currentStep !== Step.SECOND_MAIN
+    ) {
+      throw new InvalidCastSpellStepError()
+    }
+
+    const playerState = this.getPlayerState(action.playerId)
+    const { card, cardIndex } = this.findCardInHandByInstanceId(
+      playerState,
+      action.cardId,
+      action.playerId,
+    )
+
+    if (card.definition.type !== "SPELL") {
+      throw new CardIsNotSpellError(action.cardId)
+    }
+
+    // Move card from hand to stack
+    playerState.hand.cards.splice(cardIndex, 1)
+    this.stack.spells.push({
+      card,
+      controllerId: action.playerId,
+    })
+  }
+
+  private playerHasSpellInHand(playerId: string): boolean {
+    const playerState = this.getPlayerState(playerId)
+    if (!playerState) {
+      return false
+    }
+
+    return playerState.hand.cards.some(
+      (card) => card.definition.type === "SPELL",
+    )
   }
 
   private static assertStartingPlayerExists(

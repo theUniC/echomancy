@@ -60,3 +60,15 @@ export class CardIsNotLandError extends GameError {
     super(`Card '${cardId}' is not a land`)
   }
 }
+
+export class InvalidCastSpellStepError extends GameError {
+  constructor() {
+    super("Can only cast spells during main phases")
+  }
+}
+
+export class CardIsNotSpellError extends GameError {
+  constructor(cardId: string) {
+    super(`Card '${cardId}' is not a spell`)
+  }
+}
