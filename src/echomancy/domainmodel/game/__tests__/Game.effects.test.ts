@@ -35,6 +35,7 @@ test("it executes effect when resolving spell from stack", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   expect(effectExecuted).toBe(false)
@@ -72,6 +73,7 @@ test("it resolves spell without effect (no crash)", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   game.apply({
@@ -110,6 +112,7 @@ test("it executes NoOpEffect without crashing", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   game.apply({
@@ -159,6 +162,7 @@ test("effect receives correct game and source card", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   game.apply({
@@ -207,6 +211,7 @@ test("effect is executed before card moves to graveyard", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   game.apply({

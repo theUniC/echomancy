@@ -24,6 +24,7 @@ test("it moves a spell card from hand to stack when casting a spell", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   const stateAfter = game.getPlayerState(player1.id)
@@ -45,6 +46,7 @@ test("it pushes the same card instance onto the stack", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   const stack = game.getStack()
@@ -65,6 +67,7 @@ test("it throws error when trying to cast spell outside main phases", () => {
       type: "CAST_SPELL",
       playerId: player1.id,
       cardId: spellCard.instanceId,
+      targets: [],
     })
   }).toThrow(InvalidCastSpellStepError)
 })
@@ -81,6 +84,7 @@ test("it throws error when non-current player tries to cast spell", () => {
       type: "CAST_SPELL",
       playerId: player2.id,
       cardId: spellCard.instanceId,
+      targets: [],
     })
   }).toThrow(InvalidPlayerActionError)
 })
@@ -94,6 +98,7 @@ test("it throws error when trying to cast a card that is not in hand", () => {
       type: "CAST_SPELL",
       playerId: player1.id,
       cardId: "non-existent-card",
+      targets: [],
     })
   }).toThrow(CardNotFoundInHandError)
 })
@@ -107,6 +112,7 @@ test("it throws error when trying to cast a non-spell card", () => {
       type: "CAST_SPELL",
       playerId: player1.id,
       cardId: dummyLandInstanceId,
+      targets: [],
     })
   }).toThrow(CardIsNotSpellError)
 })
@@ -144,6 +150,7 @@ test("it allows casting spell in second main phase", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   const stateAfter = game.getPlayerState(player1.id)

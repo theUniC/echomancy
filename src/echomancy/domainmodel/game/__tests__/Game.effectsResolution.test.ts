@@ -28,6 +28,7 @@ test("it resolves a spell with NoOpEffect and moves it to graveyard", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   expect(game.getStack()).toHaveLength(1)
@@ -92,6 +93,7 @@ test("it executes the effect before moving the spell to graveyard", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   game.apply({
@@ -133,6 +135,7 @@ test("it resolves a spell without effect without throwing", () => {
       type: "CAST_SPELL",
       playerId: player1.id,
       cardId: spellCard.instanceId,
+      targets: [],
     })
 
     game.apply({
@@ -184,6 +187,7 @@ test("it resets priority to current player after resolving an effect", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard1.instanceId,
+    targets: [],
   })
 
   game.apply({
@@ -236,12 +240,14 @@ test("it does not allow effects to resolve additional spells implicitly", () => 
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spellCard1.instanceId,
+    targets: [],
   })
 
   game.apply({
     type: "CAST_SPELL",
     playerId: player2.id,
     cardId: spellCard2.instanceId,
+    targets: [],
   })
 
   const stackBefore = game.getStack()

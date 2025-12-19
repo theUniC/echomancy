@@ -73,6 +73,7 @@ export function castSpellInMainPhase(game: Game, playerId: string) {
     type: "CAST_SPELL",
     playerId,
     cardId: spellCard.instanceId,
+    targets: [],
   })
 
   return spellCard

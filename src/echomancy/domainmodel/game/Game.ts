@@ -1,6 +1,7 @@
 import { match, P } from "ts-pattern"
 import type { CardDefinition } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
+import type { Target } from "../targets/Target"
 import {
   CardIsNotLandError,
   CardIsNotSpellError,
@@ -22,7 +23,12 @@ import { type GameSteps, Step } from "./Steps"
 type AdvanceStep = { type: "ADVANCE_STEP"; playerId: string }
 type EndTurn = { type: "END_TURN"; playerId: string }
 type PlayLand = { type: "PLAY_LAND"; playerId: string; cardId: string }
-type CastSpell = { type: "CAST_SPELL"; playerId: string; cardId: string }
+type CastSpell = {
+  type: "CAST_SPELL"
+  playerId: string
+  cardId: string
+  targets: Target[]
+}
 type PassPriority = { type: "PASS_PRIORITY"; playerId: string }
 
 type Actions = AdvanceStep | EndTurn | PlayLand | CastSpell | PassPriority
@@ -37,6 +43,7 @@ export type AllowedAction =
 export type SpellOnStack = {
   card: CardInstance
   controllerId: string
+  targets: Target[]
 }
 
 type Stack = {
@@ -254,6 +261,15 @@ export class Game {
       throw new InvalidCastSpellStepError()
     }
 
+    // Validate targets
+    for (const target of action.targets) {
+      if (target.kind === "PLAYER") {
+        if (!this.hasPlayer(target.playerId)) {
+          throw new InvalidPlayerActionError(action.playerId, "CAST_SPELL")
+        }
+      }
+    }
+
     const playerState = this.getPlayerState(action.playerId)
     const { card, cardIndex } = this.findCardInHandByInstanceId(
       playerState,
@@ -269,6 +285,7 @@ export class Game {
     this.stack.spells.push({
       card,
       controllerId: action.playerId,
+      targets: action.targets,
     })
 
     this.givePriorityToOpponentOf(action.playerId)
@@ -329,6 +346,7 @@ export class Game {
       effect.resolve(this, {
         source: spell.card,
         controllerId: spell.controllerId,
+        targets: spell.targets,
       })
     }
 

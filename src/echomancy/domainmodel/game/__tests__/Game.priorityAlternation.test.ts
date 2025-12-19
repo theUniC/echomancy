@@ -20,6 +20,7 @@ test("opponent can respond to a spell with CAST_SPELL", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spell1.instanceId,
+    targets: [],
   })
 
   let stack = game.getStack()
@@ -36,6 +37,7 @@ test("opponent can respond to a spell with CAST_SPELL", () => {
     type: "CAST_SPELL",
     playerId: player2.id,
     cardId: spell2.instanceId,
+    targets: [],
   })
 
   stack = game.getStack()
@@ -63,12 +65,14 @@ test("stack resolves in LIFO order after both players pass", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spell1.instanceId,
+    targets: [],
   })
 
   game.apply({
     type: "CAST_SPELL",
     playerId: player2.id,
     cardId: spell2.instanceId,
+    targets: [],
   })
 
   game.apply({
@@ -105,6 +109,7 @@ test("priority alternates correctly through multiple responses", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spell1.instanceId,
+    targets: [],
   })
 
   expect(game.getAllowedActionsFor(player2.id)).toContain("CAST_SPELL")
@@ -114,6 +119,7 @@ test("priority alternates correctly through multiple responses", () => {
     type: "CAST_SPELL",
     playerId: player2.id,
     cardId: spell2.instanceId,
+    targets: [],
   })
 
   expect(game.getAllowedActionsFor(player1.id)).toContain("CAST_SPELL")
@@ -123,6 +129,7 @@ test("priority alternates correctly through multiple responses", () => {
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spell3.instanceId,
+    targets: [],
   })
 
   expect(game.getAllowedActionsFor(player2.id)).toContain("PASS_PRIORITY")
@@ -143,6 +150,7 @@ test("PLAY_LAND is only available to current player even when opponent has prior
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: spell1.instanceId,
+    targets: [],
   })
 
   const actionsPlayer2 = game.getAllowedActionsFor(player2.id)
