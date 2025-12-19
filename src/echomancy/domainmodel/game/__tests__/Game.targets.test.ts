@@ -159,9 +159,13 @@ test("it passes targets to the effect through EffectContext", () => {
 
   expect(receivedTargets).not.toBeNull()
   expect(receivedTargets).toHaveLength(1)
-  if (receivedTargets) {
-    expect(receivedTargets[0].kind).toBe("PLAYER")
-    expect(receivedTargets[0].playerId).toBe(player2.id)
+
+  // TypeScript narrowing: we know it's not null after the assertions above
+  const targets = receivedTargets as unknown as Target[]
+  const firstTarget = targets[0]
+  expect(firstTarget.kind).toBe("PLAYER")
+  if (firstTarget.kind === "PLAYER") {
+    expect(firstTarget.playerId).toBe(player2.id)
   }
 })
 
