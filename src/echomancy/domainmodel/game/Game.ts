@@ -62,6 +62,7 @@ export class Game {
   private stack: Stack
   private priorityPlayerId: string | null
   private hasPassedPriority: Set<string>
+  private scheduledSteps: GameSteps[]
 
   constructor(
     public readonly id: string,
@@ -76,6 +77,7 @@ export class Game {
     this.stack = { spells: [] }
     this.priorityPlayerId = null
     this.hasPassedPriority = new Set()
+    this.scheduledSteps = []
   }
 
   static start({ id, players, startingPlayerId }: GameParams): Game {
@@ -177,6 +179,10 @@ export class Game {
 
   getPlayersInTurnOrder(): readonly string[] {
     return [...this.turnOrder]
+  }
+
+  addScheduledSteps(steps: GameSteps[]): void {
+    this.scheduledSteps.push(...steps)
   }
 
   getAllowedActionsFor(playerId: string): AllowedAction[] {
@@ -307,6 +313,16 @@ export class Game {
   // Domain logic (mid-level)
 
   private performStepAdvance(): void {
+    // 1. Consumir fases programadas primero
+    if (this.scheduledSteps.length > 0) {
+      const nextScheduledStep = this.scheduledSteps.shift()
+      if (nextScheduledStep) {
+        this.currentStep = nextScheduledStep
+      }
+      return
+    }
+
+    // 2. Flujo normal
     const { nextStep, shouldAdvancePlayer } = advance(this.currentStep)
     this.currentStep = nextStep
 

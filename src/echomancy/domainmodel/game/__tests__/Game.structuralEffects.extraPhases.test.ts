@@ -8,16 +8,22 @@ import { addSpellToHand, advanceToStep, createStartedGame } from "./helpers"
 
 /**
  * Dummy test effect that inserts extra phases:
- * - COMBAT
+ * - COMBAT (all combat steps)
  * - FIRST_MAIN
  *
- * This effect defines WHAT should happen, not HOW it's implemented yet.
+ * This effect uses the scheduledSteps API to insert phases.
  */
 class ExtraMainAndCombatEffect implements Effect {
   resolve(game: Game, _context: EffectContext): void {
-    // TODO: Implementation will insert COMBAT and FIRST_MAIN phases
-    // For now, this is just a contract definition
-    game // placeholder to avoid unused parameter error
+    // Insert extra phases: COMBAT steps + FIRST_MAIN
+    game.addScheduledSteps([
+      Step.BEGINNING_OF_COMBAT,
+      Step.DECLARE_ATTACKERS,
+      Step.DECLARE_BLOCKERS,
+      Step.COMBAT_DAMAGE,
+      Step.END_OF_COMBAT,
+      Step.FIRST_MAIN,
+    ])
   }
 }
 
