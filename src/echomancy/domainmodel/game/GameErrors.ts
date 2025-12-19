@@ -72,3 +72,9 @@ export class CardIsNotSpellError extends GameError {
     super(`Card '${cardId}' is not a spell`)
   }
 }
+
+export class InvalidEffectTargetError extends GameError {
+  constructor(effectName: string, reason: string) {
+    super(`Effect '${effectName}' failed: ${reason}`)
+  }
+}
