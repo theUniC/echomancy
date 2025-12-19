@@ -1,6 +1,5 @@
 import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
-import { advanceToStep, createStartedGame } from "./helpers"
 import {
   CardIsNotSpellError,
   CardNotFoundInHandError,
@@ -8,22 +7,19 @@ import {
   InvalidPlayerActionError,
 } from "../GameErrors"
 import { Step } from "../Steps"
+import {
+  addSpellToHand,
+  advanceToStep,
+  createStartedGame,
+  createTestSpell,
+} from "./helpers"
 
 test("it moves a spell card from hand to stack when casting a spell", () => {
   const { game, player1 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  const playerState = game.getPlayerState(player1.id)
-  const spellCard: CardInstance = {
-    instanceId: "test-spell-instance",
-    definition: {
-      id: "test-spell",
-      name: "Test Spell",
-      type: "SPELL",
-    },
-    ownerId: player1.id,
-  }
-  playerState.hand.cards.push(spellCard)
+  const spellCard = createTestSpell(player1.id)
+  addSpellToHand(game, player1.id, spellCard)
 
   game.apply({
     type: "CAST_SPELL",
@@ -43,17 +39,8 @@ test("it pushes the same card instance onto the stack", () => {
   const { game, player1 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  const playerState = game.getPlayerState(player1.id)
-  const spellCard: CardInstance = {
-    instanceId: "test-spell-instance",
-    definition: {
-      id: "test-spell",
-      name: "Test Spell",
-      type: "SPELL",
-    },
-    ownerId: player1.id,
-  }
-  playerState.hand.cards.push(spellCard)
+  const spellCard = createTestSpell(player1.id)
+  addSpellToHand(game, player1.id, spellCard)
 
   game.apply({
     type: "CAST_SPELL",
@@ -71,18 +58,8 @@ test("it pushes the same card instance onto the stack", () => {
 test("it throws error when trying to cast spell outside main phases", () => {
   const { game, player1 } = createStartedGame()
 
-  // Add a spell card to hand
-  const playerState = game.getPlayerState(player1.id)
-  const spellCard: CardInstance = {
-    instanceId: "test-spell-instance",
-    definition: {
-      id: "test-spell",
-      name: "Test Spell",
-      type: "SPELL",
-    },
-    ownerId: player1.id,
-  }
-  playerState.hand.cards.push(spellCard)
+  const spellCard = createTestSpell(player1.id)
+  addSpellToHand(game, player1.id, spellCard)
 
   expect(() => {
     game.apply({
@@ -97,18 +74,8 @@ test("it throws error when non-current player tries to cast spell", () => {
   const { game, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  // Add a spell card to player2's hand
-  const playerState = game.getPlayerState(player2.id)
-  const spellCard: CardInstance = {
-    instanceId: "test-spell-instance",
-    definition: {
-      id: "test-spell",
-      name: "Test Spell",
-      type: "SPELL",
-    },
-    ownerId: player2.id,
-  }
-  playerState.hand.cards.push(spellCard)
+  const spellCard = createTestSpell(player2.id)
+  addSpellToHand(game, player2.id, spellCard)
 
   expect(() => {
     game.apply({
@@ -149,7 +116,6 @@ test("it does not show CAST_SPELL action if player has no spells in hand", () =>
   const { game, player1 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  // Player only has a land in hand (from createStartedGame)
   const actions = game.getAllowedActionsFor(player1.id)
   expect(actions).not.toContain("CAST_SPELL")
 })
@@ -158,18 +124,8 @@ test("it shows CAST_SPELL action when player has spell in hand during main phase
   const { game, player1 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  // Add a spell to hand
-  const playerState = game.getPlayerState(player1.id)
-  const spellCard: CardInstance = {
-    instanceId: "test-spell-instance",
-    definition: {
-      id: "test-spell",
-      name: "Test Spell",
-      type: "SPELL",
-    },
-    ownerId: player1.id,
-  }
-  playerState.hand.cards.push(spellCard)
+  const spellCard = createTestSpell(player1.id)
+  addSpellToHand(game, player1.id, spellCard)
 
   const actions = game.getAllowedActionsFor(player1.id)
   expect(actions).toContain("CAST_SPELL")
@@ -179,18 +135,8 @@ test("it allows casting spell in second main phase", () => {
   const { game, player1 } = createStartedGame()
   advanceToStep(game, Step.SECOND_MAIN)
 
-  // Add a spell to hand
-  const playerState = game.getPlayerState(player1.id)
-  const spellCard: CardInstance = {
-    instanceId: "test-spell-instance",
-    definition: {
-      id: "test-spell",
-      name: "Test Spell",
-      type: "SPELL",
-    },
-    ownerId: player1.id,
-  }
-  playerState.hand.cards.push(spellCard)
+  const spellCard = createTestSpell(player1.id)
+  addSpellToHand(game, player1.id, spellCard)
 
   const actions = game.getAllowedActionsFor(player1.id)
   expect(actions).toContain("CAST_SPELL")

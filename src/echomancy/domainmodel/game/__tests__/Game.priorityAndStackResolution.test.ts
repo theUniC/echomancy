@@ -1,14 +1,14 @@
 import { expect, test } from "vitest"
+import { InvalidPlayerActionError } from "../GameErrors"
+import { Step } from "../Steps"
 import {
   advanceToStep,
   castSpellInMainPhase,
   createStartedGame,
 } from "./helpers"
-import { InvalidPlayerActionError } from "../GameErrors"
-import { Step } from "../Steps"
 
 test("it allows PASS_PRIORITY only when there is a spell on the stack", () => {
-  const { game, player1 } = createStartedGame()
+  const { game, player1, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
   let actions = game.getAllowedActionsFor(player1.id)
@@ -16,19 +16,21 @@ test("it allows PASS_PRIORITY only when there is a spell on the stack", () => {
 
   castSpellInMainPhase(game, player1.id)
 
-  actions = game.getAllowedActionsFor(player1.id)
+  // After casting, priority passes to player2
+  actions = game.getAllowedActionsFor(player2.id)
   expect(actions).toContain("PASS_PRIORITY")
 })
 
 test("it does not resolve the stack after a single priority pass", () => {
-  const { game, player1 } = createStartedGame()
+  const { game, player1, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
   castSpellInMainPhase(game, player1.id)
 
+  // After casting, priority is with player2
   game.apply({
     type: "PASS_PRIORITY",
-    playerId: player1.id,
+    playerId: player2.id,
   })
 
   const stack = game.getStack()
@@ -44,14 +46,15 @@ test("it resolves the top of the stack after both players pass priority", () => 
 
   castSpellInMainPhase(game, player1.id)
 
+  // After casting, priority is with player2
   game.apply({
     type: "PASS_PRIORITY",
-    playerId: player1.id,
+    playerId: player2.id,
   })
 
   game.apply({
     type: "PASS_PRIORITY",
-    playerId: player2.id,
+    playerId: player1.id,
   })
 
   const stack = game.getStack()
@@ -70,14 +73,15 @@ test("it moves the same spell instance from stack to graveyard", () => {
 
   const spellCard = castSpellInMainPhase(game, player1.id)
 
+  // After casting, priority is with player2
   game.apply({
     type: "PASS_PRIORITY",
-    playerId: player1.id,
+    playerId: player2.id,
   })
 
   game.apply({
     type: "PASS_PRIORITY",
-    playerId: player2.id,
+    playerId: player1.id,
   })
 
   const graveyard = game.getGraveyard(player1.id)
@@ -91,14 +95,15 @@ test("it resets priority to current player after stack resolution", () => {
 
   castSpellInMainPhase(game, player1.id)
 
+  // After casting, priority is with player2
   game.apply({
     type: "PASS_PRIORITY",
-    playerId: player1.id,
+    playerId: player2.id,
   })
 
   game.apply({
     type: "PASS_PRIORITY",
-    playerId: player2.id,
+    playerId: player1.id,
   })
 
   const actions = game.getAllowedActionsFor(player1.id)
@@ -108,15 +113,16 @@ test("it resets priority to current player after stack resolution", () => {
 })
 
 test("it throws error when non-priority player passes priority", () => {
-  const { game, player1, player2 } = createStartedGame()
+  const { game, player1 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
   castSpellInMainPhase(game, player1.id)
 
+  // After casting, priority is with player2, so player1 cannot pass
   expect(() => {
     game.apply({
       type: "PASS_PRIORITY",
-      playerId: player2.id,
+      playerId: player1.id,
     })
   }).toThrow(InvalidPlayerActionError)
 })

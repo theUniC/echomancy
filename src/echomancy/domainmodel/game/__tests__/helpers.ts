@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
+import type { CardInstance } from "../../cards/CardInstance"
 import { Game } from "../Game"
 import { Player } from "../Player"
 import type { GameSteps } from "../Steps"
@@ -25,9 +26,10 @@ export function advanceToStep(game: Game, targetStep: GameSteps): void {
   }
 }
 
-export function createTestSpell(ownerId: string) {
+export function createTestSpell(ownerId: string, instanceId?: string) {
+  const id = instanceId || "test-spell-instance"
   return {
-    instanceId: "test-spell-instance",
+    instanceId: id,
     definition: {
       id: "test-spell",
       name: "Test Spell",
@@ -35,6 +37,31 @@ export function createTestSpell(ownerId: string) {
     },
     ownerId,
   }
+}
+
+export function createSpell(
+  instanceId: string,
+  name: string,
+  ownerId: string,
+): CardInstance {
+  return {
+    instanceId,
+    definition: {
+      id: instanceId,
+      name,
+      type: "SPELL",
+    },
+    ownerId,
+  }
+}
+
+export function addSpellToHand(
+  game: Game,
+  playerId: string,
+  spell: CardInstance,
+): void {
+  const playerState = game.getPlayerState(playerId)
+  playerState.hand.cards.push(spell)
 }
 
 export function castSpellInMainPhase(game: Game, playerId: string) {

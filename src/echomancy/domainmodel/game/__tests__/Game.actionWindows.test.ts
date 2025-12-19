@@ -1,6 +1,6 @@
 import { expect, test } from "vitest"
-import { advanceToStep, createStartedGame } from "./helpers"
 import { Step } from "../Steps"
+import { advanceToStep, createStartedGame } from "./helpers"
 
 test("it returns no allowed actions for non-current player", () => {
   const { game, player2 } = createStartedGame()

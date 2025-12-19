@@ -1,11 +1,11 @@
 import { expect, test } from "vitest"
-import { advanceToStep, createStartedGame } from "./helpers"
 import {
   InvalidPlayerActionError,
   InvalidPlayLandStepError,
   LandLimitExceededError,
 } from "../GameErrors"
 import { Step } from "../Steps"
+import { advanceToStep, createStartedGame } from "./helpers"
 
 test("it allows the current player to play a land in first main phase", () => {
   const { game, player1, dummyLandInstanceId } = createStartedGame()

@@ -1,8 +1,8 @@
 import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
-import { advanceToStep, createStartedGame } from "./helpers"
 import { CardIsNotLandError, CardNotFoundInHandError } from "../GameErrors"
 import { Step } from "../Steps"
+import { advanceToStep, createStartedGame } from "./helpers"
 
 test("it moves a land card from hand to battlefield when playing a land", () => {
   const { game, player1, dummyLandInstanceId } = createStartedGame()

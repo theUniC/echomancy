@@ -173,30 +173,38 @@ export class Game {
   }
 
   getAllowedActionsFor(playerId: string): AllowedAction[] {
-    if (playerId !== this.currentPlayerId) {
-      return []
-    }
-
     if (this.currentStep === Step.CLEANUP) {
       return []
     }
 
-    const actions: AllowedAction[] = ["ADVANCE_STEP", "END_TURN"]
+    if (!this.hasPriority(playerId)) {
+      return []
+    }
 
-    if (this.playedLands === 0 && this.isMainPhase()) {
+    const actions: AllowedAction[] = []
+
+    // ADVANCE_STEP and END_TURN only for current player
+    if (playerId === this.currentPlayerId) {
+      actions.push("ADVANCE_STEP", "END_TURN")
+    }
+
+    if (this.canPlayLand(playerId)) {
       actions.push("PLAY_LAND")
     }
 
+    // CAST_SPELL for priority player in main phase
     if (this.isMainPhase() && this.playerHasSpellInHand(playerId)) {
       actions.push("CAST_SPELL")
     }
 
-    if (this.priorityPlayerId === playerId && this.stack.spells.length > 0) {
+    if (this.hasSpellsOnStack()) {
       actions.push("PASS_PRIORITY")
     }
 
     return actions
   }
+
+  // Action handlers (high-level)
 
   private advanceStep(action: AdvanceStep): void {
     this.assertIsCurrentPlayer(action.playerId, "ADVANCE_STEP")
@@ -214,17 +222,13 @@ export class Game {
       this.performStepAdvance()
     }
 
-    // Advance once more from CLEANUP to move to the next player
     this.performStepAdvance()
   }
 
   private playLand(action: PlayLand): void {
     this.assertIsCurrentPlayer(action.playerId, "PLAY_LAND")
     this.assertIsMainPhase()
-
-    if (this.playedLands > 0) {
-      throw new LandLimitExceededError()
-    }
+    this.assertHasNotPlayedLandThisTurn()
 
     const playerState = this.getPlayerState(action.playerId)
     const { card, cardIndex } = this.findCardInHandByInstanceId(
@@ -237,12 +241,53 @@ export class Game {
       throw new CardIsNotLandError(action.cardId)
     }
 
-    // Move card from hand to battlefield
     playerState.hand.cards.splice(cardIndex, 1)
     playerState.battlefield.cards.push(card)
 
     this.playedLands += 1
   }
+
+  private castSpell(action: CastSpell): void {
+    this.assertHasPriority(action.playerId, "CAST_SPELL")
+
+    if (!this.isMainPhase()) {
+      throw new InvalidCastSpellStepError()
+    }
+
+    const playerState = this.getPlayerState(action.playerId)
+    const { card, cardIndex } = this.findCardInHandByInstanceId(
+      playerState,
+      action.cardId,
+      action.playerId,
+    )
+
+    if (card.definition.type !== "SPELL") {
+      throw new CardIsNotSpellError(action.cardId)
+    }
+
+    playerState.hand.cards.splice(cardIndex, 1)
+    this.stack.spells.push({
+      card,
+      controllerId: action.playerId,
+    })
+
+    this.givePriorityToOpponentOf(action.playerId)
+  }
+
+  private passPriority(action: PassPriority): void {
+    this.assertHasPriority(action.playerId, "PASS_PRIORITY")
+
+    this.hasPassedPriority.add(action.playerId)
+
+    if (this.bothPlayersHavePassed()) {
+      this.resolveTopOfStack()
+    } else {
+      const opponentId = this.getOpponentOf(action.playerId)
+      this.priorityPlayerId = opponentId
+    }
+  }
+
+  // Domain logic (mid-level)
 
   private performStepAdvance(): void {
     const { nextStep, shouldAdvancePlayer } = advance(this.currentStep)
@@ -251,11 +296,10 @@ export class Game {
     if (shouldAdvancePlayer) {
       this.advanceToNextPlayer()
     }
-  }
 
-  private assertIsCurrentPlayer(playerId: string, action: string): void {
-    if (playerId !== this.currentPlayerId) {
-      throw new InvalidPlayerActionError(playerId, action)
+    if (this.isMainPhase()) {
+      this.priorityPlayerId = this.currentPlayerId
+      this.hasPassedPriority.clear()
     }
   }
 
@@ -268,6 +312,109 @@ export class Game {
     const nextIndex = (currentIndex + 1) % this.turnOrder.length
     this.currentPlayerId = this.turnOrder[nextIndex]
     this.playedLands = 0
+  }
+
+  private resolveTopOfStack(): void {
+    if (!this.hasSpellsOnStack()) {
+      return
+    }
+
+    const spell = this.stack.spells.pop()
+    if (!spell) {
+      return
+    }
+
+    const controllerState = this.getPlayerState(spell.controllerId)
+    controllerState.graveyard.cards.push(spell.card)
+
+    this.hasPassedPriority.clear()
+    this.priorityPlayerId = this.currentPlayerId
+  }
+
+  private givePriorityToOpponentOf(playerId: string): void {
+    const opponentId = this.getOpponentOf(playerId)
+    this.priorityPlayerId = opponentId
+    this.hasPassedPriority.clear()
+  }
+
+  // Queries and predicates (low-level)
+
+  private hasPriority(playerId: string): boolean {
+    return playerId === this.priorityPlayerId
+  }
+
+  private canPlayLand(playerId: string): boolean {
+    return (
+      playerId === this.currentPlayerId &&
+      !this.hasPlayedLandThisTurn() &&
+      this.isMainPhase()
+    )
+  }
+
+  private hasPlayedLandThisTurn(): boolean {
+    return this.playedLands > 0
+  }
+
+  private isMainPhase(): boolean {
+    return (
+      this.currentStep === Step.FIRST_MAIN ||
+      this.currentStep === Step.SECOND_MAIN
+    )
+  }
+
+  private hasSpellsOnStack(): boolean {
+    return this.stack.spells.length > 0
+  }
+
+  private bothPlayersHavePassed(): boolean {
+    return this.hasPassedPriority.size === this.turnOrder.length
+  }
+
+  private playerHasSpellInHand(playerId: string): boolean {
+    const playerState = this.getPlayerState(playerId)
+    if (!playerState) {
+      return false
+    }
+
+    return playerState.hand.cards.some(
+      (card) => card.definition.type === "SPELL",
+    )
+  }
+
+  // Assertions (low-level)
+
+  private assertIsCurrentPlayer(playerId: string, action: string): void {
+    if (playerId !== this.currentPlayerId) {
+      throw new InvalidPlayerActionError(playerId, action)
+    }
+  }
+
+  private assertHasPriority(playerId: string, action: string): void {
+    if (!this.hasPriority(playerId)) {
+      throw new InvalidPlayerActionError(playerId, action)
+    }
+  }
+
+  private assertIsMainPhase(): void {
+    if (!this.isMainPhase()) {
+      throw new InvalidPlayLandStepError()
+    }
+  }
+
+  private assertHasNotPlayedLandThisTurn(): void {
+    if (this.hasPlayedLandThisTurn()) {
+      throw new LandLimitExceededError()
+    }
+  }
+
+  // Helpers (lowest-level)
+
+  private getOpponentOf(playerId: string): string {
+    const opponentId = this.turnOrder.find((id) => id !== playerId)
+    if (!opponentId) {
+      throw new PlayerNotFoundError(playerId)
+    }
+    return opponentId
   }
 
   private findCardInHandByInstanceId(
@@ -288,98 +435,7 @@ export class Game {
     return { card, cardIndex }
   }
 
-  private castSpell(action: CastSpell): void {
-    this.assertIsCurrentPlayer(action.playerId, "CAST_SPELL")
-
-    if (!this.isMainPhase()) {
-      throw new InvalidCastSpellStepError()
-    }
-
-    const playerState = this.getPlayerState(action.playerId)
-    const { card, cardIndex } = this.findCardInHandByInstanceId(
-      playerState,
-      action.cardId,
-      action.playerId,
-    )
-
-    if (card.definition.type !== "SPELL") {
-      throw new CardIsNotSpellError(action.cardId)
-    }
-
-    // Move card from hand to stack
-    playerState.hand.cards.splice(cardIndex, 1)
-    this.stack.spells.push({
-      card,
-      controllerId: action.playerId,
-    })
-  }
-
-  private playerHasSpellInHand(playerId: string): boolean {
-    const playerState = this.getPlayerState(playerId)
-    if (!playerState) {
-      return false
-    }
-
-    return playerState.hand.cards.some(
-      (card) => card.definition.type === "SPELL",
-    )
-  }
-
-  private isMainPhase(): boolean {
-    return (
-      this.currentStep === Step.FIRST_MAIN ||
-      this.currentStep === Step.SECOND_MAIN
-    )
-  }
-
-  private assertIsMainPhase(): void {
-    if (!this.isMainPhase()) {
-      throw new InvalidPlayLandStepError()
-    }
-  }
-
-  private passPriority(action: PassPriority): void {
-    // Only the player with priority can pass
-    if (action.playerId !== this.priorityPlayerId) {
-      throw new InvalidPlayerActionError(action.playerId, "PASS_PRIORITY")
-    }
-
-    // Register that the player has passed
-    this.hasPassedPriority.add(action.playerId)
-
-    // Change priority to the other player
-    const otherPlayerId = this.turnOrder.find((id) => id !== action.playerId)
-    if (!otherPlayerId) {
-      throw new PlayerNotFoundError(action.playerId)
-    }
-    this.priorityPlayerId = otherPlayerId
-
-    // Detect double pass (both players have passed)
-    if (this.hasPassedPriority.size === this.turnOrder.length) {
-      this.resolveTopOfStack()
-    }
-  }
-
-  private resolveTopOfStack(): void {
-    // If stack is empty, do nothing
-    if (this.stack.spells.length === 0) {
-      return
-    }
-
-    // Extract the top spell (LIFO)
-    const spell = this.stack.spells.pop()
-    if (!spell) {
-      return
-    }
-
-    // Apply dummy effect: move card to controller's graveyard
-    const controllerState = this.getPlayerState(spell.controllerId)
-    controllerState.graveyard.cards.push(spell.card)
-
-    // Clear priority state
-    this.hasPassedPriority.clear()
-    this.priorityPlayerId = this.currentPlayerId
-  }
+  // Static validators
 
   private static assertStartingPlayerExists(
     players: Player[],

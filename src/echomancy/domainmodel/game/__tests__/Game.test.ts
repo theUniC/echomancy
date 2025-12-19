@@ -1,6 +1,5 @@
 import { validate as isValidUUID, v4 as uuidv4 } from "uuid"
 import { expect, test } from "vitest"
-import { advanceToStep, createStartedGame } from "./helpers"
 import { Game } from "../Game"
 import {
   InvalidEndTurnError,
@@ -9,6 +8,7 @@ import {
   InvalidStartingPlayerError,
 } from "../GameErrors"
 import { Player } from "../Player"
+import { advanceToStep, createStartedGame } from "./helpers"
 
 test("it can be instantiated", () => {
   const player1 = new Player("p1")
