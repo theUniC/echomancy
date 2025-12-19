@@ -170,7 +170,7 @@ test("effect receives correct game and source card", () => {
 
   expect(receivedGame).toBe(game)
   expect(receivedSource).toBe(spellCard)
-  expect(receivedSource?.ownerId).toBe(player1.id)
+  expect(spellCard.ownerId).toBe(player1.id)
 })
 
 test("effect is executed before card moves to graveyard", () => {
