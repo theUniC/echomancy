@@ -1,6 +1,7 @@
 import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import type { Effect } from "../../effects/Effect"
+import type { EffectContext } from "../../effects/EffectContext"
 import { NoOpEffect } from "../../effects/impl/NoOpEffect"
 import type { Game } from "../Game"
 import { Step } from "../Steps"
@@ -12,7 +13,7 @@ test("it executes effect when resolving spell from stack", () => {
 
   let effectExecuted = false
   const testEffect: Effect = {
-    resolve(_game: Game, _source: CardInstance) {
+    resolve(_game: Game, _context: EffectContext) {
       effectExecuted = true
     },
   }
@@ -131,11 +132,13 @@ test("effect receives correct game and source card", () => {
 
   let receivedGame: Game | null = null
   let receivedSource: CardInstance | null = null
+  let receivedControllerId: string | null = null
 
   const testEffect: Effect = {
-    resolve(g: Game, source: CardInstance) {
+    resolve(g: Game, context: EffectContext) {
       receivedGame = g
-      receivedSource = source
+      receivedSource = context.source
+      receivedControllerId = context.controllerId
     },
   }
 
@@ -170,6 +173,7 @@ test("effect receives correct game and source card", () => {
 
   expect(receivedGame).toBe(game)
   expect(receivedSource).toBe(spellCard)
+  expect(receivedControllerId).toBe(player1.id)
   expect(spellCard.ownerId).toBe(player1.id)
 })
 
@@ -180,8 +184,8 @@ test("effect is executed before card moves to graveyard", () => {
   let graveyardSizeWhenEffectRan = -1
 
   const testEffect: Effect = {
-    resolve(g: Game, source: CardInstance) {
-      const graveyard = g.getGraveyard(source.ownerId)
+    resolve(g: Game, context: EffectContext) {
+      const graveyard = g.getGraveyard(context.controllerId)
       graveyardSizeWhenEffectRan = graveyard.length
     },
   }

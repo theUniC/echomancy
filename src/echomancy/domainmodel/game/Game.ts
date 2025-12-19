@@ -326,7 +326,10 @@ export class Game {
 
     const effect = spell.card.definition.effect
     if (effect) {
-      effect.resolve(this, spell.card)
+      effect.resolve(this, {
+        source: spell.card,
+        controllerId: spell.controllerId,
+      })
     }
 
     const controllerState = this.getPlayerState(spell.controllerId)

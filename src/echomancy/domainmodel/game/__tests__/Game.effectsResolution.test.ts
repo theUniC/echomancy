@@ -1,6 +1,7 @@
 import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import type { Effect } from "../../effects/Effect"
+import type { EffectContext } from "../../effects/EffectContext"
 import { NoOpEffect } from "../../effects/impl/NoOpEffect"
 import type { Game } from "../Game"
 import { Step } from "../Steps"
@@ -57,7 +58,7 @@ test("it executes the effect before moving the spell to graveyard", () => {
   advanceToStep(game, Step.FIRST_MAIN)
 
   const observableEffect: Effect = {
-    resolve(g: Game, source: CardInstance) {
+    resolve(g: Game, context: EffectContext) {
       const dummyCard: CardInstance = {
         instanceId: "observable-card",
         definition: {
@@ -65,9 +66,9 @@ test("it executes the effect before moving the spell to graveyard", () => {
           name: "Observable Card",
           type: "SPELL",
         },
-        ownerId: source.ownerId,
+        ownerId: context.controllerId,
       }
-      const playerState = g.getPlayerState(source.ownerId)
+      const playerState = g.getPlayerState(context.controllerId)
       playerState.hand.cards.push(dummyCard)
     },
   }
