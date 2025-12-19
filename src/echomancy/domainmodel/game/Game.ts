@@ -324,6 +324,11 @@ export class Game {
       return
     }
 
+    const effect = spell.card.definition.effect
+    if (effect) {
+      effect.resolve(this, spell.card)
+    }
+
     const controllerState = this.getPlayerState(spell.controllerId)
     controllerState.graveyard.cards.push(spell.card)
 
@@ -335,6 +340,11 @@ export class Game {
     const opponentId = this.getOpponentOf(playerId)
     this.priorityPlayerId = opponentId
     this.hasPassedPriority.clear()
+  }
+
+  drawCards(_playerId: string, _amount: number): void {
+    // MVP: no-op implementation
+    // TODO: implement deck and actual card drawing
   }
 
   // Queries and predicates (low-level)
