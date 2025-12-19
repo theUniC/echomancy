@@ -19,9 +19,24 @@ test("it can be instantiated", () => {
   ])
   const turnOrder = [player1.id, player2.id]
   const playerStates = new Map([
-    [player1.id, { hand: { cards: [] }, battlefield: { cards: [] } }],
-    [player2.id, { hand: { cards: [] }, battlefield: { cards: [] } }],
+    [
+      player1.id,
+      {
+        hand: { cards: [] },
+        battlefield: { cards: [] },
+        graveyard: { cards: [] },
+      },
+    ],
+    [
+      player2.id,
+      {
+        hand: { cards: [] },
+        battlefield: { cards: [] },
+        graveyard: { cards: [] },
+      },
+    ],
   ])
+
   const game = new Game(
     "game-id",
     playersById,
