@@ -185,12 +185,12 @@ export class Game {
 
   addScheduledSteps(steps: GameSteps[]): void {
     if (this.scheduledSteps.length === 0) {
-      // Calcular el punto de reanudación: el siguiente paso en el flujo normal
-      // que NO esté en las fases extra insertadas
+      // Calculate resume point: the next step in normal flow
+      // that is NOT in the inserted extra phases
       const insertedSteps = new Set(steps)
       let tempStep = this.currentStep
 
-      // Avanzar hasta encontrar un step que no esté en las fases insertadas
+      // Advance until finding a step that is not in the inserted phases
       do {
         const { nextStep } = advance(tempStep)
         tempStep = nextStep
@@ -330,7 +330,7 @@ export class Game {
   // Domain logic (mid-level)
 
   private performStepAdvance(): void {
-    // 1. Consumir fases programadas primero
+    // 1. Consume scheduled phases first
     if (this.scheduledSteps.length > 0) {
       const nextScheduledStep = this.scheduledSteps.shift()
       if (nextScheduledStep) {
@@ -339,15 +339,15 @@ export class Game {
       return
     }
 
-    // 2. Si no hay fases extra pendientes pero hay un punto de reanudación,
-    //    saltar directamente ahí sin usar advance()
+    // 2. If no extra phases pending but there's a resume point,
+    //    jump directly there without using advance()
     if (this.resumeStepAfterScheduled) {
       this.currentStep = this.resumeStepAfterScheduled
       this.resumeStepAfterScheduled = undefined
       return
     }
 
-    // 3. Flujo normal
+    // 3. Normal flow
     const { nextStep, shouldAdvancePlayer } = advance(this.currentStep)
     this.currentStep = nextStep
 
