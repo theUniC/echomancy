@@ -78,3 +78,37 @@ export function castSpellInMainPhase(game: Game, playerId: string) {
 
   return spellCard
 }
+
+export function createTestCreature(
+  ownerId: string,
+  instanceId?: string,
+): CardInstance {
+  const id = instanceId || `test-creature-${Math.random()}`
+  return {
+    instanceId: id,
+    definition: {
+      id: "test-creature-def",
+      name: "Test Creature",
+      type: "CREATURE" as const,
+    },
+    ownerId,
+  }
+}
+
+export function addCreatureToHand(
+  game: Game,
+  playerId: string,
+  creature: CardInstance,
+): void {
+  const playerState = game.getPlayerState(playerId)
+  playerState.hand.cards.push(creature)
+}
+
+export function addCreatureToBattlefield(
+  game: Game,
+  playerId: string,
+  creature: CardInstance,
+): void {
+  const playerState = game.getPlayerState(playerId)
+  playerState.battlefield.cards.push(creature)
+}
