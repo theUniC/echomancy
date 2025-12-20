@@ -408,7 +408,7 @@ export class Game {
     if (this.scheduledSteps.length > 0) {
       const nextScheduledStep = this.scheduledSteps.shift()
       if (nextScheduledStep) {
-        this.currentStep = nextScheduledStep
+        this.setCurrentStep(nextScheduledStep)
       }
       return
     }
@@ -416,22 +416,48 @@ export class Game {
     // 2. If no extra phases pending but there's a resume point,
     //    jump directly there without using advance()
     if (this.resumeStepAfterScheduled) {
-      this.currentStep = this.resumeStepAfterScheduled
+      this.setCurrentStep(this.resumeStepAfterScheduled)
       this.resumeStepAfterScheduled = undefined
       return
     }
 
     // 3. Normal flow
     const { nextStep, shouldAdvancePlayer } = advance(this.currentStep)
-    this.currentStep = nextStep
 
     if (shouldAdvancePlayer) {
       this.advanceToNextPlayer()
     }
 
+    this.setCurrentStep(nextStep)
+
     if (this.isMainPhase()) {
       this.priorityPlayerId = this.currentPlayerId
       this.playersWhoPassedPriority.clear()
+    }
+  }
+
+  private setCurrentStep(nextStep: GameSteps): void {
+    this.currentStep = nextStep
+    this.onEnterStep(nextStep)
+  }
+
+  private onEnterStep(step: GameSteps): void {
+    if (step === Step.UNTAP) {
+      this.autoUntapForCurrentPlayer()
+    }
+  }
+
+  private autoUntapForCurrentPlayer(): void {
+    const playerState = this.getPlayerState(this.currentPlayerId)
+
+    // Untap only creatures controlled by the current player
+    for (const card of playerState.battlefield.cards) {
+      if (this.isCreature(card)) {
+        const creatureState = this.creatureStates.get(card.instanceId)
+        if (creatureState) {
+          creatureState.isTapped = false
+        }
+      }
     }
   }
 

@@ -341,10 +341,6 @@ test("creature can attack again in next turn", () => {
   game.apply({ type: "END_TURN", playerId: player1.id })
   game.apply({ type: "END_TURN", playerId: player2.id })
 
-  // TODO: Remove manual untap once UNTAP step automatically untaps all permanents
-  // Currently this is a workaround since automatic untapping is not yet implemented
-  game.untapPermanent(creature.instanceId)
-
   advanceToStep(game, Step.DECLARE_ATTACKERS)
 
   // Should be able to attack again
@@ -406,4 +402,87 @@ test("multiple creatures reset attack state on turn change", () => {
   expect(state1.hasAttackedThisTurn).toBe(false)
   expect(state2.isAttacking).toBe(false)
   expect(state2.hasAttackedThisTurn).toBe(false)
+})
+
+// ============================================================================
+// Rule 6 — UNTAP step automatically untaps creatures
+// ============================================================================
+
+test("creatures of active player untap automatically when entering UNTAP step", () => {
+  const { game, player1, player2 } = createStartedGame()
+
+  // Add creature to player1's battlefield
+  const creature1 = createTestCreature(player1.id)
+  addCreatureToBattlefield(game, player1.id, creature1)
+
+  // Tap player1's creature
+  game.tapPermanent(creature1.instanceId)
+
+  // Verify it's tapped
+  expect(game.getCreatureState(creature1.instanceId).isTapped).toBe(true)
+
+  // End player1's turn and advance through player2's turn
+  game.apply({ type: "END_TURN", playerId: player1.id })
+  game.apply({ type: "END_TURN", playerId: player2.id })
+
+  // Now we're at the start of player1's turn (UNTAP step)
+  expect(game.currentStep).toBe(Step.UNTAP)
+  expect(game.currentPlayerId).toBe(player1.id)
+
+  // Player1's creature should be automatically untapped
+  const creatureState = game.getCreatureState(creature1.instanceId)
+  expect(creatureState.isTapped).toBe(false)
+})
+
+test("opponent's creatures do not untap during active player's UNTAP step", () => {
+  const { game, player1, player2 } = createStartedGame()
+
+  // Add creatures to both players
+  const creature1 = createTestCreature(player1.id)
+  const creature2 = createTestCreature(player2.id)
+  addCreatureToBattlefield(game, player1.id, creature1)
+  addCreatureToBattlefield(game, player2.id, creature2)
+
+  // Tap both creatures
+  game.tapPermanent(creature1.instanceId)
+  game.tapPermanent(creature2.instanceId)
+
+  // End player1's turn and advance through player2's turn
+  game.apply({ type: "END_TURN", playerId: player1.id })
+  game.apply({ type: "END_TURN", playerId: player2.id })
+
+  // Now we're at player1's UNTAP step
+  expect(game.currentStep).toBe(Step.UNTAP)
+  expect(game.currentPlayerId).toBe(player1.id)
+
+  // Player1's creature should be untapped
+  expect(game.getCreatureState(creature1.instanceId).isTapped).toBe(false)
+
+  // Player2's creature should still be tapped
+  expect(game.getCreatureState(creature2.instanceId).isTapped).toBe(true)
+})
+
+test("multiple creatures of active player untap simultaneously", () => {
+  const { game, player1, player2 } = createStartedGame()
+
+  // Add multiple creatures to player1
+  const [creature1, creature2, creature3] = setupMultipleCreatures(
+    game,
+    player1.id,
+    3,
+  )
+
+  // Tap all creatures
+  game.tapPermanent(creature1.instanceId)
+  game.tapPermanent(creature2.instanceId)
+  game.tapPermanent(creature3.instanceId)
+
+  // End player1's turn and cycle back
+  game.apply({ type: "END_TURN", playerId: player1.id })
+  game.apply({ type: "END_TURN", playerId: player2.id })
+
+  // All creatures should be untapped
+  expect(game.getCreatureState(creature1.instanceId).isTapped).toBe(false)
+  expect(game.getCreatureState(creature2.instanceId).isTapped).toBe(false)
+  expect(game.getCreatureState(creature3.instanceId).isTapped).toBe(false)
 })
