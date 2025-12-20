@@ -605,7 +605,7 @@ export class Game {
     return card.definition.types.includes("CREATURE")
   }
 
-  private initializeCreatureStateIfNeeded(card: CardInstance): void {
+  initializeCreatureStateIfNeeded(card: CardInstance): void {
     if (this.isCreature(card)) {
       this.creatureStates.set(card.instanceId, {
         isTapped: false,

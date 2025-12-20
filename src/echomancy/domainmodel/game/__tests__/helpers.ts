@@ -111,4 +111,5 @@ export function addCreatureToBattlefield(
 ): void {
   const playerState = game.getPlayerState(playerId)
   playerState.battlefield.cards.push(creature)
+  game.initializeCreatureStateIfNeeded(creature)
 }
