@@ -11,21 +11,34 @@
 - **TypeScript 5** with strict mode enabled
 - **Tailwind CSS v4** (new version with PostCSS plugin `@tailwindcss/postcss`)
 - **Biome** for linting and formatting (replaces ESLint + Prettier)
+- **Bun** as the package manager and runtime
+
+## Package Manager
+
+**IMPORTANT: This project uses Bun exclusively.**
+
+- ✅ **USE**: `bun install`, `bun run dev`, `bun test`, etc.
+- ❌ **DO NOT USE**: `npm`, `yarn`, or `pnpm` commands
+- ❌ **NEVER** commit `package-lock.json`, `yarn.lock`, or `pnpm-lock.yaml`
+- ✅ **ONLY** commit `bun.lockb` for dependency locking
+
+If you accidentally run npm commands, delete any generated `package-lock.json` files immediately.
 
 ## Development Workflow
 
 ### Commands
 ```bash
-npm run dev      # Start development server (localhost:3000)
-npm run build    # Production build
-npm run start    # Run production build
-npm run lint     # Run Biome linter checks
-npm run format   # Format code with Biome
+bun run dev      # Start development server (localhost:3000)
+bun run build    # Production build
+bun run start    # Run production build
+bun run lint     # Run Biome linter checks
+bun run format   # Format code with Biome
+bun test         # Run tests with Vitest
 ```
 
 ### Code Quality
 - Use **Biome** for all linting and formatting tasks
-- Run `npm run format` before committing to ensure consistent code style
+- Run `bun run format` before committing to ensure consistent code style
 - Biome is configured in `biome.json` with Next.js and React recommended rules
 
 ## Project Structure
@@ -93,7 +106,8 @@ public/             # Static assets
 
 ## Testing & Validation
 
-- Always run `npm run lint` to catch issues before committing
+- Always run `bun run lint` to catch issues before committing
+- Run tests with `bun test` before committing
 - Check dark mode behavior (defined via CSS variables in `globals.css`)
 - Verify type safety with `tsc --noEmit` (already part of build process)
 
