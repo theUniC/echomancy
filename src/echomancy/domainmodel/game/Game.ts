@@ -93,7 +93,7 @@ export class Game {
     const dummyLandDefinition: CardDefinition = {
       id: "dummy-land",
       name: "Dummy Land",
-      category: "LAND",
+      types: ["LAND"],
     }
 
     // Initialize player states with one land in hand
@@ -267,7 +267,7 @@ export class Game {
       action.playerId,
     )
 
-    if (card.definition.category !== "LAND") {
+    if (!card.definition.types.includes("LAND")) {
       throw new CardIsNotLandError(action.cardId)
     }
 
@@ -300,7 +300,7 @@ export class Game {
       action.playerId,
     )
 
-    if (card.definition.category !== "SPELL") {
+    if (!this.isCastable(card)) {
       throw new CardIsNotSpellError(action.cardId)
     }
 
@@ -382,25 +382,20 @@ export class Game {
       return
     }
 
-    // Execute effect if present (only spells have effects)
-    if (spell.card.definition.category === "SPELL") {
-      const effect = spell.card.definition.effect
-      if (effect) {
-        effect.resolve(this, {
-          source: spell.card,
-          controllerId: spell.controllerId,
-          targets: spell.targets,
-        })
-      }
+    // Execute effect if present
+    const effect = spell.card.definition.effect
+    if (effect) {
+      effect.resolve(this, {
+        source: spell.card,
+        controllerId: spell.controllerId,
+        targets: spell.targets,
+      })
     }
 
     const controllerState = this.getPlayerState(spell.controllerId)
 
-    // Move spell to appropriate zone based on whether it's a permanent
-    if (
-      spell.card.definition.category === "SPELL" &&
-      this.isPermanentSpell(spell.card.definition.spellType)
-    ) {
+    // Move card to appropriate zone based on its types
+    if (this.isPermanent(spell.card)) {
       controllerState.battlefield.cards.push(spell.card)
     } else {
       controllerState.graveyard.cards.push(spell.card)
@@ -460,13 +455,16 @@ export class Game {
       return false
     }
 
-    return playerState.hand.cards.some(
-      (card) => card.definition.category === "SPELL",
-    )
+    return playerState.hand.cards.some((card) => this.isCastable(card))
   }
 
-  private isPermanentSpell(spellType: string): boolean {
-    return ["CREATURE", "ARTIFACT", "ENCHANTMENT"].includes(spellType)
+  private isCastable(card: CardInstance): boolean {
+    return !card.definition.types.includes("LAND")
+  }
+
+  private isPermanent(card: CardInstance): boolean {
+    const permanentTypes = ["CREATURE", "ARTIFACT", "ENCHANTMENT"]
+    return card.definition.types.some((type) => permanentTypes.includes(type))
   }
 
   // Assertions (low-level)

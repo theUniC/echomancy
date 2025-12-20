@@ -37,8 +37,7 @@ describe("Structural Effects - Extra Phases MVP", () => {
       definition: {
         id: "spell-extra-phases",
         name: "Spell Extra Phases",
-        category: "SPELL",
-        spellType: "INSTANT",
+        types: ["INSTANT"],
         effect: new ExtraMainAndCombatEffect(),
       },
       ownerId: player1.id,
@@ -92,8 +91,7 @@ describe("Structural Effects - Extra Phases MVP", () => {
       definition: {
         id: "spell-phase-order",
         name: "Spell Phase Order",
-        category: "SPELL",
-        spellType: "INSTANT",
+        types: ["INSTANT"],
         effect: new ExtraMainAndCombatEffect(),
       },
       ownerId: player1.id,
@@ -178,8 +176,7 @@ describe("Structural Effects - Extra Phases MVP", () => {
       definition: {
         id: "spell-priority-test",
         name: "Spell Priority Test",
-        category: "SPELL",
-        spellType: "INSTANT",
+        types: ["INSTANT"],
         effect: new ExtraMainAndCombatEffect(),
       },
       ownerId: player1.id,
@@ -233,8 +230,7 @@ describe("Structural Effects - Extra Phases MVP", () => {
       definition: {
         id: "spell-chain-1",
         name: "Spell Chain 1",
-        category: "SPELL",
-        spellType: "INSTANT",
+        types: ["INSTANT"],
         effect: new ExtraMainAndCombatEffect(),
       },
       ownerId: player1.id,
@@ -246,8 +242,7 @@ describe("Structural Effects - Extra Phases MVP", () => {
       definition: {
         id: "spell-chain-2",
         name: "Spell Chain 2",
-        category: "SPELL",
-        spellType: "INSTANT",
+        types: ["INSTANT"],
         effect: new ExtraMainAndCombatEffect(),
       },
       ownerId: player1.id,
@@ -322,8 +317,7 @@ describe("Structural Effects - Extra Phases MVP", () => {
       definition: {
         id: "spell-resume-flow",
         name: "Spell Resume Flow",
-        category: "SPELL",
-        spellType: "INSTANT",
+        types: ["INSTANT"],
         effect: new ExtraMainAndCombatEffect(),
       },
       ownerId: player1.id,

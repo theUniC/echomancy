@@ -23,8 +23,7 @@ test("it executes effect when resolving spell from stack", () => {
     definition: {
       id: "effect-spell",
       name: "Effect Spell",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: testEffect,
     },
     ownerId: player1.id,
@@ -63,8 +62,7 @@ test("it resolves spell without effect (no crash)", () => {
     definition: {
       id: "no-effect-spell",
       name: "No Effect Spell",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
     },
     ownerId: player1.id,
   }
@@ -102,8 +100,7 @@ test("it executes NoOpEffect without crashing", () => {
     definition: {
       id: "noop-spell",
       name: "No-Op Spell",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: new NoOpEffect(),
     },
     ownerId: player1.id,
@@ -153,8 +150,7 @@ test("effect receives correct game and source card", () => {
     definition: {
       id: "param-test",
       name: "Param Test Spell",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: testEffect,
     },
     ownerId: player1.id,
@@ -203,8 +199,7 @@ test("effect is executed before card moves to graveyard", () => {
     definition: {
       id: "timing-test",
       name: "Timing Test Spell",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: testEffect,
     },
     ownerId: player1.id,

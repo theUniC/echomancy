@@ -16,8 +16,7 @@ test("it resolves a spell with NoOpEffect and moves it to graveyard", () => {
     definition: {
       id: "noop-spell",
       name: "No-Op Spell",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: new NoOpEffect(),
     },
     ownerId: player1.id,
@@ -66,8 +65,7 @@ test("it executes the effect before moving the spell to graveyard", () => {
         definition: {
           id: "observable",
           name: "Observable Card",
-          category: "SPELL",
-          spellType: "INSTANT",
+          types: ["INSTANT"],
         },
         ownerId: context.controllerId,
       }
@@ -81,8 +79,7 @@ test("it executes the effect before moving the spell to graveyard", () => {
     definition: {
       id: "observable-spell",
       name: "Observable Spell",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: observableEffect,
     },
     ownerId: player1.id,
@@ -126,8 +123,7 @@ test("it resolves a spell without effect without throwing", () => {
     definition: {
       id: "no-effect-spell",
       name: "No Effect Spell",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
     },
     ownerId: player1.id,
   }
@@ -167,8 +163,7 @@ test("it resets priority to current player after resolving an effect", () => {
     definition: {
       id: "spell-1",
       name: "Spell 1",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: new NoOpEffect(),
     },
     ownerId: player1.id,
@@ -179,8 +174,7 @@ test("it resets priority to current player after resolving an effect", () => {
     definition: {
       id: "spell-2",
       name: "Spell 2",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: new NoOpEffect(),
     },
     ownerId: player1.id,
@@ -222,8 +216,7 @@ test("it does not allow effects to resolve additional spells implicitly", () => 
     definition: {
       id: "spell-1",
       name: "Spell 1",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: new NoOpEffect(),
     },
     ownerId: player1.id,
@@ -234,8 +227,7 @@ test("it does not allow effects to resolve additional spells implicitly", () => 
     definition: {
       id: "spell-2",
       name: "Spell 2",
-      category: "SPELL",
-      spellType: "INSTANT",
+      types: ["INSTANT"],
       effect: new NoOpEffect(),
     },
     ownerId: player2.id,
