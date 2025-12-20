@@ -5,6 +5,10 @@ import {
   advanceToStep,
   createStartedGame,
   createTestCreature,
+  resolveStack,
+  scheduleExtraCombatPhase,
+  setupCreatureInCombat,
+  setupMultipleCreatures,
 } from "./helpers"
 
 // ============================================================================
@@ -28,9 +32,7 @@ test("creature enters battlefield when cast and resolved", () => {
   })
 
   // Resolve the stack (both players pass priority)
-  // After casting, priority goes to opponent (p2)
-  game.apply({ type: "PASS_PRIORITY", playerId: player2.id })
-  game.apply({ type: "PASS_PRIORITY", playerId: player1.id })
+  resolveStack(game, player2.id, player1.id)
 
   const stateAfter = game.getPlayerState(player1.id)
 
@@ -65,10 +67,7 @@ test("creature enters battlefield not attacking", () => {
 
 test("creature can be declared as attacker in DECLARE_ATTACKERS step", () => {
   const { game, player1 } = createStartedGame()
-  const creature = createTestCreature(player1.id)
-  addCreatureToBattlefield(game, player1.id, creature)
-
-  advanceToStep(game, Step.DECLARE_ATTACKERS)
+  const creature = setupCreatureInCombat(game, player1.id)
 
   game.apply({
     type: "DECLARE_ATTACKER",
@@ -83,10 +82,7 @@ test("creature can be declared as attacker in DECLARE_ATTACKERS step", () => {
 
 test("creature becomes tapped when declared as attacker", () => {
   const { game, player1 } = createStartedGame()
-  const creature = createTestCreature(player1.id)
-  addCreatureToBattlefield(game, player1.id, creature)
-
-  advanceToStep(game, Step.DECLARE_ATTACKERS)
+  const creature = setupCreatureInCombat(game, player1.id)
 
   game.apply({
     type: "DECLARE_ATTACKER",
@@ -101,10 +97,7 @@ test("creature becomes tapped when declared as attacker", () => {
 
 test("attack is registered for the turn", () => {
   const { game, player1 } = createStartedGame()
-  const creature = createTestCreature(player1.id)
-  addCreatureToBattlefield(game, player1.id, creature)
-
-  advanceToStep(game, Step.DECLARE_ATTACKERS)
+  const creature = setupCreatureInCombat(game, player1.id)
 
   game.apply({
     type: "DECLARE_ATTACKER",
@@ -119,10 +112,7 @@ test("attack is registered for the turn", () => {
 
 test("DECLARE_ATTACKER action is available during DECLARE_ATTACKERS step", () => {
   const { game, player1 } = createStartedGame()
-  const creature = createTestCreature(player1.id)
-  addCreatureToBattlefield(game, player1.id, creature)
-
-  advanceToStep(game, Step.DECLARE_ATTACKERS)
+  setupCreatureInCombat(game, player1.id)
 
   const allowedActions = game.getAllowedActionsFor(player1.id)
 
@@ -131,10 +121,7 @@ test("DECLARE_ATTACKER action is available during DECLARE_ATTACKERS step", () =>
 
 test("multiple creatures can attack in same turn", () => {
   const { game, player1 } = createStartedGame()
-  const creature1 = createTestCreature(player1.id, "creature-1")
-  const creature2 = createTestCreature(player1.id, "creature-2")
-  addCreatureToBattlefield(game, player1.id, creature1)
-  addCreatureToBattlefield(game, player1.id, creature2)
+  const [creature1, creature2] = setupMultipleCreatures(game, player1.id, 2)
 
   advanceToStep(game, Step.DECLARE_ATTACKERS)
 
@@ -234,10 +221,7 @@ test("DECLARE_ATTACKER action not available for tapped creatures", () => {
 
 test("creature cannot attack twice in same turn with extra combat phase", () => {
   const { game, player1 } = createStartedGame()
-  const creature = createTestCreature(player1.id)
-  addCreatureToBattlefield(game, player1.id, creature)
-
-  advanceToStep(game, Step.DECLARE_ATTACKERS)
+  const creature = setupCreatureInCombat(game, player1.id)
 
   // First attack
   game.apply({
@@ -247,13 +231,7 @@ test("creature cannot attack twice in same turn with extra combat phase", () => 
   })
 
   // Schedule an extra combat phase
-  game.addScheduledSteps([
-    Step.BEGINNING_OF_COMBAT,
-    Step.DECLARE_ATTACKERS,
-    Step.DECLARE_BLOCKERS,
-    Step.COMBAT_DAMAGE,
-    Step.END_OF_COMBAT,
-  ])
+  scheduleExtraCombatPhase(game)
 
   // Advance to the extra DECLARE_ATTACKERS step
   advanceToStep(game, Step.END_OF_COMBAT)
@@ -272,10 +250,7 @@ test("creature cannot attack twice in same turn with extra combat phase", () => 
 
 test("creature that attacked remains marked for the entire turn", () => {
   const { game, player1 } = createStartedGame()
-  const creature = createTestCreature(player1.id)
-  addCreatureToBattlefield(game, player1.id, creature)
-
-  advanceToStep(game, Step.DECLARE_ATTACKERS)
+  const creature = setupCreatureInCombat(game, player1.id)
 
   game.apply({
     type: "DECLARE_ATTACKER",
@@ -293,10 +268,7 @@ test("creature that attacked remains marked for the entire turn", () => {
 
 test("different creature can attack in extra combat phase", () => {
   const { game, player1 } = createStartedGame()
-  const creature1 = createTestCreature(player1.id, "creature-1")
-  const creature2 = createTestCreature(player1.id, "creature-2")
-  addCreatureToBattlefield(game, player1.id, creature1)
-  addCreatureToBattlefield(game, player1.id, creature2)
+  const [creature1, creature2] = setupMultipleCreatures(game, player1.id, 2)
 
   advanceToStep(game, Step.DECLARE_ATTACKERS)
 
@@ -311,13 +283,7 @@ test("different creature can attack in extra combat phase", () => {
   advanceToStep(game, Step.SECOND_MAIN)
 
   // Schedule extra combat
-  game.addScheduledSteps([
-    Step.BEGINNING_OF_COMBAT,
-    Step.DECLARE_ATTACKERS,
-    Step.DECLARE_BLOCKERS,
-    Step.COMBAT_DAMAGE,
-    Step.END_OF_COMBAT,
-  ])
+  scheduleExtraCombatPhase(game)
 
   // Advance to extra DECLARE_ATTACKERS
   game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
@@ -342,10 +308,7 @@ test("different creature can attack in extra combat phase", () => {
 
 test("creature attack state resets when turn changes", () => {
   const { game, player1 } = createStartedGame()
-  const creature = createTestCreature(player1.id)
-  addCreatureToBattlefield(game, player1.id, creature)
-
-  advanceToStep(game, Step.DECLARE_ATTACKERS)
+  const creature = setupCreatureInCombat(game, player1.id)
 
   game.apply({
     type: "DECLARE_ATTACKER",
@@ -401,10 +364,7 @@ test("creature can attack again in next turn", () => {
 
 test("isAttacking becomes false at end of combat", () => {
   const { game, player1 } = createStartedGame()
-  const creature = createTestCreature(player1.id)
-  addCreatureToBattlefield(game, player1.id, creature)
-
-  advanceToStep(game, Step.DECLARE_ATTACKERS)
+  const creature = setupCreatureInCombat(game, player1.id)
 
   game.apply({
     type: "DECLARE_ATTACKER",
@@ -423,10 +383,7 @@ test("isAttacking becomes false at end of combat", () => {
 
 test("multiple creatures reset attack state on turn change", () => {
   const { game, player1 } = createStartedGame()
-  const creature1 = createTestCreature(player1.id, "creature-1")
-  const creature2 = createTestCreature(player1.id, "creature-2")
-  addCreatureToBattlefield(game, player1.id, creature1)
-  addCreatureToBattlefield(game, player1.id, creature2)
+  const [creature1, creature2] = setupMultipleCreatures(game, player1.id, 2)
 
   advanceToStep(game, Step.DECLARE_ATTACKERS)
 
