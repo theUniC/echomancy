@@ -503,12 +503,17 @@ export class Game {
       this.initializeCreatureStateIfNeeded(spell.card)
 
       // Execute ETB trigger if present
+      // NOTE: ETB triggers are conceptually separate from spell resolution.
+      // In Magic, ETB triggers have their own targeting when applicable.
+      // For this MVP, we pass empty targets to make it explicit that
+      // ETB targeting is not yet implemented. This prevents accidental
+      // dependencies on spell targets and reduces technical debt.
       const etbEffect = spell.card.definition.onEnterBattlefield
       if (etbEffect) {
         etbEffect.resolve(this, {
           source: spell.card,
           controllerId: spell.controllerId,
-          targets: spell.targets,
+          targets: [], // ETB targeting not yet implemented
         })
       }
     } else {
