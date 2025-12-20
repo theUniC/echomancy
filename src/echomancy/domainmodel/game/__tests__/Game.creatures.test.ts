@@ -180,7 +180,7 @@ test("tapped creature cannot be declared as attacker", () => {
   }).toThrow()
 })
 
-test("tapped creature remains untapped and not attacking when invalid attack attempted", () => {
+test("tapped creature remains tapped and not attacking when invalid attack attempted", () => {
   const { game, player1 } = createStartedGame()
   const creature = createTestCreature(player1.id)
   addCreatureToBattlefield(game, player1.id, creature)
@@ -189,16 +189,16 @@ test("tapped creature remains untapped and not attacking when invalid attack att
 
   advanceToStep(game, Step.DECLARE_ATTACKERS)
 
-  try {
+  // Attempt should throw
+  expect(() => {
     game.apply({
       type: "DECLARE_ATTACKER",
       playerId: player1.id,
       creatureId: creature.instanceId,
     })
-  } catch {
-    // Expected to throw
-  }
+  }).toThrow()
 
+  // State should remain unchanged
   const creatureState = game.getCreatureState(creature.instanceId)
 
   expect(creatureState.isTapped).toBe(true)
