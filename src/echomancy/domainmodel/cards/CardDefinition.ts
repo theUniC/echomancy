@@ -1,3 +1,4 @@
+import type { ActivatedAbility } from "../abilities/ActivatedAbility"
 import type { Effect } from "../effects/Effect"
 
 export type CardType =
@@ -15,4 +16,5 @@ export type CardDefinition = {
   types: CardType[]
   effect?: Effect
   onEnterBattlefield?: Effect
+  activatedAbility?: ActivatedAbility
 }
