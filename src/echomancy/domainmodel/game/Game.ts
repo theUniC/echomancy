@@ -501,6 +501,16 @@ export class Game {
     if (this.entersBattlefieldOnResolve(spell.card)) {
       controllerState.battlefield.cards.push(spell.card)
       this.initializeCreatureStateIfNeeded(spell.card)
+
+      // Execute ETB trigger if present
+      const etbEffect = spell.card.definition.onEnterBattlefield
+      if (etbEffect) {
+        etbEffect.resolve(this, {
+          source: spell.card,
+          controllerId: spell.controllerId,
+          targets: spell.targets,
+        })
+      }
     } else {
       controllerState.graveyard.cards.push(spell.card)
     }

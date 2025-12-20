@@ -14,4 +14,5 @@ export type CardDefinition = {
   name: string
   types: CardType[]
   effect?: Effect
+  onEnterBattlefield?: Effect
 }
