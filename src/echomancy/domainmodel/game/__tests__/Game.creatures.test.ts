@@ -201,8 +201,6 @@ test("DECLARE_ATTACKER action not available for tapped creatures", () => {
 
   advanceToStep(game, Step.DECLARE_ATTACKERS)
 
-  const allowedActions = game.getAllowedActionsFor(player1.id)
-
   // Action should still be listed but will fail validation
   // OR could be filtered out - depends on design choice
   // For now, we test that the action fails when attempted
