@@ -82,7 +82,7 @@ export class Game {
   private playerStates: Map<string, PlayerState>
   private stack: Stack
   private priorityPlayerId: string | null
-  private hasPassedPriority: Set<string>
+  private playersWhoPassedPriority: Set<string>
   private scheduledSteps: GameSteps[]
   private resumeStepAfterScheduled?: GameSteps
   private creatureStates: Map<string, CreatureState>
@@ -99,7 +99,7 @@ export class Game {
     this.playerStates = playerStates
     this.stack = { spells: [] }
     this.priorityPlayerId = null
-    this.hasPassedPriority = new Set()
+    this.playersWhoPassedPriority = new Set()
     this.scheduledSteps = []
     this.resumeStepAfterScheduled = undefined
     this.creatureStates = new Map()
@@ -346,7 +346,7 @@ export class Game {
   private passPriority(action: PassPriority): void {
     this.assertHasPriority(action.playerId, "PASS_PRIORITY")
 
-    this.hasPassedPriority.add(action.playerId)
+    this.playersWhoPassedPriority.add(action.playerId)
 
     if (this.bothPlayersHavePassed()) {
       this.resolveTopOfStack()
@@ -431,7 +431,7 @@ export class Game {
 
     if (this.isMainPhase()) {
       this.priorityPlayerId = this.currentPlayerId
-      this.hasPassedPriority.clear()
+      this.playersWhoPassedPriority.clear()
     }
   }
 
@@ -479,14 +479,14 @@ export class Game {
       controllerState.graveyard.cards.push(spell.card)
     }
 
-    this.hasPassedPriority.clear()
+    this.playersWhoPassedPriority.clear()
     this.priorityPlayerId = this.currentPlayerId
   }
 
   private givePriorityToOpponentOf(playerId: string): void {
     const opponentId = this.getOpponentOf(playerId)
     this.priorityPlayerId = opponentId
-    this.hasPassedPriority.clear()
+    this.playersWhoPassedPriority.clear()
   }
 
   drawCards(_playerId: string, _amount: number): void {
@@ -546,7 +546,7 @@ export class Game {
   }
 
   private bothPlayersHavePassed(): boolean {
-    return this.hasPassedPriority.size === this.turnOrder.length
+    return this.playersWhoPassedPriority.size === this.turnOrder.length
   }
 
   private canAdvanceOrEndTurn(playerId: string): boolean {
