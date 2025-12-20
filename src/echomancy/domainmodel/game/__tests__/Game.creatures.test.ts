@@ -378,7 +378,8 @@ test("creature can attack again in next turn", () => {
   game.apply({ type: "END_TURN", playerId: player1.id })
   game.apply({ type: "END_TURN", playerId: player2.id })
 
-  // Untap the creature for new turn
+  // TODO: Remove manual untap once UNTAP step automatically untaps all permanents
+  // Currently this is a workaround since automatic untapping is not yet implemented
   game.untapPermanent(creature.instanceId)
 
   advanceToStep(game, Step.DECLARE_ATTACKERS)
