@@ -3,6 +3,7 @@ import type { CardDefinition } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { Target } from "../targets/Target"
 import {
+  CannotPayActivationCostError,
   CardIsNotLandError,
   CardIsNotSpellError,
   CardNotFoundInHandError,
@@ -14,6 +15,7 @@ import {
   InvalidPlayLandStepError,
   InvalidStartingPlayerError,
   LandLimitExceededError,
+  PermanentHasNoActivatedAbilityError,
   PermanentNotFoundError,
   PlayerNotFoundError,
   TappedCreatureCannotAttackError,
@@ -38,6 +40,11 @@ type DeclareAttacker = {
   playerId: string
   creatureId: string
 }
+type ActivateAbility = {
+  type: "ACTIVATE_ABILITY"
+  playerId: string
+  permanentId: string
+}
 
 type Actions =
   | AdvanceStep
@@ -46,6 +53,7 @@ type Actions =
   | CastSpell
   | PassPriority
   | DeclareAttacker
+  | ActivateAbility
 
 export type AllowedAction =
   | "ADVANCE_STEP"
@@ -54,6 +62,7 @@ export type AllowedAction =
   | "CAST_SPELL"
   | "PASS_PRIORITY"
   | "DECLARE_ATTACKER"
+  | "ACTIVATE_ABILITY"
 
 export type CreatureState = {
   isTapped: boolean
@@ -62,13 +71,42 @@ export type CreatureState = {
 }
 
 export type SpellOnStack = {
+  kind: "SPELL"
   card: CardInstance
   controllerId: string
   targets: Target[]
 }
 
+/**
+ * Represents an activated ability on the stack.
+ *
+ * IMPORTANT: This is NOT a spell. Abilities:
+ * - Do not move cards between zones
+ * - Do not trigger ETB/LTB effects
+ * - Are not affected by "counter target spell" effects
+ * - Come from permanents on the battlefield
+ *
+ * MVP LIMITATIONS:
+ * - No targeting support (targets array always empty)
+ * - Only supports permanents as sources (not emblems, etc.)
+ *
+ * TODO: Add support for:
+ * - Targeting in abilities
+ * - Mana abilities (special rules, don't use stack)
+ * - Loyalty abilities (planeswalkers)
+ * - Triggered abilities (separate from activated)
+ */
+export type AbilityOnStack = {
+  kind: "ABILITY"
+  sourceId: string // permanentId of the card with the ability
+  controllerId: string
+  targets: Target[] // TODO: Implement targeting for abilities
+}
+
+type StackItem = SpellOnStack | AbilityOnStack
+
 type Stack = {
-  spells: SpellOnStack[]
+  items: StackItem[]
 }
 
 type GameParams = {
@@ -97,7 +135,7 @@ export class Game {
   ) {
     this.playedLands = 0
     this.playerStates = playerStates
-    this.stack = { spells: [] }
+    this.stack = { items: [] }
     this.priorityPlayerId = null
     this.playersWhoPassedPriority = new Set()
     this.scheduledSteps = []
@@ -174,6 +212,10 @@ export class Game {
         { type: "DECLARE_ATTACKER", playerId: P.string, creatureId: P.string },
         (action) => this.declareAttacker(action),
       )
+      .with(
+        { type: "ACTIVATE_ABILITY", playerId: P.string, permanentId: P.string },
+        (action) => this.activateAbility(action),
+      )
       .exhaustive()
   }
 
@@ -193,8 +235,8 @@ export class Game {
     return playerState
   }
 
-  getStack(): readonly SpellOnStack[] {
-    return [...this.stack.spells]
+  getStack(): readonly StackItem[] {
+    return [...this.stack.items]
   }
 
   getGraveyard(playerId: string): readonly CardInstance[] {
@@ -254,6 +296,10 @@ export class Game {
 
     if (this.canDeclareAttacker(playerId)) {
       actions.push("DECLARE_ATTACKER")
+    }
+
+    if (this.canActivateAbility(playerId)) {
+      actions.push("ACTIVATE_ABILITY")
     }
 
     if (this.hasSpellsOnStack()) {
@@ -334,7 +380,8 @@ export class Game {
     }
 
     playerState.hand.cards.splice(cardIndex, 1)
-    this.stack.spells.push({
+    this.stack.items.push({
+      kind: "SPELL",
       card,
       controllerId: action.playerId,
       targets: action.targets,
@@ -394,6 +441,65 @@ export class Game {
     creatureState.isAttacking = true
     creatureState.isTapped = true
     creatureState.hasAttackedThisTurn = true
+  }
+
+  private activateAbility(action: ActivateAbility): void {
+    this.assertHasPriority(action.playerId, "ACTIVATE_ABILITY")
+
+    // Find the permanent on battlefield controlled by the player
+    const playerState = this.getPlayerState(action.playerId)
+    const permanent = playerState.battlefield.cards.find(
+      (card) => card.instanceId === action.permanentId,
+    )
+
+    if (!permanent) {
+      throw new PermanentNotFoundError(action.permanentId)
+    }
+
+    // Check if permanent has an activated ability
+    const ability = permanent.definition.activatedAbility
+    if (!ability) {
+      throw new PermanentHasNoActivatedAbilityError(action.permanentId)
+    }
+
+    // Pay the activation cost
+    this.payActivationCost(action.permanentId, ability.cost)
+
+    // Put ability on stack
+    this.stack.items.push({
+      kind: "ABILITY",
+      sourceId: permanent.instanceId,
+      controllerId: action.playerId,
+      targets: [], // TODO: Support targeting in abilities
+    })
+
+    this.givePriorityToOpponentOf(action.playerId)
+  }
+
+  /**
+   * Pays the cost to activate an ability.
+   *
+   * MVP LIMITATION - Only {T} (tap) cost is supported.
+   * TODO: Support other costs (mana, sacrifice, discard, etc.)
+   */
+  private payActivationCost(permanentId: string, cost: { type: "TAP" }): void {
+    if (cost.type === "TAP") {
+      // Check if permanent can be tapped
+      const creatureState = this.creatureStates.get(permanentId)
+      if (!creatureState) {
+        throw new PermanentNotFoundError(permanentId)
+      }
+
+      if (creatureState.isTapped) {
+        throw new CannotPayActivationCostError(
+          permanentId,
+          "permanent is already tapped",
+        )
+      }
+
+      // Tap the permanent
+      creatureState.isTapped = true
+    }
   }
 
   // Domain logic (mid-level)
@@ -480,45 +586,69 @@ export class Game {
       return
     }
 
-    const spell = this.stack.spells.pop()
-    if (!spell) {
+    const stackItem = this.stack.items.pop()
+    if (!stackItem) {
       return
     }
 
-    // Execute effect if present
-    const effect = spell.card.definition.effect
-    if (effect) {
-      effect.resolve(this, {
-        source: spell.card,
-        controllerId: spell.controllerId,
-        targets: spell.targets,
+    match(stackItem)
+      .with({ kind: "SPELL" }, (spell) => {
+        // Execute effect if present
+        const effect = spell.card.definition.effect
+        if (effect) {
+          effect.resolve(this, {
+            source: spell.card,
+            controllerId: spell.controllerId,
+            targets: spell.targets,
+          })
+        }
+
+        const controllerState = this.getPlayerState(spell.controllerId)
+
+        // Move card to appropriate zone: permanents → battlefield, one-shots → graveyard
+        if (this.entersBattlefieldOnResolve(spell.card)) {
+          controllerState.battlefield.cards.push(spell.card)
+          this.initializeCreatureStateIfNeeded(spell.card)
+
+          // Execute ETB trigger if present
+          // NOTE: ETB triggers are conceptually separate from spell resolution.
+          // In Magic, ETB triggers have their own targeting when applicable.
+          // For this MVP, we pass empty targets to make it explicit that
+          // ETB targeting is not yet implemented. This prevents accidental
+          // dependencies on spell targets and reduces technical debt.
+          const etbEffect = spell.card.definition.onEnterBattlefield
+          if (etbEffect) {
+            etbEffect.resolve(this, {
+              source: spell.card,
+              controllerId: spell.controllerId,
+              targets: [], // ETB targeting not yet implemented
+            })
+          }
+        } else {
+          controllerState.graveyard.cards.push(spell.card)
+        }
       })
-    }
+      .with({ kind: "ABILITY" }, (ability) => {
+        // Find the permanent with the ability
+        const controllerState = this.getPlayerState(ability.controllerId)
+        const permanent = controllerState.battlefield.cards.find(
+          (card) => card.instanceId === ability.sourceId,
+        )
 
-    const controllerState = this.getPlayerState(spell.controllerId)
+        // If permanent is gone, ability still resolves (Last Known Information rule)
+        // but we need the definition to get the effect
+        if (permanent?.definition.activatedAbility?.effect) {
+          permanent.definition.activatedAbility.effect.resolve(this, {
+            source: permanent,
+            controllerId: ability.controllerId,
+            targets: ability.targets,
+          })
+        }
 
-    // Move card to appropriate zone: permanents → battlefield, one-shots → graveyard
-    if (this.entersBattlefieldOnResolve(spell.card)) {
-      controllerState.battlefield.cards.push(spell.card)
-      this.initializeCreatureStateIfNeeded(spell.card)
-
-      // Execute ETB trigger if present
-      // NOTE: ETB triggers are conceptually separate from spell resolution.
-      // In Magic, ETB triggers have their own targeting when applicable.
-      // For this MVP, we pass empty targets to make it explicit that
-      // ETB targeting is not yet implemented. This prevents accidental
-      // dependencies on spell targets and reduces technical debt.
-      const etbEffect = spell.card.definition.onEnterBattlefield
-      if (etbEffect) {
-        etbEffect.resolve(this, {
-          source: spell.card,
-          controllerId: spell.controllerId,
-          targets: [], // ETB targeting not yet implemented
-        })
-      }
-    } else {
-      controllerState.graveyard.cards.push(spell.card)
-    }
+        // IMPORTANT: Abilities do NOT move cards or trigger ETB/LTB
+        // The source permanent remains on battlefield (if it still exists)
+      })
+      .exhaustive()
 
     this.playersWhoPassedPriority.clear()
     this.priorityPlayerId = this.currentPlayerId
@@ -583,7 +713,7 @@ export class Game {
   }
 
   private hasSpellsOnStack(): boolean {
-    return this.stack.spells.length > 0
+    return this.stack.items.length > 0
   }
 
   private bothPlayersHavePassed(): boolean {
@@ -606,6 +736,10 @@ export class Game {
     )
   }
 
+  private canActivateAbility(playerId: string): boolean {
+    return this.playerHasActivatableAbility(playerId)
+  }
+
   private playerHasSpellInHand(playerId: string): boolean {
     const playerState = this.getPlayerState(playerId)
     return playerState.hand.cards.some((card) => this.isCastable(card))
@@ -624,6 +758,29 @@ export class Game {
       }
 
       return !state.isTapped && !state.hasAttackedThisTurn
+    })
+  }
+
+  private playerHasActivatableAbility(playerId: string): boolean {
+    const playerState = this.getPlayerState(playerId)
+    return playerState.battlefield.cards.some((card) => {
+      // Check if card has an activated ability
+      if (!card.definition.activatedAbility) {
+        return false
+      }
+
+      // Check if the cost can be paid
+      const cost = card.definition.activatedAbility.cost
+      if (cost.type === "TAP") {
+        const state = this.creatureStates.get(card.instanceId)
+        if (!state) {
+          return false
+        }
+        // Can activate if not tapped
+        return !state.isTapped
+      }
+
+      return false
     })
   }
 

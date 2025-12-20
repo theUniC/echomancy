@@ -96,3 +96,15 @@ export class TappedCreatureCannotAttackError extends GameError {
     super(`Creature '${creatureId}' is tapped and cannot attack`)
   }
 }
+
+export class PermanentHasNoActivatedAbilityError extends GameError {
+  constructor(permanentId: string) {
+    super(`Permanent '${permanentId}' has no activated ability`)
+  }
+}
+
+export class CannotPayActivationCostError extends GameError {
+  constructor(permanentId: string, reason: string) {
+    super(`Cannot activate ability of '${permanentId}': ${reason}`)
+  }
+}
