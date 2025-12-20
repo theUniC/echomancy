@@ -85,6 +85,7 @@ export class Game {
   private hasPassedPriority: Set<string>
   private scheduledSteps: GameSteps[]
   private resumeStepAfterScheduled?: GameSteps
+  private creatureStates: Map<string, CreatureState>
 
   constructor(
     public readonly id: string,
@@ -101,6 +102,7 @@ export class Game {
     this.hasPassedPriority = new Set()
     this.scheduledSteps = []
     this.resumeStepAfterScheduled = undefined
+    this.creatureStates = new Map()
   }
 
   static start({ id, players, startingPlayerId }: GameParams): Game {
@@ -252,6 +254,15 @@ export class Game {
       actions.push("CAST_SPELL")
     }
 
+    // DECLARE_ATTACKER during DECLARE_ATTACKERS step
+    if (
+      this.currentStep === Step.DECLARE_ATTACKERS &&
+      playerId === this.currentPlayerId &&
+      this.playerHasAttackableCreature(playerId)
+    ) {
+      actions.push("DECLARE_ATTACKER")
+    }
+
     if (this.hasSpellsOnStack()) {
       actions.push("PASS_PRIORITY")
     }
@@ -353,19 +364,53 @@ export class Game {
   }
 
   private declareAttacker(action: DeclareAttacker): void {
-    throw new Error("DECLARE_ATTACKER not yet implemented")
-    // TODO: Implement creature attack declaration
-    // - Verify it's DECLARE_ATTACKERS step
-    // - Verify creature exists on battlefield and is controlled by player
-    // - Verify creature is not tapped
-    // - Verify creature has not attacked this turn
-    // - Mark creature as attacking and tapped
-    // - Mark hasAttackedThisTurn flag
+    this.assertIsCurrentPlayer(action.playerId, "DECLARE_ATTACKER")
+
+    // Verify it's DECLARE_ATTACKERS step
+    if (this.currentStep !== Step.DECLARE_ATTACKERS) {
+      throw new InvalidPlayerActionError(action.playerId, "DECLARE_ATTACKER")
+    }
+
+    // Verify creature exists on battlefield and is controlled by player
+    const playerState = this.getPlayerState(action.playerId)
+    const creature = playerState.battlefield.cards.find(
+      (card) => card.instanceId === action.creatureId,
+    )
+
+    if (!creature) {
+      throw new PermanentNotFoundError(action.creatureId)
+    }
+
+    if (!this.isCreature(creature)) {
+      throw new PermanentNotFoundError(action.creatureId)
+    }
+
+    const creatureState = this.getCreatureState(action.creatureId)
+
+    // Verify creature is not tapped
+    if (creatureState.isTapped) {
+      throw new TappedCreatureCannotAttackError(action.creatureId)
+    }
+
+    // Verify creature has not attacked this turn
+    if (creatureState.hasAttackedThisTurn) {
+      throw new CreatureAlreadyAttackedError(action.creatureId)
+    }
+
+    // Mark creature as attacking and tapped
+    creatureState.isAttacking = true
+    creatureState.isTapped = true
+    creatureState.hasAttackedThisTurn = true
   }
 
   // Domain logic (mid-level)
 
   private performStepAdvance(): void {
+    // Clear isAttacking when leaving END_OF_COMBAT
+    if (this.currentStep === Step.END_OF_COMBAT) {
+      this.clearAttackingState()
+    }
+
     // 1. Consume scheduled phases first
     if (this.scheduledSteps.length > 0) {
       const nextScheduledStep = this.scheduledSteps.shift()
@@ -406,6 +451,9 @@ export class Game {
     const nextIndex = (currentIndex + 1) % this.turnOrder.length
     this.currentPlayerId = this.turnOrder[nextIndex]
     this.playedLands = 0
+
+    // Reset creature states when turn changes
+    this.resetCreatureStatesForNewTurn()
   }
 
   private resolveTopOfStack(): void {
@@ -433,6 +481,7 @@ export class Game {
     // Move card to appropriate zone: permanents → battlefield, one-shots → graveyard
     if (this.entersBattlefieldOnResolve(spell.card)) {
       controllerState.battlefield.cards.push(spell.card)
+      this.initializeCreatureStateIfNeeded(spell.card)
     } else {
       controllerState.graveyard.cards.push(spell.card)
     }
@@ -453,18 +502,27 @@ export class Game {
   }
 
   getCreatureState(creatureId: string): CreatureState {
-    throw new PermanentNotFoundError(creatureId)
-    // TODO: Implement creature state tracking
+    const state = this.creatureStates.get(creatureId)
+    if (!state) {
+      throw new PermanentNotFoundError(creatureId)
+    }
+    return state
   }
 
   tapPermanent(permanentId: string): void {
-    throw new PermanentNotFoundError(permanentId)
-    // TODO: Implement permanent tapping
+    const state = this.creatureStates.get(permanentId)
+    if (!state) {
+      throw new PermanentNotFoundError(permanentId)
+    }
+    state.isTapped = true
   }
 
   untapPermanent(permanentId: string): void {
-    throw new PermanentNotFoundError(permanentId)
-    // TODO: Implement permanent untapping
+    const state = this.creatureStates.get(permanentId)
+    if (!state) {
+      throw new PermanentNotFoundError(permanentId)
+    }
+    state.isTapped = false
   }
 
   // Queries and predicates (low-level)
@@ -509,6 +567,26 @@ export class Game {
     return playerState.hand.cards.some((card) => this.isCastable(card))
   }
 
+  private playerHasAttackableCreature(playerId: string): boolean {
+    const playerState = this.getPlayerState(playerId)
+    if (!playerState) {
+      return false
+    }
+
+    return playerState.battlefield.cards.some((card) => {
+      if (!this.isCreature(card)) {
+        return false
+      }
+
+      const state = this.creatureStates.get(card.instanceId)
+      if (!state) {
+        return false
+      }
+
+      return !state.isTapped && !state.hasAttackedThisTurn
+    })
+  }
+
   private isCastable(card: CardInstance): boolean {
     return !card.definition.types.includes("LAND")
   }
@@ -516,6 +594,33 @@ export class Game {
   private entersBattlefieldOnResolve(card: CardInstance): boolean {
     const permanentTypes = ["CREATURE", "ARTIFACT", "ENCHANTMENT", "PLANESWALKER"]
     return card.definition.types.some((type) => permanentTypes.includes(type))
+  }
+
+  private isCreature(card: CardInstance): boolean {
+    return card.definition.types.includes("CREATURE")
+  }
+
+  private initializeCreatureStateIfNeeded(card: CardInstance): void {
+    if (this.isCreature(card)) {
+      this.creatureStates.set(card.instanceId, {
+        isTapped: false,
+        isAttacking: false,
+        hasAttackedThisTurn: false,
+      })
+    }
+  }
+
+  private clearAttackingState(): void {
+    for (const state of this.creatureStates.values()) {
+      state.isAttacking = false
+    }
+  }
+
+  private resetCreatureStatesForNewTurn(): void {
+    for (const state of this.creatureStates.values()) {
+      state.isAttacking = false
+      state.hasAttackedThisTurn = false
+    }
   }
 
   // Assertions (low-level)
