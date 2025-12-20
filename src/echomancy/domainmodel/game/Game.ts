@@ -502,27 +502,25 @@ export class Game {
   }
 
   getCreatureState(creatureId: string): CreatureState {
+    return this.getCreatureStateOrThrow(creatureId)
+  }
+
+  tapPermanent(permanentId: string): void {
+    const state = this.getCreatureStateOrThrow(permanentId)
+    state.isTapped = true
+  }
+
+  untapPermanent(permanentId: string): void {
+    const state = this.getCreatureStateOrThrow(permanentId)
+    state.isTapped = false
+  }
+
+  private getCreatureStateOrThrow(creatureId: string): CreatureState {
     const state = this.creatureStates.get(creatureId)
     if (!state) {
       throw new PermanentNotFoundError(creatureId)
     }
     return state
-  }
-
-  tapPermanent(permanentId: string): void {
-    const state = this.creatureStates.get(permanentId)
-    if (!state) {
-      throw new PermanentNotFoundError(permanentId)
-    }
-    state.isTapped = true
-  }
-
-  untapPermanent(permanentId: string): void {
-    const state = this.creatureStates.get(permanentId)
-    if (!state) {
-      throw new PermanentNotFoundError(permanentId)
-    }
-    state.isTapped = false
   }
 
   // Queries and predicates (low-level)
