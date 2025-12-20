@@ -12,7 +12,7 @@ import {
 // ============================================================================
 
 test("creature enters battlefield when cast and resolved", () => {
-  const { game, player1 } = createStartedGame()
+  const { game, player1, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
   const creature = createTestCreature(player1.id)
@@ -29,7 +29,7 @@ test("creature enters battlefield when cast and resolved", () => {
 
   // Resolve the stack (both players pass priority)
   // After casting, priority goes to opponent (p2)
-  game.apply({ type: "PASS_PRIORITY", playerId: "p2" })
+  game.apply({ type: "PASS_PRIORITY", playerId: player2.id })
   game.apply({ type: "PASS_PRIORITY", playerId: player1.id })
 
   const stateAfter = game.getPlayerState(player1.id)
@@ -307,6 +307,9 @@ test("different creature can attack in extra combat phase", () => {
     creatureId: creature1.instanceId,
   })
 
+  // Complete the first combat phase
+  advanceToStep(game, Step.SECOND_MAIN)
+
   // Schedule extra combat
   game.addScheduledSteps([
     Step.BEGINNING_OF_COMBAT,
@@ -317,7 +320,6 @@ test("different creature can attack in extra combat phase", () => {
   ])
 
   // Advance to extra DECLARE_ATTACKERS
-  advanceToStep(game, Step.END_OF_COMBAT)
   game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
   game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
 
