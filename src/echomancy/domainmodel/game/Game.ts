@@ -6,6 +6,7 @@ import {
   CardIsNotLandError,
   CardIsNotSpellError,
   CardNotFoundInHandError,
+  CreatureAlreadyAttackedError,
   InvalidCastSpellStepError,
   InvalidEndTurnError,
   InvalidPlayerActionError,
@@ -13,7 +14,9 @@ import {
   InvalidPlayLandStepError,
   InvalidStartingPlayerError,
   LandLimitExceededError,
+  PermanentNotFoundError,
   PlayerNotFoundError,
+  TappedCreatureCannotAttackError,
 } from "./GameErrors"
 import type { Player } from "./Player"
 import type { PlayerState } from "./PlayerState"
@@ -30,8 +33,19 @@ type CastSpell = {
   targets: Target[]
 }
 type PassPriority = { type: "PASS_PRIORITY"; playerId: string }
+type DeclareAttacker = {
+  type: "DECLARE_ATTACKER"
+  playerId: string
+  creatureId: string
+}
 
-type Actions = AdvanceStep | EndTurn | PlayLand | CastSpell | PassPriority
+type Actions =
+  | AdvanceStep
+  | EndTurn
+  | PlayLand
+  | CastSpell
+  | PassPriority
+  | DeclareAttacker
 
 export type AllowedAction =
   | "ADVANCE_STEP"
@@ -39,6 +53,13 @@ export type AllowedAction =
   | "PLAY_LAND"
   | "CAST_SPELL"
   | "PASS_PRIORITY"
+  | "DECLARE_ATTACKER"
+
+export type CreatureState = {
+  isTapped: boolean
+  isAttacking: boolean
+  hasAttackedThisTurn: boolean
+}
 
 export type SpellOnStack = {
   card: CardInstance
@@ -146,6 +167,10 @@ export class Game {
       )
       .with({ type: "PASS_PRIORITY", playerId: P.string }, (action) =>
         this.passPriority(action),
+      )
+      .with(
+        { type: "DECLARE_ATTACKER", playerId: P.string, creatureId: P.string },
+        (action) => this.declareAttacker(action),
       )
       .exhaustive()
   }
@@ -327,6 +352,17 @@ export class Game {
     }
   }
 
+  private declareAttacker(action: DeclareAttacker): void {
+    throw new Error("DECLARE_ATTACKER not yet implemented")
+    // TODO: Implement creature attack declaration
+    // - Verify it's DECLARE_ATTACKERS step
+    // - Verify creature exists on battlefield and is controlled by player
+    // - Verify creature is not tapped
+    // - Verify creature has not attacked this turn
+    // - Mark creature as attacking and tapped
+    // - Mark hasAttackedThisTurn flag
+  }
+
   // Domain logic (mid-level)
 
   private performStepAdvance(): void {
@@ -414,6 +450,21 @@ export class Game {
   drawCards(_playerId: string, _amount: number): void {
     // MVP: no-op implementation
     // TODO: implement deck and actual card drawing
+  }
+
+  getCreatureState(creatureId: string): CreatureState {
+    throw new PermanentNotFoundError(creatureId)
+    // TODO: Implement creature state tracking
+  }
+
+  tapPermanent(permanentId: string): void {
+    throw new PermanentNotFoundError(permanentId)
+    // TODO: Implement permanent tapping
+  }
+
+  untapPermanent(permanentId: string): void {
+    throw new PermanentNotFoundError(permanentId)
+    // TODO: Implement permanent untapping
   }
 
   // Queries and predicates (low-level)
