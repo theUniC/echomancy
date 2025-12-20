@@ -33,7 +33,8 @@ export function createTestSpell(ownerId: string, instanceId?: string) {
     definition: {
       id: "test-spell",
       name: "Test Spell",
-      type: "SPELL" as const,
+      category: "SPELL" as const,
+      spellType: "INSTANT" as const,
     },
     ownerId,
   }
@@ -49,7 +50,8 @@ export function createSpell(
     definition: {
       id: instanceId,
       name,
-      type: "SPELL",
+      category: "SPELL",
+      spellType: "INSTANT",
     },
     ownerId,
   }
@@ -89,7 +91,8 @@ export function createTestCreature(
     definition: {
       id: "test-creature-def",
       name: "Test Creature",
-      type: "CREATURE" as const,
+      category: "SPELL" as const,
+      spellType: "CREATURE" as const,
     },
     ownerId,
   }

@@ -93,7 +93,7 @@ export class Game {
     const dummyLandDefinition: CardDefinition = {
       id: "dummy-land",
       name: "Dummy Land",
-      type: "LAND",
+      category: "LAND",
     }
 
     // Initialize player states with one land in hand
@@ -267,7 +267,7 @@ export class Game {
       action.playerId,
     )
 
-    if (card.definition.type !== "LAND") {
+    if (card.definition.category !== "LAND") {
       throw new CardIsNotLandError(action.cardId)
     }
 
@@ -300,7 +300,7 @@ export class Game {
       action.playerId,
     )
 
-    if (card.definition.type !== "SPELL") {
+    if (card.definition.category !== "SPELL") {
       throw new CardIsNotSpellError(action.cardId)
     }
 
@@ -382,17 +382,29 @@ export class Game {
       return
     }
 
-    const effect = spell.card.definition.effect
-    if (effect) {
-      effect.resolve(this, {
-        source: spell.card,
-        controllerId: spell.controllerId,
-        targets: spell.targets,
-      })
+    // Execute effect if present (only spells have effects)
+    if (spell.card.definition.category === "SPELL") {
+      const effect = spell.card.definition.effect
+      if (effect) {
+        effect.resolve(this, {
+          source: spell.card,
+          controllerId: spell.controllerId,
+          targets: spell.targets,
+        })
+      }
     }
 
     const controllerState = this.getPlayerState(spell.controllerId)
-    controllerState.graveyard.cards.push(spell.card)
+
+    // Move spell to appropriate zone based on whether it's a permanent
+    if (
+      spell.card.definition.category === "SPELL" &&
+      this.isPermanentSpell(spell.card.definition.spellType)
+    ) {
+      controllerState.battlefield.cards.push(spell.card)
+    } else {
+      controllerState.graveyard.cards.push(spell.card)
+    }
 
     this.hasPassedPriority.clear()
     this.priorityPlayerId = this.currentPlayerId
@@ -449,8 +461,12 @@ export class Game {
     }
 
     return playerState.hand.cards.some(
-      (card) => card.definition.type === "SPELL",
+      (card) => card.definition.category === "SPELL",
     )
+  }
+
+  private isPermanentSpell(spellType: string): boolean {
+    return ["CREATURE", "ARTIFACT", "ENCHANTMENT"].includes(spellType)
   }
 
   // Assertions (low-level)

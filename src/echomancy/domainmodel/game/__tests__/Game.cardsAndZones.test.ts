@@ -52,7 +52,8 @@ test("it throws error when trying to play a non-land card", () => {
     definition: {
       id: "spell",
       name: "Test Spell",
-      type: "SPELL",
+      category: "SPELL",
+      spellType: "INSTANT",
     },
     ownerId: player1.id,
   }

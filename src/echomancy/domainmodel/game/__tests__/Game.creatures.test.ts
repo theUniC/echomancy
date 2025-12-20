@@ -28,8 +28,9 @@ test("creature enters battlefield when cast and resolved", () => {
   })
 
   // Resolve the stack (both players pass priority)
-  game.apply({ type: "PASS_PRIORITY", playerId: player1.id })
+  // After casting, priority goes to opponent (p2)
   game.apply({ type: "PASS_PRIORITY", playerId: "p2" })
+  game.apply({ type: "PASS_PRIORITY", playerId: player1.id })
 
   const stateAfter = game.getPlayerState(player1.id)
 

@@ -18,7 +18,8 @@ test("it requires explicit targets when casting a spell", () => {
     definition: {
       id: "spell-no-targets",
       name: "Spell No Targets",
-      type: "SPELL",
+      category: "SPELL",
+        spellType: "INSTANT",
       effect: new NoOpEffect(),
     },
     ownerId: player1.id,
@@ -49,7 +50,8 @@ test("it stores targets on the stack when casting a spell", () => {
     definition: {
       id: "spell-with-target",
       name: "Spell With Target",
-      type: "SPELL",
+      category: "SPELL",
+        spellType: "INSTANT",
       effect: new NoOpEffect(),
     },
     ownerId: player1.id,
@@ -85,7 +87,8 @@ test("it throws when casting a spell with an invalid PLAYER target", () => {
     definition: {
       id: "spell-invalid-target",
       name: "Spell Invalid Target",
-      type: "SPELL",
+      category: "SPELL",
+        spellType: "INSTANT",
       effect: new NoOpEffect(),
     },
     ownerId: player1.id,
@@ -125,7 +128,8 @@ test("it passes targets to the effect through EffectContext", () => {
     definition: {
       id: "spell-test-effect",
       name: "Spell Test Effect",
-      type: "SPELL",
+      category: "SPELL",
+        spellType: "INSTANT",
       effect: testEffect,
     },
     ownerId: player1.id,
@@ -178,7 +182,8 @@ test("it does not mutate targets during resolution", () => {
     definition: {
       id: "spell-immutable-targets",
       name: "Spell Immutable Targets",
-      type: "SPELL",
+      category: "SPELL",
+        spellType: "INSTANT",
       effect: new NoOpEffect(),
     },
     ownerId: player1.id,
