@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid"
 import type { CardInstance } from "../../cards/CardInstance"
 import { Game } from "../Game"
 import { Player } from "../Player"
-import { Step, type GameSteps } from "../Steps"
+import { type GameSteps, Step } from "../Steps"
 
 export function createStartedGame() {
   const player1 = new Player("p1")
@@ -149,7 +149,11 @@ export function scheduleExtraCombatPhase(game: Game): void {
   ])
 }
 
-export function resolveStack(game: Game, opponentId: string, controllerId: string): void {
+export function resolveStack(
+  game: Game,
+  opponentId: string,
+  controllerId: string,
+): void {
   game.apply({ type: "PASS_PRIORITY", playerId: opponentId })
   game.apply({ type: "PASS_PRIORITY", playerId: controllerId })
 }

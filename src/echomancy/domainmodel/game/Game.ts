@@ -627,7 +627,9 @@ export class Game {
     })
   }
 
-  private updateAllCreatureStates(updateFn: (state: CreatureState) => void): void {
+  private updateAllCreatureStates(
+    updateFn: (state: CreatureState) => void,
+  ): void {
     for (const state of this.creatureStates.values()) {
       updateFn(state)
     }
