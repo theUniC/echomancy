@@ -6,6 +6,7 @@ import {
   CardIsNotLandError,
   CardIsNotSpellError,
   CardNotFoundInHandError,
+  CreatureAlreadyAttackedError,
   InvalidCastSpellStepError,
   InvalidEndTurnError,
   InvalidPlayerActionError,
@@ -13,7 +14,9 @@ import {
   InvalidPlayLandStepError,
   InvalidStartingPlayerError,
   LandLimitExceededError,
+  PermanentNotFoundError,
   PlayerNotFoundError,
+  TappedCreatureCannotAttackError,
 } from "./GameErrors"
 import type { Player } from "./Player"
 import type { PlayerState } from "./PlayerState"
@@ -30,8 +33,19 @@ type CastSpell = {
   targets: Target[]
 }
 type PassPriority = { type: "PASS_PRIORITY"; playerId: string }
+type DeclareAttacker = {
+  type: "DECLARE_ATTACKER"
+  playerId: string
+  creatureId: string
+}
 
-type Actions = AdvanceStep | EndTurn | PlayLand | CastSpell | PassPriority
+type Actions =
+  | AdvanceStep
+  | EndTurn
+  | PlayLand
+  | CastSpell
+  | PassPriority
+  | DeclareAttacker
 
 export type AllowedAction =
   | "ADVANCE_STEP"
@@ -39,6 +53,13 @@ export type AllowedAction =
   | "PLAY_LAND"
   | "CAST_SPELL"
   | "PASS_PRIORITY"
+  | "DECLARE_ATTACKER"
+
+export type CreatureState = {
+  isTapped: boolean
+  isAttacking: boolean
+  hasAttackedThisTurn: boolean
+}
 
 export type SpellOnStack = {
   card: CardInstance
@@ -64,6 +85,7 @@ export class Game {
   private hasPassedPriority: Set<string>
   private scheduledSteps: GameSteps[]
   private resumeStepAfterScheduled?: GameSteps
+  private creatureStates: Map<string, CreatureState>
 
   constructor(
     public readonly id: string,
@@ -80,6 +102,7 @@ export class Game {
     this.hasPassedPriority = new Set()
     this.scheduledSteps = []
     this.resumeStepAfterScheduled = undefined
+    this.creatureStates = new Map()
   }
 
   static start({ id, players, startingPlayerId }: GameParams): Game {
@@ -93,7 +116,7 @@ export class Game {
     const dummyLandDefinition: CardDefinition = {
       id: "dummy-land",
       name: "Dummy Land",
-      type: "LAND",
+      types: ["LAND"],
     }
 
     // Initialize player states with one land in hand
@@ -146,6 +169,10 @@ export class Game {
       )
       .with({ type: "PASS_PRIORITY", playerId: P.string }, (action) =>
         this.passPriority(action),
+      )
+      .with(
+        { type: "DECLARE_ATTACKER", playerId: P.string, creatureId: P.string },
+        (action) => this.declareAttacker(action),
       )
       .exhaustive()
   }
@@ -227,6 +254,15 @@ export class Game {
       actions.push("CAST_SPELL")
     }
 
+    // DECLARE_ATTACKER during DECLARE_ATTACKERS step
+    if (
+      this.currentStep === Step.DECLARE_ATTACKERS &&
+      playerId === this.currentPlayerId &&
+      this.playerHasAttackableCreature(playerId)
+    ) {
+      actions.push("DECLARE_ATTACKER")
+    }
+
     if (this.hasSpellsOnStack()) {
       actions.push("PASS_PRIORITY")
     }
@@ -267,7 +303,7 @@ export class Game {
       action.playerId,
     )
 
-    if (card.definition.type !== "LAND") {
+    if (!card.definition.types.includes("LAND")) {
       throw new CardIsNotLandError(action.cardId)
     }
 
@@ -300,7 +336,7 @@ export class Game {
       action.playerId,
     )
 
-    if (card.definition.type !== "SPELL") {
+    if (!this.isCastable(card)) {
       throw new CardIsNotSpellError(action.cardId)
     }
 
@@ -327,9 +363,54 @@ export class Game {
     }
   }
 
+  private declareAttacker(action: DeclareAttacker): void {
+    this.assertIsCurrentPlayer(action.playerId, "DECLARE_ATTACKER")
+
+    // Verify it's DECLARE_ATTACKERS step
+    if (this.currentStep !== Step.DECLARE_ATTACKERS) {
+      throw new InvalidPlayerActionError(action.playerId, "DECLARE_ATTACKER")
+    }
+
+    // Verify creature exists on battlefield and is controlled by player
+    const playerState = this.getPlayerState(action.playerId)
+    const creature = playerState.battlefield.cards.find(
+      (card) => card.instanceId === action.creatureId,
+    )
+
+    if (!creature) {
+      throw new PermanentNotFoundError(action.creatureId)
+    }
+
+    if (!this.isCreature(creature)) {
+      throw new PermanentNotFoundError(action.creatureId)
+    }
+
+    const creatureState = this.getCreatureState(action.creatureId)
+
+    // Verify creature is not tapped
+    if (creatureState.isTapped) {
+      throw new TappedCreatureCannotAttackError(action.creatureId)
+    }
+
+    // Verify creature has not attacked this turn
+    if (creatureState.hasAttackedThisTurn) {
+      throw new CreatureAlreadyAttackedError(action.creatureId)
+    }
+
+    // Mark creature as attacking and tapped
+    creatureState.isAttacking = true
+    creatureState.isTapped = true
+    creatureState.hasAttackedThisTurn = true
+  }
+
   // Domain logic (mid-level)
 
   private performStepAdvance(): void {
+    // Clear isAttacking when leaving END_OF_COMBAT
+    if (this.currentStep === Step.END_OF_COMBAT) {
+      this.clearAttackingState()
+    }
+
     // 1. Consume scheduled phases first
     if (this.scheduledSteps.length > 0) {
       const nextScheduledStep = this.scheduledSteps.shift()
@@ -370,6 +451,9 @@ export class Game {
     const nextIndex = (currentIndex + 1) % this.turnOrder.length
     this.currentPlayerId = this.turnOrder[nextIndex]
     this.playedLands = 0
+
+    // Reset creature states when turn changes
+    this.resetCreatureStatesForNewTurn()
   }
 
   private resolveTopOfStack(): void {
@@ -382,6 +466,7 @@ export class Game {
       return
     }
 
+    // Execute effect if present
     const effect = spell.card.definition.effect
     if (effect) {
       effect.resolve(this, {
@@ -392,7 +477,14 @@ export class Game {
     }
 
     const controllerState = this.getPlayerState(spell.controllerId)
-    controllerState.graveyard.cards.push(spell.card)
+
+    // Move card to appropriate zone: permanents → battlefield, one-shots → graveyard
+    if (this.entersBattlefieldOnResolve(spell.card)) {
+      controllerState.battlefield.cards.push(spell.card)
+      this.initializeCreatureStateIfNeeded(spell.card)
+    } else {
+      controllerState.graveyard.cards.push(spell.card)
+    }
 
     this.hasPassedPriority.clear()
     this.priorityPlayerId = this.currentPlayerId
@@ -407,6 +499,30 @@ export class Game {
   drawCards(_playerId: string, _amount: number): void {
     // MVP: no-op implementation
     // TODO: implement deck and actual card drawing
+  }
+
+  getCreatureState(creatureId: string): CreatureState {
+    const state = this.creatureStates.get(creatureId)
+    if (!state) {
+      throw new PermanentNotFoundError(creatureId)
+    }
+    return state
+  }
+
+  tapPermanent(permanentId: string): void {
+    const state = this.creatureStates.get(permanentId)
+    if (!state) {
+      throw new PermanentNotFoundError(permanentId)
+    }
+    state.isTapped = true
+  }
+
+  untapPermanent(permanentId: string): void {
+    const state = this.creatureStates.get(permanentId)
+    if (!state) {
+      throw new PermanentNotFoundError(permanentId)
+    }
+    state.isTapped = false
   }
 
   // Queries and predicates (low-level)
@@ -448,9 +564,68 @@ export class Game {
       return false
     }
 
-    return playerState.hand.cards.some(
-      (card) => card.definition.type === "SPELL",
-    )
+    return playerState.hand.cards.some((card) => this.isCastable(card))
+  }
+
+  private playerHasAttackableCreature(playerId: string): boolean {
+    const playerState = this.getPlayerState(playerId)
+    if (!playerState) {
+      return false
+    }
+
+    return playerState.battlefield.cards.some((card) => {
+      if (!this.isCreature(card)) {
+        return false
+      }
+
+      const state = this.creatureStates.get(card.instanceId)
+      if (!state) {
+        return false
+      }
+
+      return !state.isTapped && !state.hasAttackedThisTurn
+    })
+  }
+
+  private isCastable(card: CardInstance): boolean {
+    return !card.definition.types.includes("LAND")
+  }
+
+  private entersBattlefieldOnResolve(card: CardInstance): boolean {
+    const permanentTypes = [
+      "CREATURE",
+      "ARTIFACT",
+      "ENCHANTMENT",
+      "PLANESWALKER",
+    ]
+    return card.definition.types.some((type) => permanentTypes.includes(type))
+  }
+
+  private isCreature(card: CardInstance): boolean {
+    return card.definition.types.includes("CREATURE")
+  }
+
+  initializeCreatureStateIfNeeded(card: CardInstance): void {
+    if (this.isCreature(card)) {
+      this.creatureStates.set(card.instanceId, {
+        isTapped: false,
+        isAttacking: false,
+        hasAttackedThisTurn: false,
+      })
+    }
+  }
+
+  private clearAttackingState(): void {
+    for (const state of this.creatureStates.values()) {
+      state.isAttacking = false
+    }
+  }
+
+  private resetCreatureStatesForNewTurn(): void {
+    for (const state of this.creatureStates.values()) {
+      state.isAttacking = false
+      state.hasAttackedThisTurn = false
+    }
   }
 
   // Assertions (low-level)

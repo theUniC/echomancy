@@ -78,3 +78,21 @@ export class InvalidEffectTargetError extends GameError {
     super(`Effect '${effectName}' failed: ${reason}`)
   }
 }
+
+export class PermanentNotFoundError extends GameError {
+  constructor(permanentId: string) {
+    super(`Permanent '${permanentId}' not found on battlefield`)
+  }
+}
+
+export class CreatureAlreadyAttackedError extends GameError {
+  constructor(creatureId: string) {
+    super(`Creature '${creatureId}' has already attacked this turn`)
+  }
+}
+
+export class TappedCreatureCannotAttackError extends GameError {
+  constructor(creatureId: string) {
+    super(`Creature '${creatureId}' is tapped and cannot attack`)
+  }
+}

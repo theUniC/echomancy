@@ -1,10 +1,17 @@
 import type { Effect } from "../effects/Effect"
 
-export type CardType = "LAND" | "SPELL"
+export type CardType =
+  | "CREATURE"
+  | "INSTANT"
+  | "SORCERY"
+  | "ARTIFACT"
+  | "ENCHANTMENT"
+  | "PLANESWALKER"
+  | "LAND"
 
 export type CardDefinition = {
   id: string
   name: string
-  type: CardType
+  types: CardType[]
   effect?: Effect
 }

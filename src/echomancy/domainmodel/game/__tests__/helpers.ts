@@ -33,7 +33,7 @@ export function createTestSpell(ownerId: string, instanceId?: string) {
     definition: {
       id: "test-spell",
       name: "Test Spell",
-      type: "SPELL" as const,
+      types: ["INSTANT"],
     },
     ownerId,
   }
@@ -49,7 +49,7 @@ export function createSpell(
     definition: {
       id: instanceId,
       name,
-      type: "SPELL",
+      types: ["INSTANT"],
     },
     ownerId,
   }
@@ -77,4 +77,39 @@ export function castSpellInMainPhase(game: Game, playerId: string) {
   })
 
   return spellCard
+}
+
+export function createTestCreature(
+  ownerId: string,
+  instanceId?: string,
+): CardInstance {
+  const id = instanceId || `test-creature-${Math.random()}`
+  return {
+    instanceId: id,
+    definition: {
+      id: "test-creature-def",
+      name: "Test Creature",
+      types: ["CREATURE"],
+    },
+    ownerId,
+  }
+}
+
+export function addCreatureToHand(
+  game: Game,
+  playerId: string,
+  creature: CardInstance,
+): void {
+  const playerState = game.getPlayerState(playerId)
+  playerState.hand.cards.push(creature)
+}
+
+export function addCreatureToBattlefield(
+  game: Game,
+  playerId: string,
+  creature: CardInstance,
+): void {
+  const playerState = game.getPlayerState(playerId)
+  playerState.battlefield.cards.push(creature)
+  game.initializeCreatureStateIfNeeded(creature)
 }
