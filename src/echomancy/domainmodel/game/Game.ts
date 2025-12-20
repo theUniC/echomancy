@@ -560,19 +560,11 @@ export class Game {
 
   private playerHasSpellInHand(playerId: string): boolean {
     const playerState = this.getPlayerState(playerId)
-    if (!playerState) {
-      return false
-    }
-
     return playerState.hand.cards.some((card) => this.isCastable(card))
   }
 
   private playerHasAttackableCreature(playerId: string): boolean {
     const playerState = this.getPlayerState(playerId)
-    if (!playerState) {
-      return false
-    }
-
     return playerState.battlefield.cards.some((card) => {
       if (!this.isCreature(card)) {
         return false
