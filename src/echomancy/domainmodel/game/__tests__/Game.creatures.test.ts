@@ -447,19 +447,18 @@ test("opponent's creatures do not untap during active player's UNTAP step", () =
   game.tapPermanent(creature1.instanceId)
   game.tapPermanent(creature2.instanceId)
 
-  // End player1's turn and advance through player2's turn
+  // End player1's turn to reach player2's UNTAP step
   game.apply({ type: "END_TURN", playerId: player1.id })
-  game.apply({ type: "END_TURN", playerId: player2.id })
 
-  // Now we're at player1's UNTAP step
+  // Now we're at player2's UNTAP step
   expect(game.currentStep).toBe(Step.UNTAP)
-  expect(game.currentPlayerId).toBe(player1.id)
+  expect(game.currentPlayerId).toBe(player2.id)
 
-  // Player1's creature should be untapped
-  expect(game.getCreatureState(creature1.instanceId).isTapped).toBe(false)
+  // Player2's creature should be untapped (active player)
+  expect(game.getCreatureState(creature2.instanceId).isTapped).toBe(false)
 
-  // Player2's creature should still be tapped
-  expect(game.getCreatureState(creature2.instanceId).isTapped).toBe(true)
+  // Player1's creature should still be tapped (opponent)
+  expect(game.getCreatureState(creature1.instanceId).isTapped).toBe(true)
 })
 
 test("multiple creatures of active player untap simultaneously", () => {
