@@ -8,7 +8,7 @@ import {
 } from "./helpers"
 
 // ============================================================================
-// Regla 1 — Una criatura entra al battlefield correctamente
+// Rule 1 — A creature enters the battlefield correctly
 // ============================================================================
 
 test("creature enters battlefield when cast and resolved", () => {
@@ -60,7 +60,7 @@ test("creature enters battlefield not attacking", () => {
 })
 
 // ============================================================================
-// Regla 2 — Una criatura puede atacar en la fase de combate
+// Rule 2 — A creature can attack during the combat phase
 // ============================================================================
 
 test("creature can be declared as attacker in DECLARE_ATTACKERS step", () => {
@@ -158,7 +158,7 @@ test("multiple creatures can attack in same turn", () => {
 })
 
 // ============================================================================
-// Regla 3 — Una criatura girada no puede atacar
+// Rule 3 — A tapped creature cannot attack
 // ============================================================================
 
 test("tapped creature cannot be declared as attacker", () => {
@@ -229,7 +229,7 @@ test("DECLARE_ATTACKER action not available for tapped creatures", () => {
 })
 
 // ============================================================================
-// Regla 4 — Una criatura no puede atacar dos veces en el mismo turno
+// Rule 4 — A creature cannot attack twice in the same turn
 // ============================================================================
 
 test("creature cannot attack twice in same turn with extra combat phase", () => {
@@ -335,7 +335,7 @@ test("different creature can attack in extra combat phase", () => {
 })
 
 // ============================================================================
-// Regla 5 — El estado de ataque se resetea al cambiar de turno
+// Rule 5 — Attack state resets when the turn changes
 // ============================================================================
 
 test("creature attack state resets when turn changes", () => {
