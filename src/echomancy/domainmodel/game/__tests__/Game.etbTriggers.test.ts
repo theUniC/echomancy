@@ -145,6 +145,75 @@ test("it does NOT execute ETB for instants", () => {
   expect(handSizeAfter).toBe(handSizeBefore)
 })
 
+test("it does NOT execute ETB for sorceries", () => {
+  const { game, player1, player2 } = createStartedGame()
+  advanceToStep(game, Step.FIRST_MAIN)
+
+  // ETB effect that should NOT execute for sorceries
+  const etbEffect: Effect = {
+    resolve(g: Game, context: EffectContext) {
+      const tokenCard: CardInstance = {
+        instanceId: "etb-token-sorcery",
+        definition: {
+          id: "etb-token-sorcery",
+          name: "ETB Token from Sorcery",
+          types: ["CREATURE"],
+        },
+        ownerId: context.controllerId,
+      }
+      const playerState = g.getPlayerState(context.controllerId)
+      playerState.hand.cards.push(tokenCard)
+    },
+  }
+
+  const sorceryCard: CardInstance = {
+    instanceId: "sorcery-with-etb",
+    definition: {
+      id: "sorcery-with-etb",
+      name: "Sorcery with ETB",
+      types: ["SORCERY"],
+      onEnterBattlefield: etbEffect, // ETB defined but should not execute
+    },
+    ownerId: player1.id,
+  }
+
+  const handSizeBefore = game.getPlayerState(player1.id).hand.cards.length
+
+  addSpellToHand(game, player1.id, sorceryCard)
+
+  // Cast the sorcery
+  game.apply({
+    type: "CAST_SPELL",
+    playerId: player1.id,
+    cardId: sorceryCard.instanceId,
+    targets: [],
+  })
+
+  // Resolve the stack
+  game.apply({
+    type: "PASS_PRIORITY",
+    playerId: player2.id,
+  })
+
+  game.apply({
+    type: "PASS_PRIORITY",
+    playerId: player1.id,
+  })
+
+  // Verify the sorcery is NOT on the battlefield
+  const battlefield = game.getPlayerState(player1.id).battlefield.cards
+  expect(battlefield).toHaveLength(0)
+
+  // Verify it's in the graveyard
+  const graveyard = game.getGraveyard(player1.id)
+  expect(graveyard).toHaveLength(1)
+  expect(graveyard[0].instanceId).toBe(sorceryCard.instanceId)
+
+  // Verify the ETB did NOT execute (hand size should be unchanged)
+  const handSizeAfter = game.getPlayerState(player1.id).hand.cards.length
+  expect(handSizeAfter).toBe(handSizeBefore)
+})
+
 test("it executes ETB after the spell effect", () => {
   const { game, player1, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
