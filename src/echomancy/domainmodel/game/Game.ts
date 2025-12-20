@@ -240,8 +240,7 @@ export class Game {
 
     const actions: AllowedAction[] = []
 
-    // ADVANCE_STEP and END_TURN only for current player
-    if (playerId === this.currentPlayerId) {
+    if (this.canAdvanceOrEndTurn(playerId)) {
       actions.push("ADVANCE_STEP", "END_TURN")
     }
 
@@ -249,17 +248,11 @@ export class Game {
       actions.push("PLAY_LAND")
     }
 
-    // CAST_SPELL for priority player in main phase
-    if (this.isMainPhase() && this.playerHasSpellInHand(playerId)) {
+    if (this.canCastSpell(playerId)) {
       actions.push("CAST_SPELL")
     }
 
-    // DECLARE_ATTACKER during DECLARE_ATTACKERS step
-    if (
-      this.currentStep === Step.DECLARE_ATTACKERS &&
-      playerId === this.currentPlayerId &&
-      this.playerHasAttackableCreature(playerId)
-    ) {
+    if (this.canDeclareAttacker(playerId)) {
       actions.push("DECLARE_ATTACKER")
     }
 
@@ -554,6 +547,22 @@ export class Game {
 
   private bothPlayersHavePassed(): boolean {
     return this.hasPassedPriority.size === this.turnOrder.length
+  }
+
+  private canAdvanceOrEndTurn(playerId: string): boolean {
+    return playerId === this.currentPlayerId
+  }
+
+  private canCastSpell(playerId: string): boolean {
+    return this.isMainPhase() && this.playerHasSpellInHand(playerId)
+  }
+
+  private canDeclareAttacker(playerId: string): boolean {
+    return (
+      this.currentStep === Step.DECLARE_ATTACKERS &&
+      playerId === this.currentPlayerId &&
+      this.playerHasAttackableCreature(playerId)
+    )
   }
 
   private playerHasSpellInHand(playerId: string): boolean {
