@@ -394,8 +394,8 @@ export class Game {
 
     const controllerState = this.getPlayerState(spell.controllerId)
 
-    // Move card to appropriate zone based on its types
-    if (this.isPermanent(spell.card)) {
+    // Move card to appropriate zone: permanents → battlefield, one-shots → graveyard
+    if (this.entersBattlefieldOnResolve(spell.card)) {
       controllerState.battlefield.cards.push(spell.card)
     } else {
       controllerState.graveyard.cards.push(spell.card)
@@ -462,7 +462,7 @@ export class Game {
     return !card.definition.types.includes("LAND")
   }
 
-  private isPermanent(card: CardInstance): boolean {
+  private entersBattlefieldOnResolve(card: CardInstance): boolean {
     const permanentTypes = ["CREATURE", "ARTIFACT", "ENCHANTMENT"]
     return card.definition.types.some((type) => permanentTypes.includes(type))
   }
