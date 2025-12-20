@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid"
 import type { CardInstance } from "../../cards/CardInstance"
 import { Game } from "../Game"
 import { Player } from "../Player"
-import type { GameSteps } from "../Steps"
+import { Step, type GameSteps } from "../Steps"
 
 export function createStartedGame() {
   const player1 = new Player("p1")
@@ -112,4 +112,44 @@ export function addCreatureToBattlefield(
   const playerState = game.getPlayerState(playerId)
   playerState.battlefield.cards.push(creature)
   game.initializeCreatureStateIfNeeded(creature)
+}
+
+export function setupCreatureInCombat(
+  game: Game,
+  playerId: string,
+  creatureId?: string,
+): CardInstance {
+  const creature = createTestCreature(playerId, creatureId)
+  addCreatureToBattlefield(game, playerId, creature)
+  advanceToStep(game, Step.DECLARE_ATTACKERS)
+  return creature
+}
+
+export function setupMultipleCreatures(
+  game: Game,
+  playerId: string,
+  count: number,
+): CardInstance[] {
+  const creatures: CardInstance[] = []
+  for (let i = 0; i < count; i++) {
+    const creature = createTestCreature(playerId, `creature-${i + 1}`)
+    addCreatureToBattlefield(game, playerId, creature)
+    creatures.push(creature)
+  }
+  return creatures
+}
+
+export function scheduleExtraCombatPhase(game: Game): void {
+  game.addScheduledSteps([
+    Step.BEGINNING_OF_COMBAT,
+    Step.DECLARE_ATTACKERS,
+    Step.DECLARE_BLOCKERS,
+    Step.COMBAT_DAMAGE,
+    Step.END_OF_COMBAT,
+  ])
+}
+
+export function resolveStack(game: Game, opponentId: string, controllerId: string): void {
+  game.apply({ type: "PASS_PRIORITY", playerId: opponentId })
+  game.apply({ type: "PASS_PRIORITY", playerId: controllerId })
 }
