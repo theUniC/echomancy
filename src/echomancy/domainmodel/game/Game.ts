@@ -463,7 +463,7 @@ export class Game {
   }
 
   private entersBattlefieldOnResolve(card: CardInstance): boolean {
-    const permanentTypes = ["CREATURE", "ARTIFACT", "ENCHANTMENT"]
+    const permanentTypes = ["CREATURE", "ARTIFACT", "ENCHANTMENT", "PLANESWALKER"]
     return card.definition.types.some((type) => permanentTypes.includes(type))
   }
 

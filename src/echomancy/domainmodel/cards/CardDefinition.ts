@@ -6,6 +6,7 @@ export type CardType =
   | "SORCERY"
   | "ARTIFACT"
   | "ENCHANTMENT"
+  | "PLANESWALKER"
   | "LAND"
 
 export type CardDefinition = {
