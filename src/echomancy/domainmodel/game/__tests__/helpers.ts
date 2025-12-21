@@ -1,6 +1,11 @@
 import { v4 as uuidv4 } from "uuid"
 import type { CardInstance } from "../../cards/CardInstance"
-import { Game } from "../Game"
+import {
+  type AbilityOnStack,
+  Game,
+  type SpellOnStack,
+  type StackItem,
+} from "../Game"
 import { Player } from "../Player"
 import { type GameSteps, Step } from "../Steps"
 
@@ -156,4 +161,44 @@ export function resolveStack(
 ): void {
   game.apply({ type: "PASS_PRIORITY", playerId: opponentId })
   game.apply({ type: "PASS_PRIORITY", playerId: controllerId })
+}
+
+/**
+ * Asserts that a stack item at a given index is a spell and returns it with proper typing.
+ * Throws an error if the item is not a spell.
+ */
+export function assertSpellAt(
+  stack: readonly StackItem[],
+  index: number,
+): SpellOnStack {
+  const item = stack[index]
+  if (!item) {
+    throw new Error(`No stack item found at index ${index}`)
+  }
+  if (item.kind !== "SPELL") {
+    throw new Error(
+      `Expected SPELL at stack index ${index}, but got ${item.kind}`,
+    )
+  }
+  return item
+}
+
+/**
+ * Asserts that a stack item at a given index is an ability and returns it with proper typing.
+ * Throws an error if the item is not an ability.
+ */
+export function assertAbilityAt(
+  stack: readonly StackItem[],
+  index: number,
+): AbilityOnStack {
+  const item = stack[index]
+  if (!item) {
+    throw new Error(`No stack item found at index ${index}`)
+  }
+  if (item.kind !== "ABILITY") {
+    throw new Error(
+      `Expected ABILITY at stack index ${index}, but got ${item.kind}`,
+    )
+  }
+  return item
 }

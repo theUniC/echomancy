@@ -3,6 +3,7 @@ import { Step } from "../Steps"
 import {
   addSpellToHand,
   advanceToStep,
+  assertSpellAt,
   createSpell,
   createStartedGame,
 } from "./helpers"
@@ -42,8 +43,10 @@ test("opponent can respond to a spell with CAST_SPELL", () => {
 
   stack = game.getStack()
   expect(stack).toHaveLength(2)
-  expect(stack[0].card.instanceId).toBe(spell1.instanceId)
-  expect(stack[1].card.instanceId).toBe(spell2.instanceId)
+  const spell1OnStack = assertSpellAt(stack, 0)
+  const spell2OnStack = assertSpellAt(stack, 1)
+  expect(spell1OnStack.card.instanceId).toBe(spell1.instanceId)
+  expect(spell2OnStack.card.instanceId).toBe(spell2.instanceId)
 
   actionsPlayer1 = game.getAllowedActionsFor(player1.id)
   actionsPlayer2 = game.getAllowedActionsFor(player2.id)
@@ -87,7 +90,8 @@ test("stack resolves in LIFO order after both players pass", () => {
 
   const stack = game.getStack()
   expect(stack).toHaveLength(1)
-  expect(stack[0].card.instanceId).toBe(spell1.instanceId)
+  const remainingSpell = assertSpellAt(stack, 0)
+  expect(remainingSpell.card.instanceId).toBe(spell1.instanceId)
 
   const graveyard2 = game.getGraveyard(player2.id)
   expect(graveyard2).toHaveLength(1)
