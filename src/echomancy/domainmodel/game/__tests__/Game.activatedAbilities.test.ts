@@ -5,6 +5,7 @@ import { Step } from "../Steps"
 import {
   addCreatureToBattlefield,
   advanceToStep,
+  assertAbilityAt,
   createStartedGame,
   createTestCreature,
 } from "./helpers"
@@ -458,7 +459,8 @@ test("ability resolves even if source permanent has left the battlefield", () =>
   // Verify ability is on stack
   let stack = game.getStack()
   expect(stack).toHaveLength(1)
-  expect(stack[0].kind).toBe("ABILITY")
+  const abilityOnStack = assertAbilityAt(stack, 0)
+  expect(abilityOnStack.sourceId).toBe(creature.instanceId)
 
   // Simulate the source permanent being destroyed (remove from battlefield)
   // This happens BEFORE the ability resolves

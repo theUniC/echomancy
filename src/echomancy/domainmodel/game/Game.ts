@@ -1,4 +1,5 @@
 import { match, P } from "ts-pattern"
+import type { ActivationCost } from "../abilities/ActivatedAbility"
 import type { CardDefinition } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { Target } from "../targets/Target"
@@ -486,25 +487,31 @@ export class Game {
    * Pays the cost to activate an ability.
    *
    * MVP LIMITATION - Only {T} (tap) cost is supported.
+   * MVP LIMITATION - Only creatures can have tap/untap state tracked.
+   * Artifacts, enchantments, and lands with activated abilities are assumed
+   * to be untapped and can always pay tap costs.
+   *
    * TODO: Support other costs (mana, sacrifice, discard, etc.)
+   * TODO: Track tapped state for all permanents, not just creatures
    */
-  private payActivationCost(permanentId: string, cost: { type: "TAP" }): void {
+  private payActivationCost(permanentId: string, cost: ActivationCost): void {
     if (cost.type === "TAP") {
       // Check if permanent can be tapped
       const creatureState = this.creatureStates.get(permanentId)
-      if (!creatureState) {
-        throw new PermanentNotFoundError(permanentId)
-      }
 
-      if (creatureState.isTapped) {
-        throw new CannotPayActivationCostError(
-          permanentId,
-          "permanent is already tapped",
-        )
+      if (creatureState) {
+        // It's a creature - check if already tapped
+        if (creatureState.isTapped) {
+          throw new CannotPayActivationCostError(
+            permanentId,
+            "permanent is already tapped",
+          )
+        }
+        // Tap the creature
+        creatureState.isTapped = true
       }
-
-      // Tap the permanent
-      creatureState.isTapped = true
+      // If not a creature (artifact, enchantment, land), assume it can be tapped
+      // TODO: Track tapped state for all permanents, not just creatures
     }
   }
 
@@ -642,15 +649,9 @@ export class Game {
           (card) => card.instanceId === ability.sourceId,
         )
 
-        if (!permanent) {
-          // In the current type system, EffectContext.source is non-nullable.
-          // If the permanent cannot be found, we treat this as an error.
-          throw new PermanentNotFoundError(ability.sourceId)
-        }
-
         // Use the effect stored when the ability was activated
         ability.effect.resolve(this, {
-          source: permanent,
+          source: permanent, // May be undefined if permanent left battlefield
           controllerId: ability.controllerId,
           targets: ability.targets,
         })
