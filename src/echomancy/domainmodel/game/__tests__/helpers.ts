@@ -4,7 +4,6 @@ import {
   type AbilityOnStack,
   Game,
   type SpellOnStack,
-  type StackItem,
 } from "../Game"
 import { Player } from "../Player"
 import { type GameSteps, Step } from "../Steps"
