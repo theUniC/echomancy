@@ -218,7 +218,7 @@ test("it executes ETB after the spell effect", () => {
   const { game, player1, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  let executionOrder: string[] = []
+  const executionOrder: string[] = []
 
   // Spell effect that executes first
   const spellEffect: Effect = {
