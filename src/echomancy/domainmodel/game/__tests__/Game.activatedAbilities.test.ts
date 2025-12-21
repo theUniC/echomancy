@@ -26,7 +26,7 @@ function createCreatureWithActivatedAbility(
       types: ["CREATURE"],
       activatedAbility: {
         cost: { type: "TAP" },
-        effect: new NoOpEffect(), // Observable effect for testing
+        effect: new NoOpEffect(), // No-op effect; this test only checks activation/stacking
       },
     },
     ownerId,
