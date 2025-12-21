@@ -156,18 +156,6 @@ test("ETB receives empty targets, does not inherit from spell", () => {
   const { game, player1, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  // Create a creature to target
-  const targetCreature: CardInstance = {
-    instanceId: "target-creature",
-    definition: {
-      id: "target-creature",
-      name: "Target Creature",
-      types: ["CREATURE"],
-    },
-    ownerId: player2.id,
-  }
-  game.getPlayerState(player2.id).battlefield.cards.push(targetCreature)
-
   let etbReceivedTargets: Target[] | undefined
 
   const etbEffect: Effect = {
@@ -190,15 +178,15 @@ test("ETB receives empty targets, does not inherit from spell", () => {
 
   addSpellToHand(game, player1.id, creatureCard)
 
-  // Cast the spell WITH targets (even though this creature doesn't need them for the spell)
+  // Cast the spell WITH a target (targeting player2)
   game.apply({
     type: "CAST_SPELL",
     playerId: player1.id,
     cardId: creatureCard.instanceId,
     targets: [
       {
-        type: "CARD",
-        cardId: targetCreature.instanceId,
+        kind: "PLAYER",
+        playerId: player2.id,
       },
     ],
   })
@@ -207,7 +195,7 @@ test("ETB receives empty targets, does not inherit from spell", () => {
   game.apply({ type: "PASS_PRIORITY", playerId: player2.id })
   game.apply({ type: "PASS_PRIORITY", playerId: player1.id })
 
-  // Verify ETB received empty targets
+  // Verify ETB received empty targets (did not inherit the spell's target)
   expect(etbReceivedTargets).toBeDefined()
   expect(etbReceivedTargets).toEqual([])
 })
