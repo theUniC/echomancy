@@ -815,14 +815,28 @@ export class Game {
   /**
    * enterBattlefield - Central entry point for all permanents entering the battlefield
    *
+   * ⚠️ LOW-LEVEL API - INTERNAL USE ONLY ⚠️
+   *
+   * This is a low-level game engine method that bypasses normal game rule validation.
+   * It does NOT check:
+   * - Whether you can afford to play this permanent
+   * - Whether it's the right timing/phase to play it
+   * - Whether you have permission to play it
+   * - Any other game rule restrictions
+   *
+   * @internal
+   *
+   * Valid use cases:
+   * - Game mechanics (resolveTopOfStack, playLand) - these already validated rules
+   * - Test helpers (addCreatureToBattlefield) - for setting up test scenarios
+   * - Future effects (blink, reanimate, tokens) - special game effects
+   *
+   * For normal gameplay, use game actions instead:
+   * - game.apply({ type: "CAST_SPELL", ... }) - validates mana, timing, etc.
+   * - game.apply({ type: "PLAY_LAND", ... }) - validates land-per-turn limit, etc.
+   *
    * This method represents the single source of truth for when a permanent enters
    * the battlefield. ALL paths to the battlefield MUST go through this method.
-   *
-   * This includes:
-   * - Permanents resolving from the stack (spells)
-   * - Lands being played
-   * - Test helpers (addCreatureToBattlefield, etc.)
-   * - Future: blink effects, reanimation, tokens, etc.
    *
    * Responsibilities:
    * 1. Move the permanent to the controller's battlefield
