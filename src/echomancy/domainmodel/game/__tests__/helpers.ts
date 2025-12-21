@@ -104,14 +104,17 @@ export function addCreatureToHand(
   playerState.hand.cards.push(creature)
 }
 
+/**
+ * Adds a creature to the battlefield for the given player.
+ * IMPORTANT: This helper MUST use game.enterBattlefield() to ensure
+ * consistent ETB handling across all code paths (production and tests).
+ */
 export function addCreatureToBattlefield(
   game: Game,
   playerId: string,
   creature: CardInstance,
 ): void {
-  const playerState = game.getPlayerState(playerId)
-  playerState.battlefield.cards.push(creature)
-  game.initializeCreatureStateIfNeeded(creature)
+  game.enterBattlefield(creature, playerId)
 }
 
 export function setupCreatureInCombat(

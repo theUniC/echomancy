@@ -818,6 +818,12 @@ export class Game {
    * This method represents the single source of truth for when a permanent enters
    * the battlefield. ALL paths to the battlefield MUST go through this method.
    *
+   * This includes:
+   * - Permanents resolving from the stack (spells)
+   * - Lands being played
+   * - Test helpers (addCreatureToBattlefield, etc.)
+   * - Future: blink effects, reanimation, tokens, etc.
+   *
    * Responsibilities:
    * 1. Move the permanent to the controller's battlefield
    * 2. Initialize creature state if the permanent is a creature
@@ -838,10 +844,7 @@ export class Game {
    * @param permanent - The CardInstance entering the battlefield
    * @param controllerId - The ID of the player who controls this permanent
    */
-  private enterBattlefield(
-    permanent: CardInstance,
-    controllerId: string,
-  ): void {
+  enterBattlefield(permanent: CardInstance, controllerId: string): void {
     // 1. Move permanent to battlefield
     const controllerState = this.getPlayerState(controllerId)
     controllerState.battlefield.cards.push(permanent)

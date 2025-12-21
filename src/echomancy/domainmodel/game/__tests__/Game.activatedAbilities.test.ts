@@ -248,17 +248,8 @@ test("resolving an ability does not trigger ETB or LTB effects", () => {
     ownerId: player1.id,
   }
 
-  // Add to battlefield (ETB should fire once)
+  // Add to battlefield (ETB should fire once via enterBattlefield)
   addCreatureToBattlefield(game, player1.id, creature)
-  const playerState = game.getPlayerState(player1.id)
-  // Manually trigger ETB since we added directly to battlefield
-  if (creature.definition.onEnterBattlefield) {
-    creature.definition.onEnterBattlefield.resolve(game, {
-      source: creature,
-      controllerId: player1.id,
-      targets: [],
-    })
-  }
 
   expect(etbCount).toBe(1)
 
@@ -276,6 +267,7 @@ test("resolving an ability does not trigger ETB or LTB effects", () => {
   expect(etbCount).toBe(1)
 
   // Creature should still be on battlefield
+  const playerState = game.getPlayerState(player1.id)
   expect(playerState.battlefield.cards).toHaveLength(1)
 })
 
