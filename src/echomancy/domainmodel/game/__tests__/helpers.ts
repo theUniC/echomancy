@@ -1,10 +1,6 @@
 import { v4 as uuidv4 } from "uuid"
 import type { CardInstance } from "../../cards/CardInstance"
-import {
-  type AbilityOnStack,
-  Game,
-  type SpellOnStack,
-} from "../Game"
+import { type AbilityOnStack, Game, type SpellOnStack } from "../Game"
 import { Player } from "../Player"
 import { type GameSteps, Step } from "../Steps"
 
