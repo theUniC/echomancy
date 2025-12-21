@@ -85,6 +85,10 @@ export type SpellOnStack = {
  * - Do not trigger ETB/LTB effects
  * - Are not affected by "counter target spell" effects
  * - Come from permanents on the battlefield
+ * - Resolve independently once on stack (Last Known Information)
+ *
+ * The effect is stored when activated so the ability can resolve
+ * even if the source permanent leaves the battlefield.
  *
  * MVP LIMITATIONS:
  * - No targeting support (targets array always empty)
@@ -99,6 +103,7 @@ export type SpellOnStack = {
 export type AbilityOnStack = {
   kind: "ABILITY"
   sourceId: string // permanentId of the card with the ability
+  effect: Effect // Stored when activated for Last Known Information
   controllerId: string
   targets: Target[] // TODO: Implement targeting for abilities
 }
@@ -465,10 +470,11 @@ export class Game {
     // Pay the activation cost
     this.payActivationCost(action.permanentId, ability.cost)
 
-    // Put ability on stack
+    // Put ability on stack (store effect for Last Known Information)
     this.stack.items.push({
       kind: "ABILITY",
       sourceId: permanent.instanceId,
+      effect: ability.effect,
       controllerId: action.playerId,
       targets: [], // TODO: Support targeting in abilities
     })
@@ -629,21 +635,19 @@ export class Game {
         }
       })
       .with({ kind: "ABILITY" }, (ability) => {
-        // Find the permanent with the ability
+        // Resolve the ability using the stored effect (Last Known Information)
+        // The ability resolves even if its source permanent has left the battlefield
         const controllerState = this.getPlayerState(ability.controllerId)
         const permanent = controllerState.battlefield.cards.find(
           (card) => card.instanceId === ability.sourceId,
         )
 
-        // If permanent is gone, ability still resolves (Last Known Information rule)
-        // but we need the definition to get the effect
-        if (permanent?.definition.activatedAbility?.effect) {
-          permanent.definition.activatedAbility.effect.resolve(this, {
-            source: permanent,
-            controllerId: ability.controllerId,
-            targets: ability.targets,
-          })
-        }
+        // Use the effect stored when the ability was activated
+        ability.effect.resolve(this, {
+          source: permanent, // May be undefined if permanent left battlefield
+          controllerId: ability.controllerId,
+          targets: ability.targets,
+        })
 
         // IMPORTANT: Abilities do NOT move cards or trigger ETB/LTB
         // The source permanent remains on battlefield (if it still exists)

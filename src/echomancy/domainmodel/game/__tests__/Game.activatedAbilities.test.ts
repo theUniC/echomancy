@@ -416,3 +416,73 @@ test("ACTIVATE_ABILITY does not appear in allowed actions when no abilities avai
   const allowedActions = game.getAllowedActionsFor(player1.id)
   expect(allowedActions).not.toContain("ACTIVATE_ABILITY")
 })
+
+// ============================================================================
+// Last Known Information: Ability resolves even if source is removed
+// ============================================================================
+
+test("ability resolves even if source permanent has left the battlefield", () => {
+  const { game, player1, player2 } = createStartedGame()
+  advanceToStep(game, Step.FIRST_MAIN)
+
+  const executionOrder: string[] = []
+
+  // Create a creature with an observable effect
+  const creature: CardInstance = {
+    instanceId: "creature-with-ability",
+    definition: {
+      id: "creature-with-ability-def",
+      name: "Creature with Ability",
+      types: ["CREATURE"],
+      activatedAbility: {
+        cost: { type: "TAP" },
+        effect: {
+          resolve(_g, _context) {
+            executionOrder.push("ABILITY_RESOLVED")
+          },
+        },
+      },
+    },
+    ownerId: player1.id,
+  }
+
+  addCreatureToBattlefield(game, player1.id, creature)
+
+  // Activate the ability (puts it on stack)
+  game.apply({
+    type: "ACTIVATE_ABILITY",
+    playerId: player1.id,
+    permanentId: creature.instanceId,
+  })
+
+  // Verify ability is on stack
+  let stack = game.getStack()
+  expect(stack).toHaveLength(1)
+  expect(stack[0].kind).toBe("ABILITY")
+
+  // Simulate the source permanent being destroyed (remove from battlefield)
+  // This happens BEFORE the ability resolves
+  const playerState = game.getPlayerState(player1.id)
+  const creatureIndex = playerState.battlefield.cards.findIndex(
+    (c) => c.instanceId === creature.instanceId,
+  )
+  expect(creatureIndex).toBeGreaterThanOrEqual(0)
+  playerState.battlefield.cards.splice(creatureIndex, 1)
+
+  // Verify creature is gone from battlefield
+  const battlefield = game.getPlayerState(player1.id).battlefield.cards
+  expect(
+    battlefield.find((c) => c.instanceId === creature.instanceId),
+  ).toBeUndefined()
+
+  // Resolve the ability (both players pass priority)
+  game.apply({ type: "PASS_PRIORITY", playerId: player2.id })
+  game.apply({ type: "PASS_PRIORITY", playerId: player1.id })
+
+  // Verify the ability resolved despite source being removed (Last Known Information)
+  expect(executionOrder).toEqual(["ABILITY_RESOLVED"])
+
+  // Stack should be empty after resolution
+  stack = game.getStack()
+  expect(stack).toHaveLength(0)
+})
