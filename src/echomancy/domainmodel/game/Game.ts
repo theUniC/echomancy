@@ -2,6 +2,7 @@ import { match, P } from "ts-pattern"
 import type { ActivationCost } from "../abilities/ActivatedAbility"
 import type { CardDefinition } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
+import type { Effect } from "../effects/Effect"
 import type { Target } from "../targets/Target"
 import {
   CannotPayActivationCostError,
