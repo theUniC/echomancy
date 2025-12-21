@@ -2,6 +2,7 @@ import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import type { Effect } from "../../effects/Effect"
 import type { EffectContext } from "../../effects/EffectContext"
+import type { Target } from "../../targets/Target"
 import type { Game } from "../Game"
 import { Step } from "../Steps"
 import { addSpellToHand, advanceToStep, createStartedGame } from "./helpers"
@@ -167,7 +168,7 @@ test("ETB receives empty targets, does not inherit from spell", () => {
   }
   game.getPlayerState(player2.id).battlefield.cards.push(targetCreature)
 
-  let etbReceivedTargets: any[] | undefined
+  let etbReceivedTargets: Target[] | undefined
 
   const etbEffect: Effect = {
     resolve(_g: Game, context: EffectContext) {
@@ -329,16 +330,16 @@ test("ETB context contains correct source and controllerId", () => {
   expect(capturedContext).toBeDefined()
 
   // Verify source is the permanent that entered
-  expect(capturedContext!.source.instanceId).toBe(creatureCard.instanceId)
+  expect(capturedContext?.source.instanceId).toBe(creatureCard.instanceId)
 
   // Verify controllerId is correct
-  expect(capturedContext!.controllerId).toBe(player1.id)
+  expect(capturedContext?.controllerId).toBe(player1.id)
 
   // Verify targets are empty
-  expect(capturedContext!.targets).toEqual([])
+  expect(capturedContext?.targets).toEqual([])
 })
 
 // TEST 8 (TODO): Blink future possibility (conceptual)
 test.todo(
-  "blink: permanent that leaves and re-enters battlefield triggers ETB again"
+  "blink: permanent that leaves and re-enters battlefield triggers ETB again",
 )
