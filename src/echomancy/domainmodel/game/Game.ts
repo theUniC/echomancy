@@ -352,8 +352,11 @@ export class Game {
       throw new CardIsNotLandError(action.cardId)
     }
 
+    // Remove land from hand
     playerState.hand.cards.splice(cardIndex, 1)
-    playerState.battlefield.cards.push(card)
+
+    // Use enterBattlefield to ensure consistent ETB handling
+    this.enterBattlefield(card, action.playerId)
 
     this.playedLands += 1
   }
@@ -620,23 +623,8 @@ export class Game {
 
         // Move card to appropriate zone: permanents → battlefield, one-shots → graveyard
         if (this.entersBattlefieldOnResolve(spell.card)) {
-          controllerState.battlefield.cards.push(spell.card)
-          this.initializeCreatureStateIfNeeded(spell.card)
-
-          // Execute ETB trigger if present
-          // NOTE: ETB triggers are conceptually separate from spell resolution.
-          // In Magic, ETB triggers have their own targeting when applicable.
-          // For this MVP, we pass empty targets to make it explicit that
-          // ETB targeting is not yet implemented. This prevents accidental
-          // dependencies on spell targets and reduces technical debt.
-          const etbEffect = spell.card.definition.onEnterBattlefield
-          if (etbEffect) {
-            etbEffect.resolve(this, {
-              source: spell.card,
-              controllerId: spell.controllerId,
-              targets: [], // ETB targeting not yet implemented
-            })
-          }
+          // Use enterBattlefield to ensure consistent ETB handling
+          this.enterBattlefield(spell.card, spell.controllerId)
         } else {
           controllerState.graveyard.cards.push(spell.card)
         }
@@ -819,6 +807,59 @@ export class Game {
         isTapped: false,
         isAttacking: false,
         hasAttackedThisTurn: false,
+      })
+    }
+  }
+
+  /**
+   * enterBattlefield - Central entry point for all permanents entering the battlefield
+   *
+   * This method represents the single source of truth for when a permanent enters
+   * the battlefield. ALL paths to the battlefield MUST go through this method.
+   *
+   * Responsibilities:
+   * 1. Move the permanent to the controller's battlefield
+   * 2. Initialize creature state if the permanent is a creature
+   * 3. Execute ETB (enter-the-battlefield) effects if present
+   *
+   * ETB Implementation Notes (MVP):
+   * - ETB effects execute immediately (not queued as separate triggers)
+   * - ETB effects receive empty targets (targeting not yet implemented)
+   * - ETB effects do NOT inherit targets from spells
+   * - Full triggered ability system will come later
+   *
+   * TODO: ETB with targets is not implemented yet
+   * TODO: ETB does not use the stack as a separate trigger
+   * TODO: Full triggered abilities will be implemented later
+   * TODO: Replacement effects (e.g., "enters tapped") not yet implemented
+   * TODO: Complete Last Known Information handling not yet implemented
+   *
+   * @param permanent - The CardInstance entering the battlefield
+   * @param controllerId - The ID of the player who controls this permanent
+   */
+  private enterBattlefield(
+    permanent: CardInstance,
+    controllerId: string,
+  ): void {
+    // 1. Move permanent to battlefield
+    const controllerState = this.getPlayerState(controllerId)
+    controllerState.battlefield.cards.push(permanent)
+
+    // 2. Initialize creature state if needed
+    this.initializeCreatureStateIfNeeded(permanent)
+
+    // 3. Execute ETB effect if present
+    const etbEffect = permanent.definition.onEnterBattlefield
+    if (etbEffect) {
+      // NOTE: ETB triggers are conceptually separate from spell resolution.
+      // In Magic, ETB triggers have their own targeting when applicable.
+      // For this MVP, we pass empty targets to make it explicit that
+      // ETB targeting is not yet implemented. This prevents accidental
+      // dependencies on spell targets and reduces technical debt.
+      etbEffect.resolve(this, {
+        source: permanent,
+        controllerId: controllerId,
+        targets: [], // ETB targeting not yet implemented
       })
     }
   }
