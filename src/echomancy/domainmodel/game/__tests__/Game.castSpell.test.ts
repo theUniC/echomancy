@@ -9,6 +9,7 @@ import { Step } from "../Steps"
 import {
   addSpellToHand,
   advanceToStep,
+  assertSpellAt,
   createStartedGame,
   createTestSpell,
 } from "./helpers"
@@ -50,10 +51,11 @@ test("it pushes the same card instance onto the stack", () => {
   })
 
   const stack = game.getStack()
+  const spell = assertSpellAt(stack, 0)
 
-  expect(stack[0].card.instanceId).toBe(spellCard.instanceId)
-  expect(stack[0].card.definition.id).toBe(spellCard.definition.id)
-  expect(stack[0].controllerId).toBe(player1.id)
+  expect(spell.card.instanceId).toBe(spellCard.instanceId)
+  expect(spell.card.definition.id).toBe(spellCard.definition.id)
+  expect(spell.controllerId).toBe(player1.id)
 })
 
 test("it throws error when trying to cast spell outside main phases", () => {
