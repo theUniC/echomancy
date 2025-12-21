@@ -642,9 +642,15 @@ export class Game {
           (card) => card.instanceId === ability.sourceId,
         )
 
+        if (!permanent) {
+          // In the current type system, EffectContext.source is non-nullable.
+          // If the permanent cannot be found, we treat this as an error.
+          throw new PermanentNotFoundError(ability.sourceId)
+        }
+
         // Use the effect stored when the ability was activated
         ability.effect.resolve(this, {
-          source: permanent, // May be undefined if permanent left battlefield
+          source: permanent,
           controllerId: ability.controllerId,
           targets: ability.targets,
         })
