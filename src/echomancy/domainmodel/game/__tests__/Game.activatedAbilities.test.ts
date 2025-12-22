@@ -1,6 +1,7 @@
 import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import { NoOpEffect } from "../../effects/impl/NoOpEffect"
+import { ZoneNames } from "../../zones/Zone"
 import { Step } from "../Steps"
 import {
   addCreatureToBattlefield,
@@ -227,11 +228,6 @@ test("resolving an ability does not trigger ETB or LTB effects", () => {
   advanceToStep(game, Step.FIRST_MAIN)
 
   let etbCount = 0
-  const etbEffect = {
-    resolve: () => {
-      etbCount++
-    },
-  }
 
   const creature: CardInstance = {
     instanceId: "etb-creature",
@@ -239,7 +235,17 @@ test("resolving an ability does not trigger ETB or LTB effects", () => {
       id: "etb-creature-def",
       name: "ETB Creature",
       types: ["CREATURE"],
-      onEnterBattlefield: etbEffect,
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: () => {
+            etbCount++
+          },
+        },
+      ],
       activatedAbility: {
         cost: { type: "TAP" },
         effect: new NoOpEffect(),

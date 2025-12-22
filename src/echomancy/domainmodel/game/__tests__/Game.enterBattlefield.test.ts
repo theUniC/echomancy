@@ -1,8 +1,8 @@
 import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
-import type { Effect } from "../../effects/Effect"
 import type { EffectContext } from "../../effects/EffectContext"
 import type { Target } from "../../targets/Target"
+import { ZoneNames } from "../../zones/Zone"
 import type { Game } from "../Game"
 import { Step } from "../Steps"
 import { addSpellToHand, advanceToStep, createStartedGame } from "./helpers"
@@ -29,11 +29,6 @@ test("permanent resolved from stack enters via enterBattlefield", () => {
   advanceToStep(game, Step.FIRST_MAIN)
 
   let etbExecuted = false
-  const etbEffect: Effect = {
-    resolve(_g: Game, _context: EffectContext) {
-      etbExecuted = true
-    },
-  }
 
   const creatureCard: CardInstance = {
     instanceId: "creature-from-stack",
@@ -41,7 +36,17 @@ test("permanent resolved from stack enters via enterBattlefield", () => {
       id: "creature-from-stack",
       name: "Creature from Stack",
       types: ["CREATURE"],
-      onEnterBattlefield: etbEffect,
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: (_g: Game, _context: EffectContext) => {
+            etbExecuted = true
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }
@@ -75,11 +80,6 @@ test("land played from hand enters via enterBattlefield and executes ETB", () =>
   advanceToStep(game, Step.FIRST_MAIN)
 
   let etbExecuted = false
-  const etbEffect: Effect = {
-    resolve(_g: Game, _context: EffectContext) {
-      etbExecuted = true
-    },
-  }
 
   const landWithETB: CardInstance = {
     instanceId: "land-with-etb",
@@ -87,7 +87,17 @@ test("land played from hand enters via enterBattlefield and executes ETB", () =>
       id: "land-with-etb",
       name: "Land with ETB",
       types: ["LAND"],
-      onEnterBattlefield: etbEffect,
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: (_g: Game, _context: EffectContext) => {
+            etbExecuted = true
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }
@@ -117,11 +127,6 @@ test("ETB executes exactly once when permanent enters", () => {
   advanceToStep(game, Step.FIRST_MAIN)
 
   let etbExecutionCount = 0
-  const etbEffect: Effect = {
-    resolve(_g: Game, _context: EffectContext) {
-      etbExecutionCount++
-    },
-  }
 
   const permanentCard: CardInstance = {
     instanceId: "permanent-etb-once",
@@ -129,7 +134,17 @@ test("ETB executes exactly once when permanent enters", () => {
       id: "permanent-etb-once",
       name: "Permanent ETB Once",
       types: ["ARTIFACT"],
-      onEnterBattlefield: etbEffect,
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: (_g: Game, _context: EffectContext) => {
+            etbExecutionCount++
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }
@@ -158,20 +173,24 @@ test("ETB receives empty targets, does not inherit from spell", () => {
 
   let etbReceivedTargets: Target[] | undefined
 
-  const etbEffect: Effect = {
-    resolve(_g: Game, context: EffectContext) {
-      // Capture the targets received by ETB
-      etbReceivedTargets = context.targets
-    },
-  }
-
   const creatureCard: CardInstance = {
     instanceId: "creature-with-targets",
     definition: {
       id: "creature-with-targets",
       name: "Creature with Targets",
       types: ["CREATURE"],
-      onEnterBattlefield: etbEffect,
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: (_g: Game, context: EffectContext) => {
+            // Capture the targets received by ETB
+            etbReceivedTargets = context.targets
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }
@@ -284,19 +303,23 @@ test("ETB context contains correct source and controllerId", () => {
 
   let capturedContext: EffectContext | undefined
 
-  const etbEffect: Effect = {
-    resolve(_g: Game, context: EffectContext) {
-      capturedContext = context
-    },
-  }
-
   const creatureCard: CardInstance = {
     instanceId: "creature-context-check",
     definition: {
       id: "creature-context-check",
       name: "Creature Context Check",
       types: ["CREATURE"],
-      onEnterBattlefield: etbEffect,
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: (_g: Game, context: EffectContext) => {
+            capturedContext = context
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }

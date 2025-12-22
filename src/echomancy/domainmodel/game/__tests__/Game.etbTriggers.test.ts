@@ -1,7 +1,6 @@
 import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
-import type { Effect } from "../../effects/Effect"
-import type { EffectContext } from "../../effects/EffectContext"
+import { ZoneNames } from "../../zones/Zone"
 import type { Game } from "../Game"
 import { Step } from "../Steps"
 import { addSpellToHand, advanceToStep, createStartedGame } from "./helpers"
@@ -10,30 +9,34 @@ test("it executes ETB when permanent enters the battlefield", () => {
   const { game, player1, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  // Observable ETB effect that adds a card to the controller's hand
-  const etbEffect: Effect = {
-    resolve(g: Game, context: EffectContext) {
-      const tokenCard: CardInstance = {
-        instanceId: "etb-token",
-        definition: {
-          id: "etb-token",
-          name: "ETB Token",
-          types: ["CREATURE"],
-        },
-        ownerId: context.controllerId,
-      }
-      const playerState = g.getPlayerState(context.controllerId)
-      playerState.hand.cards.push(tokenCard)
-    },
-  }
-
   const creatureCard: CardInstance = {
     instanceId: "creature-with-etb",
     definition: {
       id: "creature-with-etb",
       name: "Creature with ETB",
       types: ["CREATURE"],
-      onEnterBattlefield: etbEffect,
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: (g: Game, context) => {
+            // Observable ETB effect that adds a card to the controller's hand
+            const tokenCard: CardInstance = {
+              instanceId: "etb-token",
+              definition: {
+                id: "etb-token",
+                name: "ETB Token",
+                types: ["CREATURE"],
+              },
+              ownerId: context.controllerId,
+            }
+            const playerState = g.getPlayerState(context.controllerId)
+            playerState.hand.cards.push(tokenCard)
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }
@@ -80,30 +83,34 @@ test("it does NOT execute ETB for instants", () => {
   const { game, player1, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  // ETB effect that should NOT execute for instants
-  const etbEffect: Effect = {
-    resolve(g: Game, context: EffectContext) {
-      const tokenCard: CardInstance = {
-        instanceId: "etb-token-instant",
-        definition: {
-          id: "etb-token-instant",
-          name: "ETB Token from Instant",
-          types: ["CREATURE"],
-        },
-        ownerId: context.controllerId,
-      }
-      const playerState = g.getPlayerState(context.controllerId)
-      playerState.hand.cards.push(tokenCard)
-    },
-  }
-
   const instantCard: CardInstance = {
     instanceId: "instant-with-etb",
     definition: {
       id: "instant-with-etb",
       name: "Instant with ETB",
       types: ["INSTANT"],
-      onEnterBattlefield: etbEffect, // ETB defined but should not execute
+      // ETB trigger defined but should not execute (instants don't enter battlefield)
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: (g: Game, context) => {
+            const tokenCard: CardInstance = {
+              instanceId: "etb-token-instant",
+              definition: {
+                id: "etb-token-instant",
+                name: "ETB Token from Instant",
+                types: ["CREATURE"],
+              },
+              ownerId: context.controllerId,
+            }
+            const playerState = g.getPlayerState(context.controllerId)
+            playerState.hand.cards.push(tokenCard)
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }
@@ -149,30 +156,34 @@ test("it does NOT execute ETB for sorceries", () => {
   const { game, player1, player2 } = createStartedGame()
   advanceToStep(game, Step.FIRST_MAIN)
 
-  // ETB effect that should NOT execute for sorceries
-  const etbEffect: Effect = {
-    resolve(g: Game, context: EffectContext) {
-      const tokenCard: CardInstance = {
-        instanceId: "etb-token-sorcery",
-        definition: {
-          id: "etb-token-sorcery",
-          name: "ETB Token from Sorcery",
-          types: ["CREATURE"],
-        },
-        ownerId: context.controllerId,
-      }
-      const playerState = g.getPlayerState(context.controllerId)
-      playerState.hand.cards.push(tokenCard)
-    },
-  }
-
   const sorceryCard: CardInstance = {
     instanceId: "sorcery-with-etb",
     definition: {
       id: "sorcery-with-etb",
       name: "Sorcery with ETB",
       types: ["SORCERY"],
-      onEnterBattlefield: etbEffect, // ETB defined but should not execute
+      // ETB trigger defined but should not execute (sorceries don't enter battlefield)
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: (g: Game, context) => {
+            const tokenCard: CardInstance = {
+              instanceId: "etb-token-sorcery",
+              definition: {
+                id: "etb-token-sorcery",
+                name: "ETB Token from Sorcery",
+                types: ["CREATURE"],
+              },
+              ownerId: context.controllerId,
+            }
+            const playerState = g.getPlayerState(context.controllerId)
+            playerState.hand.cards.push(tokenCard)
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }
@@ -220,28 +231,30 @@ test("it executes ETB after the spell effect", () => {
 
   const executionOrder: string[] = []
 
-  // Spell effect that executes first
-  const spellEffect: Effect = {
-    resolve(_g: Game, _context: EffectContext) {
-      executionOrder.push("SPELL_EFFECT")
-    },
-  }
-
-  // ETB effect that executes after
-  const etbEffect: Effect = {
-    resolve(_g: Game, _context: EffectContext) {
-      executionOrder.push("ETB_EFFECT")
-    },
-  }
-
   const creatureCard: CardInstance = {
     instanceId: "creature-with-both-effects",
     definition: {
       id: "creature-with-both-effects",
       name: "Creature with Both Effects",
       types: ["CREATURE"],
-      effect: spellEffect,
-      onEnterBattlefield: etbEffect,
+      // Spell effect that executes first
+      effect: {
+        resolve(_g: Game, _context) {
+          executionOrder.push("SPELL_EFFECT")
+        },
+      },
+      // ETB trigger that executes after
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: () => {
+            executionOrder.push("ETB_EFFECT")
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }
@@ -277,20 +290,23 @@ test("it does not re-trigger ETB on extra phases", () => {
 
   let etbExecutionCount = 0
 
-  // ETB effect that counts how many times it executes
-  const etbEffect: Effect = {
-    resolve(_g: Game, _context: EffectContext) {
-      etbExecutionCount++
-    },
-  }
-
   const creatureCard: CardInstance = {
     instanceId: "creature-etb-once",
     definition: {
       id: "creature-etb-once",
       name: "Creature ETB Once",
       types: ["CREATURE"],
-      onEnterBattlefield: etbEffect,
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === ZoneNames.BATTLEFIELD,
+          effect: () => {
+            etbExecutionCount++
+          },
+        },
+      ],
     },
     ownerId: player1.id,
   }
