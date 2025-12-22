@@ -4,7 +4,6 @@ import type { CardDefinition } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { ZoneName } from "../zones/Zone"
 import type { Actions, AllowedAction } from "./GameActions"
-import type { GameEvent } from "./GameEvents"
 import {
   CannotPayActivationCostError,
   CardIsNotLandError,
@@ -23,6 +22,7 @@ import {
   PlayerNotFoundError,
   TappedCreatureCannotAttackError,
 } from "./GameErrors"
+import type { GameEvent } from "./GameEvents"
 import type { Player } from "./Player"
 import type { PlayerState } from "./PlayerState"
 import type { AbilityOnStack, SpellOnStack, StackItem } from "./StackTypes"
@@ -825,7 +825,10 @@ export class Game {
    */
   private evaluateTriggers(event: GameEvent): void {
     // Collect all permanents from all battlefields
-    const allPermanents: Array<{ permanent: CardInstance; controllerId: string }> = []
+    const allPermanents: Array<{
+      permanent: CardInstance
+      controllerId: string
+    }> = []
 
     for (const [playerId, playerState] of this.playerStates.entries()) {
       for (const permanent of playerState.battlefield.cards) {
@@ -835,7 +838,7 @@ export class Game {
 
     // Collect triggers that match this event
     type TriggeredAbility = {
-      effect: (game: Game, context: any) => void
+      effect: (game: Game, context: EffectContext) => void
       controllerId: string
       source: CardInstance
     }
