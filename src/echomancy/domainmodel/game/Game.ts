@@ -42,6 +42,17 @@ type Stack = {
   items: StackItem[]
 }
 
+type PermanentOnBattlefield = {
+  permanent: CardInstance
+  controllerId: string
+}
+
+type TriggeredAbility = {
+  effect: (game: Game, context: EffectContext) => void
+  controllerId: string
+  source: CardInstance
+}
+
 type GameParams = {
   id: string
   players: Player[]
@@ -824,60 +835,84 @@ export class Game {
    * @param event - The game event that occurred
    */
   private evaluateTriggers(event: GameEvent): void {
-    // Collect all permanents from all battlefields
-    const allPermanents: Array<{
-      permanent: CardInstance
-      controllerId: string
-    }> = []
+    const permanents = this.collectPermanentsFromBattlefield()
+    const triggersToExecute = this.collectMatchingTriggers(event, permanents)
+    this.executeTriggeredAbilities(triggersToExecute)
+  }
+
+  /**
+   * Collects all permanents from all players' battlefields.
+   *
+   * @returns Array of permanents with their controller IDs
+   */
+  private collectPermanentsFromBattlefield(): PermanentOnBattlefield[] {
+    const permanents: PermanentOnBattlefield[] = []
 
     for (const [playerId, playerState] of this.playerStates.entries()) {
       for (const permanent of playerState.battlefield.cards) {
-        allPermanents.push({ permanent, controllerId: playerId })
+        permanents.push({ permanent, controllerId: playerId })
       }
     }
 
-    // Collect triggers that match this event
-    type TriggeredAbility = {
-      effect: (game: Game, context: EffectContext) => void
-      controllerId: string
-      source: CardInstance
-    }
+    return permanents
+  }
 
+  /**
+   * Collects triggers that match the given event.
+   *
+   * Filters permanents to find triggers that:
+   * 1. Watch for this event type
+   * 2. Have their condition met
+   *
+   * @param event - The game event
+   * @param permanents - Permanents to check for triggers
+   * @returns Array of triggered abilities ready to execute
+   */
+  private collectMatchingTriggers(
+    event: GameEvent,
+    permanents: PermanentOnBattlefield[],
+  ): TriggeredAbility[] {
     const triggersToExecute: TriggeredAbility[] = []
 
-    for (const { permanent, controllerId } of allPermanents) {
+    for (const { permanent, controllerId } of permanents) {
       const triggers = permanent.definition.triggers
-
-      if (!triggers) {
-        continue
-      }
+      if (!triggers) continue
 
       for (const trigger of triggers) {
-        // Check if this trigger watches for this event type
-        if (trigger.eventType !== event.type) {
-          continue
-        }
+        // Skip if event type doesn't match (avoid evaluating condition unnecessarily)
+        if (trigger.eventType !== event.type) continue
 
-        // Check if the trigger's condition is met
-        const conditionMet = trigger.condition(this, event, permanent)
+        // Evaluate condition only for matching event types
+        const isConditionMet = trigger.condition(this, event, permanent)
 
-        if (conditionMet) {
+        if (isConditionMet) {
           triggersToExecute.push({
             effect: trigger.effect,
-            controllerId: controllerId,
+            controllerId,
             source: permanent,
           })
         }
       }
     }
 
-    // Execute all matched triggers
-    // MVP: Execute in the order they were collected (deterministic but simplified)
-    // TODO: Implement APNAP ordering - active player's triggers first, then non-active
-    for (const triggeredAbility of triggersToExecute) {
-      triggeredAbility.effect(this, {
-        source: triggeredAbility.source,
-        controllerId: triggeredAbility.controllerId,
+    return triggersToExecute
+  }
+
+  /**
+   * Executes triggered abilities in order.
+   *
+   * MVP: Executes triggers in the order they were collected.
+   * TODO: Implement APNAP ordering (active player's triggers first, then non-active)
+   *
+   * @param triggeredAbilities - Abilities to execute
+   */
+  private executeTriggeredAbilities(
+    triggeredAbilities: TriggeredAbility[],
+  ): void {
+    for (const ability of triggeredAbilities) {
+      ability.effect(this, {
+        source: ability.source,
+        controllerId: ability.controllerId,
         targets: [], // MVP: Trigger effects don't support targeting yet
       })
     }

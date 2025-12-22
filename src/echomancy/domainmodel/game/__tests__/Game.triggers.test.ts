@@ -26,6 +26,45 @@ import {
  */
 
 // ============================================================================
+// TEST HELPERS
+// ============================================================================
+
+/**
+ * Creates a creature with a simple ETB trigger that executes a callback.
+ *
+ * @param instanceId - Unique ID for the creature
+ * @param ownerId - Player who owns the creature
+ * @param onETB - Callback to execute when trigger fires
+ * @returns CardInstance with ETB trigger
+ */
+function createCreatureWithETBTrigger(
+  instanceId: string,
+  ownerId: string,
+  onETB: () => void,
+): CardInstance {
+  return {
+    instanceId,
+    definition: {
+      id: "creature-with-etb",
+      name: "Creature With ETB",
+      types: ["CREATURE"],
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === "BATTLEFIELD",
+          effect: () => {
+            onETB()
+          },
+        },
+      ],
+    },
+    ownerId,
+  }
+}
+
+// ============================================================================
 // ETB TRIGGERS (Zone Change to Battlefield)
 // ============================================================================
 
@@ -142,37 +181,28 @@ test("multiple permanents with ETB triggers all fire", () => {
 
   const executionLog: string[] = []
 
-  const createElfWithTrigger = (id: string) => {
-    const creature: CardInstance = {
-      instanceId: id,
-      definition: {
-        id: "elf",
-        name: "Elf",
-        types: ["CREATURE"],
-        triggers: [
-          {
-            eventType: "ZONE_CHANGED",
-            condition: (_game, event, source) => {
-              return (
-                event.card.instanceId === source.instanceId &&
-                event.toZone === "BATTLEFIELD"
-              )
-            },
-            effect: () => {
-              executionLog.push(id)
-            },
-          },
-        ],
-      },
-      ownerId: player1.id,
-    }
-    return creature
-  }
-
-  // Add three elves to battlefield
-  addCreatureToBattlefield(game, player1.id, createElfWithTrigger("elf-1"))
-  addCreatureToBattlefield(game, player1.id, createElfWithTrigger("elf-2"))
-  addCreatureToBattlefield(game, player1.id, createElfWithTrigger("elf-3"))
+  // Add three elves to battlefield, each with its own ETB trigger
+  addCreatureToBattlefield(
+    game,
+    player1.id,
+    createCreatureWithETBTrigger("elf-1", player1.id, () =>
+      executionLog.push("elf-1"),
+    ),
+  )
+  addCreatureToBattlefield(
+    game,
+    player1.id,
+    createCreatureWithETBTrigger("elf-2", player1.id, () =>
+      executionLog.push("elf-2"),
+    ),
+  )
+  addCreatureToBattlefield(
+    game,
+    player1.id,
+    createCreatureWithETBTrigger("elf-3", player1.id, () =>
+      executionLog.push("elf-3"),
+    ),
+  )
 
   // Each trigger should have fired exactly once
   expect(executionLog).toEqual(["elf-1", "elf-2", "elf-3"])
