@@ -4,6 +4,7 @@ import type { CardDefinition } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { Effect } from "../effects/Effect"
 import type { Target } from "../targets/Target"
+import type { Actions, AllowedAction } from "./GameActions"
 import {
   CannotPayActivationCostError,
   CardIsNotLandError,
@@ -26,45 +27,6 @@ import type { Player } from "./Player"
 import type { PlayerState } from "./PlayerState"
 import { advance } from "./StepMachine"
 import { type GameSteps, Step } from "./Steps"
-
-type AdvanceStep = { type: "ADVANCE_STEP"; playerId: string }
-type EndTurn = { type: "END_TURN"; playerId: string }
-type PlayLand = { type: "PLAY_LAND"; playerId: string; cardId: string }
-type CastSpell = {
-  type: "CAST_SPELL"
-  playerId: string
-  cardId: string
-  targets: Target[]
-}
-type PassPriority = { type: "PASS_PRIORITY"; playerId: string }
-type DeclareAttacker = {
-  type: "DECLARE_ATTACKER"
-  playerId: string
-  creatureId: string
-}
-type ActivateAbility = {
-  type: "ACTIVATE_ABILITY"
-  playerId: string
-  permanentId: string
-}
-
-type Actions =
-  | AdvanceStep
-  | EndTurn
-  | PlayLand
-  | CastSpell
-  | PassPriority
-  | DeclareAttacker
-  | ActivateAbility
-
-export type AllowedAction =
-  | "ADVANCE_STEP"
-  | "END_TURN"
-  | "PLAY_LAND"
-  | "CAST_SPELL"
-  | "PASS_PRIORITY"
-  | "DECLARE_ATTACKER"
-  | "ACTIVATE_ABILITY"
 
 export type CreatureState = {
   isTapped: boolean
