@@ -20,6 +20,12 @@ export function createStartedGame() {
   return { game, player1, player2, dummyLandInstanceId }
 }
 
+export function createGameInMainPhase() {
+  const setup = createStartedGame()
+  advanceToStep(setup.game, Step.FIRST_MAIN)
+  return setup
+}
+
 export function advanceToStep(game: Game, targetStep: GameSteps): void {
   while (game.currentStep !== targetStep) {
     game.apply({ type: "ADVANCE_STEP", playerId: game.currentPlayerId })
