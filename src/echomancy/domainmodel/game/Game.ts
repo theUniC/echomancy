@@ -2,7 +2,9 @@ import { match, P } from "ts-pattern"
 import type { ActivationCost } from "../abilities/ActivatedAbility"
 import type { CardDefinition } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
+import type { ZoneName } from "../zones/Zone"
 import type { Actions, AllowedAction } from "./GameActions"
+import type { GameEvent } from "./GameEvents"
 import {
   CannotPayActivationCostError,
   CardIsNotLandError,
@@ -347,7 +349,11 @@ export class Game {
    * @param permanent - The CardInstance entering the battlefield
    * @param controllerId - The ID of the player who controls this permanent
    */
-  enterBattlefield(permanent: CardInstance, controllerId: string): void {
+  enterBattlefield(
+    permanent: CardInstance,
+    controllerId: string,
+    fromZone?: ZoneName,
+  ): void {
     // 1. Move permanent to battlefield
     const controllerState = this.getPlayerState(controllerId)
     controllerState.battlefield.cards.push(permanent)
@@ -355,7 +361,7 @@ export class Game {
     // 2. Initialize creature state if needed
     this.initializeCreatureStateIfNeeded(permanent)
 
-    // 3. Execute ETB effect if present
+    // 3. Execute legacy ETB effect if present (deprecated, use triggers instead)
     const etbEffect = permanent.definition.onEnterBattlefield
     if (etbEffect) {
       // NOTE: ETB triggers are conceptually separate from spell resolution.
@@ -369,6 +375,17 @@ export class Game {
         targets: [], // ETB targeting not yet implemented
       })
     }
+
+    // 4. Emit zone change event and evaluate triggers
+    // NOTE: fromZone defaults to "STACK" for backward compatibility
+    // Most permanents enter from the stack when spells resolve
+    this.evaluateTriggers({
+      type: "ZONE_CHANGED",
+      card: permanent,
+      fromZone: fromZone ?? "STACK",
+      toZone: "BATTLEFIELD",
+      controllerId: controllerId,
+    })
   }
 
   // ============================================================================
@@ -508,6 +525,13 @@ export class Game {
     creatureState.isAttacking = true
     creatureState.isTapped = true
     creatureState.hasAttackedThisTurn = true
+
+    // Emit creature declared attacker event and evaluate triggers
+    this.evaluateTriggers({
+      type: "CREATURE_DECLARED_ATTACKER",
+      creature: creature,
+      controllerId: action.playerId,
+    })
   }
 
   private activateAbility(action: ActivateAbility): void {
@@ -581,8 +605,12 @@ export class Game {
   }
 
   private performStepAdvance(): void {
-    // Clear isAttacking when leaving END_OF_COMBAT
+    // Emit combat ended event and clear isAttacking when leaving END_OF_COMBAT
     if (this.currentStep === Step.END_OF_COMBAT) {
+      this.evaluateTriggers({
+        type: "COMBAT_ENDED",
+        activePlayerId: this.currentPlayerId,
+      })
       this.clearAttackingState()
     }
 
@@ -624,9 +652,17 @@ export class Game {
   }
 
   private onEnterStep(step: GameSteps): void {
+    // Execute step-specific actions first
     if (step === Step.UNTAP) {
       this.autoUntapForCurrentPlayer()
     }
+
+    // Emit step started event and evaluate triggers
+    this.evaluateTriggers({
+      type: "STEP_STARTED",
+      step: step,
+      activePlayerId: this.currentPlayerId,
+    })
   }
 
   private autoUntapForCurrentPlayer(): void {
@@ -696,6 +732,15 @@ export class Game {
     } else {
       controllerState.graveyard.cards.push(spell.card)
     }
+
+    // Emit spell resolved event
+    // NOTE: This fires AFTER the spell's effect has been applied
+    // and the card has been moved to its final zone
+    this.evaluateTriggers({
+      type: "SPELL_RESOLVED",
+      card: spell.card,
+      controllerId: spell.controllerId,
+    })
   }
 
   private resolveAbility(ability: AbilityOnStack): void {
@@ -741,6 +786,97 @@ export class Game {
   ): void {
     for (const state of this.creatureStates.values()) {
       updateFn(state)
+    }
+  }
+
+  /**
+   * Evaluates triggers for a given game event.
+   *
+   * This is the core of the trigger system. When an event occurs,
+   * the Game calls this method to:
+   * 1. Inspect all permanents on the battlefield
+   * 2. Check each permanent's triggers
+   * 3. Execute triggers whose condition matches
+   *
+   * IMPORTANT: This is NOT an event bus or subscription system.
+   * Cards do NOT actively listen. The Game actively evaluates.
+   *
+   * Flow:
+   * - Game detects event E (ETB, attack, step change, etc.)
+   * - Game constructs event object
+   * - Game calls evaluateTriggers(E)
+   * - For each permanent with triggers:
+   *   - For each trigger on that permanent:
+   *     - If trigger.eventType matches E.type
+   *     - AND trigger.condition(game, E, permanent) is true
+   *     - Then execute trigger.effect(game, context)
+   *
+   * MVP Limitations (documented with TODOs):
+   * - Triggers execute immediately (no separate trigger stack)
+   * - No APNAP ordering (Active Player, Non-Active Player)
+   * - No complex trigger targeting
+   * - Execution order is deterministic but simplified
+   *
+   * TODO: Implement APNAP ordering for simultaneous triggers
+   * TODO: Add triggers to a separate stack instead of immediate execution
+   * TODO: Support targeting in trigger effects
+   *
+   * @param event - The game event that occurred
+   */
+  private evaluateTriggers(event: GameEvent): void {
+    // Collect all permanents from all battlefields
+    const allPermanents: Array<{ permanent: CardInstance; controllerId: string }> = []
+
+    for (const [playerId, playerState] of this.playerStates.entries()) {
+      for (const permanent of playerState.battlefield.cards) {
+        allPermanents.push({ permanent, controllerId: playerId })
+      }
+    }
+
+    // Collect triggers that match this event
+    type TriggeredAbility = {
+      effect: (game: Game, context: any) => void
+      controllerId: string
+      source: CardInstance
+    }
+
+    const triggersToExecute: TriggeredAbility[] = []
+
+    for (const { permanent, controllerId } of allPermanents) {
+      const triggers = permanent.definition.triggers
+
+      if (!triggers) {
+        continue
+      }
+
+      for (const trigger of triggers) {
+        // Check if this trigger watches for this event type
+        if (trigger.eventType !== event.type) {
+          continue
+        }
+
+        // Check if the trigger's condition is met
+        const conditionMet = trigger.condition(this, event, permanent)
+
+        if (conditionMet) {
+          triggersToExecute.push({
+            effect: trigger.effect,
+            controllerId: controllerId,
+            source: permanent,
+          })
+        }
+      }
+    }
+
+    // Execute all matched triggers
+    // MVP: Execute in the order they were collected (deterministic but simplified)
+    // TODO: Implement APNAP ordering - active player's triggers first, then non-active
+    for (const triggeredAbility of triggersToExecute) {
+      triggeredAbility.effect(this, {
+        source: triggeredAbility.source,
+        controllerId: triggeredAbility.controllerId,
+        targets: [], // MVP: Trigger effects don't support targeting yet
+      })
     }
   }
 
