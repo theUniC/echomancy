@@ -7,6 +7,7 @@ import {
   addCreatureToBattlefield,
   addSpellToHand,
   advanceToStep,
+  createCreatureWithETBTrigger,
   createGameInMainPhase,
   createStartedGame,
   createTestCreature,
@@ -24,45 +25,6 @@ import {
  * - Game evaluates triggers when events occur
  * - No event bus, no subscriptions, no active listeners
  */
-
-// ============================================================================
-// TEST HELPERS
-// ============================================================================
-
-/**
- * Creates a creature with a simple ETB trigger that executes a callback.
- *
- * @param instanceId - Unique ID for the creature
- * @param ownerId - Player who owns the creature
- * @param onETB - Callback to execute when trigger fires
- * @returns CardInstance with ETB trigger
- */
-function createCreatureWithETBTrigger(
-  instanceId: string,
-  ownerId: string,
-  onETB: () => void,
-): CardInstance {
-  return {
-    instanceId,
-    definition: {
-      id: "creature-with-etb",
-      name: "Creature With ETB",
-      types: ["CREATURE"],
-      triggers: [
-        {
-          eventType: "ZONE_CHANGED",
-          condition: (_game, event, source) =>
-            event.card.instanceId === source.instanceId &&
-            event.toZone === "BATTLEFIELD",
-          effect: () => {
-            onETB()
-          },
-        },
-      ],
-    },
-    ownerId,
-  }
-}
 
 // ============================================================================
 // ETB TRIGGERS (Zone Change to Battlefield)

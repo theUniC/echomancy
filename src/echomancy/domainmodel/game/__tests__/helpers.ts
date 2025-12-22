@@ -105,6 +105,43 @@ export function createTestCreature(
   }
 }
 
+/**
+ * Creates a creature with a simple ETB trigger that executes a callback.
+ *
+ * Useful for testing the trigger system without duplicating trigger definition code.
+ *
+ * @param instanceId - Unique ID for the creature
+ * @param ownerId - Player who owns the creature
+ * @param onETB - Callback to execute when trigger fires
+ * @returns CardInstance with ETB trigger
+ */
+export function createCreatureWithETBTrigger(
+  instanceId: string,
+  ownerId: string,
+  onETB: () => void,
+): CardInstance {
+  return {
+    instanceId,
+    definition: {
+      id: "creature-with-etb",
+      name: "Creature With ETB",
+      types: ["CREATURE"],
+      triggers: [
+        {
+          eventType: "ZONE_CHANGED",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === "BATTLEFIELD",
+          effect: () => {
+            onETB()
+          },
+        },
+      ],
+    },
+    ownerId,
+  }
+}
+
 export function addCreatureToHand(
   game: Game,
   playerId: string,
