@@ -2,7 +2,8 @@ import { match, P } from "ts-pattern"
 import type { ActivationCost } from "../abilities/ActivatedAbility"
 import type { CardDefinition } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
-import type { ZoneName } from "../zones/Zone"
+import type { EffectContext } from "../effects/EffectContext"
+import { type ZoneName, ZoneNames } from "../zones/Zone"
 import type { Actions, AllowedAction } from "./GameActions"
 import {
   CannotPayActivationCostError,
@@ -388,13 +389,13 @@ export class Game {
     }
 
     // 4. Emit zone change event and evaluate triggers
-    // NOTE: fromZone defaults to "STACK" for backward compatibility
+    // NOTE: fromZone defaults to STACK for backward compatibility
     // Most permanents enter from the stack when spells resolve
     this.evaluateTriggers({
       type: "ZONE_CHANGED",
       card: permanent,
-      fromZone: fromZone ?? "STACK",
-      toZone: "BATTLEFIELD",
+      fromZone: fromZone ?? ZoneNames.STACK,
+      toZone: ZoneNames.BATTLEFIELD,
       controllerId: controllerId,
     })
   }
