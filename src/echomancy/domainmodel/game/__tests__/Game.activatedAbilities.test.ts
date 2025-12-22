@@ -2,6 +2,7 @@ import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import { NoOpEffect } from "../../effects/impl/NoOpEffect"
 import { ZoneNames } from "../../zones/Zone"
+import { GameEventTypes } from "../GameEvents"
 import { Step } from "../Steps"
 import {
   addCreatureToBattlefield,
@@ -237,7 +238,7 @@ test("resolving an ability does not trigger ETB or LTB effects", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,

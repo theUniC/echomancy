@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid"
 import type { CardInstance } from "../../cards/CardInstance"
 import { ZoneNames } from "../../zones/Zone"
 import { Game } from "../Game"
+import { GameEventTypes } from "../GameEvents"
 import { Player } from "../Player"
 import type { AbilityOnStack, SpellOnStack, StackItem } from "../StackTypes"
 import { type GameSteps, Step } from "../Steps"
@@ -129,7 +130,7 @@ export function createCreatureWithETBTrigger(
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,

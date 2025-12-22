@@ -23,7 +23,7 @@ import {
   PlayerNotFoundError,
   TappedCreatureCannotAttackError,
 } from "./GameErrors"
-import type { GameEvent } from "./GameEvents"
+import { type GameEvent, GameEventTypes } from "./GameEvents"
 import type { Player } from "./Player"
 import type { PlayerState } from "./PlayerState"
 import type { AbilityOnStack, SpellOnStack, StackItem } from "./StackTypes"
@@ -377,7 +377,7 @@ export class Game {
     // NOTE: fromZone defaults to STACK for backward compatibility
     // Most permanents enter from the stack when spells resolve
     this.evaluateTriggers({
-      type: "ZONE_CHANGED",
+      type: GameEventTypes.ZONE_CHANGED,
       card: permanent,
       fromZone: fromZone ?? ZoneNames.STACK,
       toZone: ZoneNames.BATTLEFIELD,
@@ -525,7 +525,7 @@ export class Game {
 
     // Emit creature declared attacker event and evaluate triggers
     this.evaluateTriggers({
-      type: "CREATURE_DECLARED_ATTACKER",
+      type: GameEventTypes.CREATURE_DECLARED_ATTACKER,
       creature: creature,
       controllerId: action.playerId,
     })
@@ -605,7 +605,7 @@ export class Game {
     // Emit combat ended event and clear isAttacking when leaving END_OF_COMBAT
     if (this.currentStep === Step.END_OF_COMBAT) {
       this.evaluateTriggers({
-        type: "COMBAT_ENDED",
+        type: GameEventTypes.COMBAT_ENDED,
         activePlayerId: this.currentPlayerId,
       })
       this.clearAttackingState()
@@ -656,7 +656,7 @@ export class Game {
 
     // Emit step started event and evaluate triggers
     this.evaluateTriggers({
-      type: "STEP_STARTED",
+      type: GameEventTypes.STEP_STARTED,
       step: step,
       activePlayerId: this.currentPlayerId,
     })
@@ -734,7 +734,7 @@ export class Game {
     // NOTE: This fires AFTER the spell's effect has been applied
     // and the card has been moved to its final zone
     this.evaluateTriggers({
-      type: "SPELL_RESOLVED",
+      type: GameEventTypes.SPELL_RESOLVED,
       card: spell.card,
       controllerId: spell.controllerId,
     })

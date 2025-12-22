@@ -2,6 +2,7 @@ import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import { ZoneNames } from "../../zones/Zone"
 import type { Game } from "../Game"
+import { GameEventTypes } from "../GameEvents"
 import { Step } from "../Steps"
 import { addSpellToHand, advanceToStep, createStartedGame } from "./helpers"
 
@@ -17,7 +18,7 @@ test("it executes ETB when permanent enters the battlefield", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,
@@ -92,7 +93,7 @@ test("it does NOT execute ETB for instants", () => {
       // ETB trigger defined but should not execute (instants don't enter battlefield)
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,
@@ -165,7 +166,7 @@ test("it does NOT execute ETB for sorceries", () => {
       // ETB trigger defined but should not execute (sorceries don't enter battlefield)
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,
@@ -246,7 +247,7 @@ test("it executes ETB after the spell effect", () => {
       // ETB trigger that executes after
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,
@@ -298,7 +299,7 @@ test("it does not re-trigger ETB on extra phases", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,

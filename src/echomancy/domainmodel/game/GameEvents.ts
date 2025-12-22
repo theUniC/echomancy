@@ -97,3 +97,14 @@ export type GameEvent =
   | CreatureDeclaredAttackerEvent
   | CombatEndedEvent
   | SpellResolvedEvent
+
+/**
+ * Game event type constants to avoid magic strings
+ */
+export const GameEventTypes = {
+  ZONE_CHANGED: "ZONE_CHANGED" as const,
+  STEP_STARTED: "STEP_STARTED" as const,
+  CREATURE_DECLARED_ATTACKER: "CREATURE_DECLARED_ATTACKER" as const,
+  COMBAT_ENDED: "COMBAT_ENDED" as const,
+  SPELL_RESOLVED: "SPELL_RESOLVED" as const,
+} as const

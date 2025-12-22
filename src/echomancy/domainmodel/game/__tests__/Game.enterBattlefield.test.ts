@@ -4,6 +4,7 @@ import type { EffectContext } from "../../effects/EffectContext"
 import type { Target } from "../../targets/Target"
 import { ZoneNames } from "../../zones/Zone"
 import type { Game } from "../Game"
+import { GameEventTypes } from "../GameEvents"
 import { Step } from "../Steps"
 import { addSpellToHand, advanceToStep, createStartedGame } from "./helpers"
 
@@ -38,7 +39,7 @@ test("permanent resolved from stack enters via enterBattlefield", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,
@@ -89,7 +90,7 @@ test("land played from hand enters via enterBattlefield and executes ETB", () =>
       types: ["LAND"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,
@@ -136,7 +137,7 @@ test("ETB executes exactly once when permanent enters", () => {
       types: ["ARTIFACT"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,
@@ -181,7 +182,7 @@ test("ETB receives empty targets, does not inherit from spell", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,
@@ -311,7 +312,7 @@ test("ETB context contains correct source and controllerId", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === ZoneNames.BATTLEFIELD,

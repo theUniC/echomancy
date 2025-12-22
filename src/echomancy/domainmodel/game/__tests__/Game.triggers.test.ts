@@ -2,6 +2,7 @@ import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import type { EffectContext } from "../../effects/EffectContext"
 import type { Game } from "../Game"
+import { GameEventTypes } from "../GameEvents"
 import { Step } from "../Steps"
 import {
   addCreatureToBattlefield,
@@ -43,7 +44,7 @@ test("trigger fires when card enters the battlefield", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) => {
             return (
               event.card.instanceId === source.instanceId &&
@@ -98,7 +99,7 @@ test("trigger does NOT fire for other cards entering battlefield", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) => {
             // Only trigger when THIS card enters
             return (
@@ -183,7 +184,7 @@ test("trigger condition can inspect game state", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (game, event, source) => {
             if (event.card.instanceId !== source.instanceId) return false
             if (event.toZone !== "BATTLEFIELD") return false
@@ -241,7 +242,7 @@ test("trigger fires when creature attacks", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "CREATURE_DECLARED_ATTACKER",
+          eventType: GameEventTypes.CREATURE_DECLARED_ATTACKER,
           condition: (_game, event, source) => {
             // Trigger when THIS creature attacks
             return event.creature.instanceId === source.instanceId
@@ -282,7 +283,7 @@ test("attack trigger can observe ANY creature attacking", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "CREATURE_DECLARED_ATTACKER",
+          eventType: GameEventTypes.CREATURE_DECLARED_ATTACKER,
           condition: () => true, // Trigger for ANY creature attacking
           effect: (_game, _context) => {
             // In a real implementation, we'd extract the attacking creature from context
@@ -337,7 +338,7 @@ test("trigger fires at beginning of step", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "STEP_STARTED",
+          eventType: GameEventTypes.STEP_STARTED,
           condition: (_game, event, _source) => {
             return event.step === Step.BEGINNING_OF_COMBAT
           },
@@ -379,7 +380,7 @@ test("trigger fires at beginning of upkeep", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "STEP_STARTED",
+          eventType: GameEventTypes.STEP_STARTED,
           condition: (_game, event, _source) => {
             return event.step === Step.UPKEEP
           },
@@ -420,7 +421,7 @@ test("trigger does not fire if condition is false", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: () => false, // Never triggers
           effect: () => {
             triggerExecuted = true
@@ -449,7 +450,7 @@ test("card with multiple triggers - all fire when conditions met", () => {
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === "BATTLEFIELD",
@@ -458,7 +459,7 @@ test("card with multiple triggers - all fire when conditions met", () => {
           },
         },
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === "BATTLEFIELD",
@@ -492,7 +493,7 @@ test("trigger fires even if source permanent leaves battlefield before resolutio
       types: ["CREATURE"],
       triggers: [
         {
-          eventType: "ZONE_CHANGED",
+          eventType: GameEventTypes.ZONE_CHANGED,
           condition: (_game, event, source) =>
             event.card.instanceId === source.instanceId &&
             event.toZone === "BATTLEFIELD",
