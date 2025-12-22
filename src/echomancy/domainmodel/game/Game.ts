@@ -150,6 +150,10 @@ export class Game {
     this.creatureStates = new Map()
   }
 
+  // ============================================================================
+  // STATIC FACTORY & VALIDATORS
+  // ============================================================================
+
   static start({ id, players, startingPlayerId }: GameParams): Game {
     Game.assertMoreThanOnePlayer(players)
     Game.assertStartingPlayerExists(players, startingPlayerId)
@@ -196,6 +200,26 @@ export class Game {
     return game
   }
 
+  private static assertStartingPlayerExists(
+    players: Player[],
+    startingPlayerId: string,
+  ) {
+    const exists = players.some((p) => p.id === startingPlayerId)
+    if (!exists) {
+      throw new InvalidStartingPlayerError(startingPlayerId)
+    }
+  }
+
+  private static assertMoreThanOnePlayer(players: Player[]) {
+    if (players.length < 2) {
+      throw new InvalidPlayerCountError(players.length)
+    }
+  }
+
+  // ============================================================================
+  // PUBLIC API - HIGH LEVEL (Commands & Primary Queries)
+  // ============================================================================
+
   apply(action: Actions): void {
     match(action)
       .with({ type: "ADVANCE_STEP", playerId: P.string }, (action) =>
@@ -224,58 +248,6 @@ export class Game {
         (action) => this.activateAbility(action),
       )
       .exhaustive()
-  }
-
-  getCurrentPlayer(): Player {
-    const player = this.playersById.get(this.currentPlayerId)
-    if (!player) {
-      throw new PlayerNotFoundError(this.currentPlayerId)
-    }
-    return player
-  }
-
-  getPlayerState(playerId: string): PlayerState {
-    const playerState = this.playerStates.get(playerId)
-    if (!playerState) {
-      throw new PlayerNotFoundError(playerId)
-    }
-    return playerState
-  }
-
-  getStack(): readonly StackItem[] {
-    return [...this.stack.items]
-  }
-
-  getGraveyard(playerId: string): readonly CardInstance[] {
-    const playerState = this.getPlayerState(playerId)
-    return [...playerState.graveyard.cards]
-  }
-
-  hasPlayer(playerId: string): boolean {
-    return this.playersById.has(playerId)
-  }
-
-  getPlayersInTurnOrder(): readonly string[] {
-    return [...this.turnOrder]
-  }
-
-  addScheduledSteps(steps: GameSteps[]): void {
-    if (this.scheduledSteps.length === 0) {
-      // Calculate resume point: the next step in normal flow
-      // that is NOT in the inserted extra phases
-      const insertedSteps = new Set(steps)
-      let tempStep = this.currentStep
-
-      // Advance until finding a step that is not in the inserted phases
-      do {
-        const { nextStep } = advance(tempStep)
-        tempStep = nextStep
-      } while (insertedSteps.has(tempStep))
-
-      this.resumeStepAfterScheduled = tempStep
-    }
-
-    this.scheduledSteps.push(...steps)
   }
 
   getAllowedActionsFor(playerId: string): AllowedAction[] {
@@ -316,7 +288,168 @@ export class Game {
     return actions
   }
 
-  // Action handlers (high-level)
+  // ============================================================================
+  // PUBLIC API - QUERIES (Game State Access)
+  // ============================================================================
+
+  getCurrentPlayer(): Player {
+    const player = this.playersById.get(this.currentPlayerId)
+    if (!player) {
+      throw new PlayerNotFoundError(this.currentPlayerId)
+    }
+    return player
+  }
+
+  getPlayerState(playerId: string): PlayerState {
+    const playerState = this.playerStates.get(playerId)
+    if (!playerState) {
+      throw new PlayerNotFoundError(playerId)
+    }
+    return playerState
+  }
+
+  getStack(): readonly StackItem[] {
+    return [...this.stack.items]
+  }
+
+  getGraveyard(playerId: string): readonly CardInstance[] {
+    const playerState = this.getPlayerState(playerId)
+    return [...playerState.graveyard.cards]
+  }
+
+  hasPlayer(playerId: string): boolean {
+    return this.playersById.has(playerId)
+  }
+
+  getPlayersInTurnOrder(): readonly string[] {
+    return [...this.turnOrder]
+  }
+
+  getCreatureState(creatureId: string): CreatureState {
+    return this.getCreatureStateOrThrow(creatureId)
+  }
+
+  // ============================================================================
+  // PUBLIC API - COMMANDS (State Mutations)
+  // ============================================================================
+
+  addScheduledSteps(steps: GameSteps[]): void {
+    if (this.scheduledSteps.length === 0) {
+      // Calculate resume point: the next step in normal flow
+      // that is NOT in the inserted extra phases
+      const insertedSteps = new Set(steps)
+      let tempStep = this.currentStep
+
+      // Advance until finding a step that is not in the inserted phases
+      do {
+        const { nextStep } = advance(tempStep)
+        tempStep = nextStep
+      } while (insertedSteps.has(tempStep))
+
+      this.resumeStepAfterScheduled = tempStep
+    }
+
+    this.scheduledSteps.push(...steps)
+  }
+
+  drawCards(_playerId: string, _amount: number): void {
+    // MVP: no-op implementation
+    // TODO: implement deck and actual card drawing
+  }
+
+  tapPermanent(permanentId: string): void {
+    const state = this.getCreatureStateOrThrow(permanentId)
+    state.isTapped = true
+  }
+
+  untapPermanent(permanentId: string): void {
+    const state = this.getCreatureStateOrThrow(permanentId)
+    state.isTapped = false
+  }
+
+  initializeCreatureStateIfNeeded(card: CardInstance): void {
+    if (this.isCreature(card)) {
+      this.creatureStates.set(card.instanceId, {
+        isTapped: false,
+        isAttacking: false,
+        hasAttackedThisTurn: false,
+      })
+    }
+  }
+
+  /**
+   * enterBattlefield - Central entry point for all permanents entering the battlefield
+   *
+   * ⚠️ LOW-LEVEL API - INTERNAL USE ONLY ⚠️
+   *
+   * This is a low-level game engine method that bypasses normal game rule validation.
+   * It does NOT check:
+   * - Whether you can afford to play this permanent
+   * - Whether it's the right timing/phase to play it
+   * - Whether you have permission to play it
+   * - Any other game rule restrictions
+   *
+   * @internal
+   *
+   * Valid use cases:
+   * - Game mechanics (resolveTopOfStack, playLand) - these already validated rules
+   * - Test helpers (addCreatureToBattlefield) - for setting up test scenarios
+   * - Future effects (blink, reanimate, tokens) - special game effects
+   *
+   * For normal gameplay, use game actions instead:
+   * - game.apply({ type: "CAST_SPELL", ... }) - validates mana, timing, etc.
+   * - game.apply({ type: "PLAY_LAND", ... }) - validates land-per-turn limit, etc.
+   *
+   * This method represents the single source of truth for when a permanent enters
+   * the battlefield. ALL paths to the battlefield MUST go through this method.
+   *
+   * Responsibilities:
+   * 1. Move the permanent to the controller's battlefield
+   * 2. Initialize creature state if the permanent is a creature
+   * 3. Execute ETB (enter-the-battlefield) effects if present
+   *
+   * ETB Implementation Notes (MVP):
+   * - ETB effects execute immediately (not queued as separate triggers)
+   * - ETB effects receive empty targets (targeting not yet implemented)
+   * - ETB effects do NOT inherit targets from spells
+   * - Full triggered ability system will come later
+   *
+   * TODO: ETB with targets is not implemented yet
+   * TODO: ETB does not use the stack as a separate trigger
+   * TODO: Full triggered abilities will be implemented later
+   * TODO: Replacement effects (e.g., "enters tapped") not yet implemented
+   * TODO: Complete Last Known Information handling not yet implemented
+   *
+   * @param permanent - The CardInstance entering the battlefield
+   * @param controllerId - The ID of the player who controls this permanent
+   */
+  enterBattlefield(permanent: CardInstance, controllerId: string): void {
+    // 1. Move permanent to battlefield
+    const controllerState = this.getPlayerState(controllerId)
+    controllerState.battlefield.cards.push(permanent)
+
+    // 2. Initialize creature state if needed
+    this.initializeCreatureStateIfNeeded(permanent)
+
+    // 3. Execute ETB effect if present
+    const etbEffect = permanent.definition.onEnterBattlefield
+    if (etbEffect) {
+      // NOTE: ETB triggers are conceptually separate from spell resolution.
+      // In Magic, ETB triggers have their own targeting when applicable.
+      // For this MVP, we pass empty targets to make it explicit that
+      // ETB targeting is not yet implemented. This prevents accidental
+      // dependencies on spell targets and reduces technical debt.
+      etbEffect.resolve(this, {
+        source: permanent,
+        controllerId: controllerId,
+        targets: [], // ETB targeting not yet implemented
+      })
+    }
+  }
+
+  // ============================================================================
+  // PRIVATE - ACTION HANDLERS (High-Level Commands)
+  // ============================================================================
 
   private advanceStep(action: AdvanceStep): void {
     this.assertIsCurrentPlayer(action.playerId, "ADVANCE_STEP")
@@ -487,6 +620,10 @@ export class Game {
     this.givePriorityToOpponentOf(action.playerId)
   }
 
+  // ============================================================================
+  // PRIVATE - DOMAIN LOGIC (Mid-Level Game Mechanics)
+  // ============================================================================
+
   /**
    * Pays the cost to activate an ability.
    *
@@ -518,8 +655,6 @@ export class Game {
       // TODO: Track tapped state for all permanents, not just creatures
     }
   }
-
-  // Domain logic (mid-level)
 
   private performStepAdvance(): void {
     // Clear isAttacking when leaving END_OF_COMBAT
@@ -664,34 +799,30 @@ export class Game {
     this.playersWhoPassedPriority.clear()
   }
 
-  drawCards(_playerId: string, _amount: number): void {
-    // MVP: no-op implementation
-    // TODO: implement deck and actual card drawing
+  private clearAttackingState(): void {
+    this.updateAllCreatureStates((state) => {
+      state.isAttacking = false
+    })
   }
 
-  getCreatureState(creatureId: string): CreatureState {
-    return this.getCreatureStateOrThrow(creatureId)
+  private resetCreatureStatesForNewTurn(): void {
+    this.updateAllCreatureStates((state) => {
+      state.isAttacking = false
+      state.hasAttackedThisTurn = false
+    })
   }
 
-  tapPermanent(permanentId: string): void {
-    const state = this.getCreatureStateOrThrow(permanentId)
-    state.isTapped = true
-  }
-
-  untapPermanent(permanentId: string): void {
-    const state = this.getCreatureStateOrThrow(permanentId)
-    state.isTapped = false
-  }
-
-  private getCreatureStateOrThrow(creatureId: string): CreatureState {
-    const state = this.creatureStates.get(creatureId)
-    if (!state) {
-      throw new PermanentNotFoundError(creatureId)
+  private updateAllCreatureStates(
+    updateFn: (state: CreatureState) => void,
+  ): void {
+    for (const state of this.creatureStates.values()) {
+      updateFn(state)
     }
-    return state
   }
 
-  // Queries and predicates (low-level)
+  // ============================================================================
+  // PRIVATE - QUERIES & PREDICATES (Low-Level Checks)
+  // ============================================================================
 
   private hasPriority(playerId: string): boolean {
     return playerId === this.priorityPlayerId
@@ -806,108 +937,17 @@ export class Game {
     return card.definition.types.includes("CREATURE")
   }
 
-  initializeCreatureStateIfNeeded(card: CardInstance): void {
-    if (this.isCreature(card)) {
-      this.creatureStates.set(card.instanceId, {
-        isTapped: false,
-        isAttacking: false,
-        hasAttackedThisTurn: false,
-      })
+  // ============================================================================
+  // PRIVATE - ASSERTIONS & HELPERS (Lowest-Level Utilities)
+  // ============================================================================
+
+  private getCreatureStateOrThrow(creatureId: string): CreatureState {
+    const state = this.creatureStates.get(creatureId)
+    if (!state) {
+      throw new PermanentNotFoundError(creatureId)
     }
+    return state
   }
-
-  /**
-   * enterBattlefield - Central entry point for all permanents entering the battlefield
-   *
-   * ⚠️ LOW-LEVEL API - INTERNAL USE ONLY ⚠️
-   *
-   * This is a low-level game engine method that bypasses normal game rule validation.
-   * It does NOT check:
-   * - Whether you can afford to play this permanent
-   * - Whether it's the right timing/phase to play it
-   * - Whether you have permission to play it
-   * - Any other game rule restrictions
-   *
-   * @internal
-   *
-   * Valid use cases:
-   * - Game mechanics (resolveTopOfStack, playLand) - these already validated rules
-   * - Test helpers (addCreatureToBattlefield) - for setting up test scenarios
-   * - Future effects (blink, reanimate, tokens) - special game effects
-   *
-   * For normal gameplay, use game actions instead:
-   * - game.apply({ type: "CAST_SPELL", ... }) - validates mana, timing, etc.
-   * - game.apply({ type: "PLAY_LAND", ... }) - validates land-per-turn limit, etc.
-   *
-   * This method represents the single source of truth for when a permanent enters
-   * the battlefield. ALL paths to the battlefield MUST go through this method.
-   *
-   * Responsibilities:
-   * 1. Move the permanent to the controller's battlefield
-   * 2. Initialize creature state if the permanent is a creature
-   * 3. Execute ETB (enter-the-battlefield) effects if present
-   *
-   * ETB Implementation Notes (MVP):
-   * - ETB effects execute immediately (not queued as separate triggers)
-   * - ETB effects receive empty targets (targeting not yet implemented)
-   * - ETB effects do NOT inherit targets from spells
-   * - Full triggered ability system will come later
-   *
-   * TODO: ETB with targets is not implemented yet
-   * TODO: ETB does not use the stack as a separate trigger
-   * TODO: Full triggered abilities will be implemented later
-   * TODO: Replacement effects (e.g., "enters tapped") not yet implemented
-   * TODO: Complete Last Known Information handling not yet implemented
-   *
-   * @param permanent - The CardInstance entering the battlefield
-   * @param controllerId - The ID of the player who controls this permanent
-   */
-  enterBattlefield(permanent: CardInstance, controllerId: string): void {
-    // 1. Move permanent to battlefield
-    const controllerState = this.getPlayerState(controllerId)
-    controllerState.battlefield.cards.push(permanent)
-
-    // 2. Initialize creature state if needed
-    this.initializeCreatureStateIfNeeded(permanent)
-
-    // 3. Execute ETB effect if present
-    const etbEffect = permanent.definition.onEnterBattlefield
-    if (etbEffect) {
-      // NOTE: ETB triggers are conceptually separate from spell resolution.
-      // In Magic, ETB triggers have their own targeting when applicable.
-      // For this MVP, we pass empty targets to make it explicit that
-      // ETB targeting is not yet implemented. This prevents accidental
-      // dependencies on spell targets and reduces technical debt.
-      etbEffect.resolve(this, {
-        source: permanent,
-        controllerId: controllerId,
-        targets: [], // ETB targeting not yet implemented
-      })
-    }
-  }
-
-  private clearAttackingState(): void {
-    this.updateAllCreatureStates((state) => {
-      state.isAttacking = false
-    })
-  }
-
-  private resetCreatureStatesForNewTurn(): void {
-    this.updateAllCreatureStates((state) => {
-      state.isAttacking = false
-      state.hasAttackedThisTurn = false
-    })
-  }
-
-  private updateAllCreatureStates(
-    updateFn: (state: CreatureState) => void,
-  ): void {
-    for (const state of this.creatureStates.values()) {
-      updateFn(state)
-    }
-  }
-
-  // Assertions (low-level)
 
   private assertIsCurrentPlayer(playerId: string, action: string): void {
     if (playerId !== this.currentPlayerId) {
@@ -933,8 +973,6 @@ export class Game {
     }
   }
 
-  // Helpers (lowest-level)
-
   private getOpponentOf(playerId: string): string {
     const opponentId = this.turnOrder.find((id) => id !== playerId)
     if (!opponentId) {
@@ -959,23 +997,5 @@ export class Game {
     const card = playerState.hand.cards[cardIndex]
 
     return { card, cardIndex }
-  }
-
-  // Static validators
-
-  private static assertStartingPlayerExists(
-    players: Player[],
-    startingPlayerId: string,
-  ) {
-    const exists = players.some((p) => p.id === startingPlayerId)
-    if (!exists) {
-      throw new InvalidStartingPlayerError(startingPlayerId)
-    }
-  }
-
-  private static assertMoreThanOnePlayer(players: Player[]) {
-    if (players.length < 2) {
-      throw new InvalidPlayerCountError(players.length)
-    }
   }
 }
