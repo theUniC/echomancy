@@ -631,7 +631,7 @@ export class Game {
     const controllerState = this.getPlayerState(spell.controllerId)
 
     // Move card to appropriate zone: permanents → battlefield, one-shots → graveyard
-    if (this.entersBattlefieldOnResolve(spell.card)) {
+    if (this.isPermanent(spell.card)) {
       // Use enterBattlefield to ensure consistent ETB handling
       this.enterBattlefield(spell.card, spell.controllerId)
     } else {
@@ -792,7 +792,7 @@ export class Game {
     return !card.definition.types.includes("LAND")
   }
 
-  private entersBattlefieldOnResolve(card: CardInstance): boolean {
+  private isPermanent(card: CardInstance): boolean {
     const permanentTypes = [
       "CREATURE",
       "ARTIFACT",
