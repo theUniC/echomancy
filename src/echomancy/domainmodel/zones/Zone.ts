@@ -7,4 +7,10 @@ export type Zone = {
 /**
  * Zone names in the game
  */
-export type ZoneName = "HAND" | "BATTLEFIELD" | "GRAVEYARD" | "STACK" | "LIBRARY" | "EXILE"
+export type ZoneName =
+  | "HAND"
+  | "BATTLEFIELD"
+  | "GRAVEYARD"
+  | "STACK"
+  | "LIBRARY"
+  | "EXILE"

@@ -30,7 +30,7 @@ import {
 // ============================================================================
 
 test("trigger fires when card enters the battlefield", () => {
-  const { game, player1 } = createGameInMainPhase()
+  const { game, player1, player2 } = createGameInMainPhase()
 
   let triggerExecuted = false
 
@@ -43,12 +43,13 @@ test("trigger fires when card enters the battlefield", () => {
       triggers: [
         {
           eventType: "ZONE_CHANGED",
-          condition: (game, event, source) => {
+          condition: (_game, event, source) => {
             return (
-              event.card.instanceId === source.instanceId && event.toZone === "BATTLEFIELD"
+              event.card.instanceId === source.instanceId &&
+              event.toZone === "BATTLEFIELD"
             )
           },
-          effect: (game: Game, context: EffectContext) => {
+          effect: (_game: Game, _context: EffectContext) => {
             triggerExecuted = true
             // In a real implementation: game.drawCards(context.controllerId, 1)
           },
@@ -72,7 +73,7 @@ test("trigger fires when card enters the battlefield", () => {
   expect(triggerExecuted).toBe(false)
 
   // Resolve the stack
-  resolveStack(game, player1.id)
+  resolveStack(game, player2.id, player1.id)
 
   // After resolution, trigger should have fired
   expect(triggerExecuted).toBe(true)
@@ -97,10 +98,11 @@ test("trigger does NOT fire for other cards entering battlefield", () => {
       triggers: [
         {
           eventType: "ZONE_CHANGED",
-          condition: (game, event, source) => {
+          condition: (_game, event, source) => {
             // Only trigger when THIS card enters
             return (
-              event.card.instanceId === source.instanceId && event.toZone === "BATTLEFIELD"
+              event.card.instanceId === source.instanceId &&
+              event.toZone === "BATTLEFIELD"
             )
           },
           effect: () => {
@@ -150,9 +152,10 @@ test("multiple permanents with ETB triggers all fire", () => {
         triggers: [
           {
             eventType: "ZONE_CHANGED",
-            condition: (game, event, source) => {
+            condition: (_game, event, source) => {
               return (
-                event.card.instanceId === source.instanceId && event.toZone === "BATTLEFIELD"
+                event.card.instanceId === source.instanceId &&
+                event.toZone === "BATTLEFIELD"
               )
             },
             effect: () => {
@@ -194,7 +197,8 @@ test("trigger condition can inspect game state", () => {
             if (event.toZone !== "BATTLEFIELD") return false
 
             // Only trigger if controller has at least 2 creatures on battlefield
-            const battlefield = game.getPlayerState(event.controllerId).battlefield.cards
+            const battlefield = game.getPlayerState(event.controllerId)
+              .battlefield.cards
             const creatureCount = battlefield.filter((card) =>
               card.definition.types.includes("CREATURE"),
             ).length
@@ -246,7 +250,7 @@ test("trigger fires when creature attacks", () => {
       triggers: [
         {
           eventType: "CREATURE_DECLARED_ATTACKER",
-          condition: (game, event, source) => {
+          condition: (_game, event, source) => {
             // Trigger when THIS creature attacks
             return event.creature.instanceId === source.instanceId
           },
@@ -276,7 +280,7 @@ test("attack trigger can observe ANY creature attacking", () => {
   const { game, player1 } = createStartedGame()
   advanceToStep(game, Step.DECLARE_ATTACKERS)
 
-  let attackersSeen: string[] = []
+  const attackersSeen: string[] = []
 
   const observerCreature: CardInstance = {
     instanceId: "observer",
@@ -288,7 +292,7 @@ test("attack trigger can observe ANY creature attacking", () => {
         {
           eventType: "CREATURE_DECLARED_ATTACKER",
           condition: () => true, // Trigger for ANY creature attacking
-          effect: (game, context) => {
+          effect: (_game, _context) => {
             // In a real implementation, we'd extract the attacking creature from context
             attackersSeen.push("attack-observed")
           },
@@ -342,7 +346,7 @@ test("trigger fires at beginning of step", () => {
       triggers: [
         {
           eventType: "STEP_STARTED",
-          condition: (game, event, source) => {
+          condition: (_game, event, _source) => {
             return event.step === Step.BEGINNING_OF_COMBAT
           },
           effect: () => {
@@ -384,7 +388,7 @@ test("trigger fires at beginning of upkeep", () => {
       triggers: [
         {
           eventType: "STEP_STARTED",
-          condition: (game, event, source) => {
+          condition: (_game, event, _source) => {
             return event.step === Step.UPKEEP
           },
           effect: () => {
@@ -454,16 +458,18 @@ test("card with multiple triggers - all fire when conditions met", () => {
       triggers: [
         {
           eventType: "ZONE_CHANGED",
-          condition: (game, event, source) =>
-            event.card.instanceId === source.instanceId && event.toZone === "BATTLEFIELD",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === "BATTLEFIELD",
           effect: () => {
             executionLog.push("ETB-1")
           },
         },
         {
           eventType: "ZONE_CHANGED",
-          condition: (game, event, source) =>
-            event.card.instanceId === source.instanceId && event.toZone === "BATTLEFIELD",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === "BATTLEFIELD",
           effect: () => {
             executionLog.push("ETB-2")
           },
@@ -495,8 +501,9 @@ test("trigger fires even if source permanent leaves battlefield before resolutio
       triggers: [
         {
           eventType: "ZONE_CHANGED",
-          condition: (game, event, source) =>
-            event.card.instanceId === source.instanceId && event.toZone === "BATTLEFIELD",
+          condition: (_game, event, source) =>
+            event.card.instanceId === source.instanceId &&
+            event.toZone === "BATTLEFIELD",
           effect: () => {
             triggerExecuted = true
           },
