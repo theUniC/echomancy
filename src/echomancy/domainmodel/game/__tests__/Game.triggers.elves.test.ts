@@ -1,13 +1,15 @@
 import { expect, test } from "vitest"
-import type { CardInstance } from "../../cards/CardInstance"
-import { ZoneNames } from "../../zones/Zone"
-import { GameEventTypes } from "../GameEvents"
 import { Step } from "../Steps"
 import {
   addCreatureToBattlefield,
   addSpellToHand,
   advanceToStep,
+  createConditionalElf,
+  createElfWithAttackTrigger,
+  createElvishVisionary,
+  createElvishWarrior,
   createGameInMainPhase,
+  createLlanowarElves,
   createStartedGame,
   resolveStack,
 } from "./helpers"
@@ -40,207 +42,7 @@ import {
  */
 
 // ============================================================================
-// CARD DEFINITIONS - ELF THEME
-// ============================================================================
-
-/**
- * Creates Elvish Visionary card instance
- *
- * Real card text: "When Elvish Visionary enters the battlefield, draw a card."
- *
- * MVP implementation:
- * - ETB trigger fires when entering battlefield
- * - Calls game.drawCards() (currently no-op in MVP)
- * - No targeting required
- *
- * @param ownerId - Player who owns the card
- * @param drawCallback - Optional callback to track draw execution (for testing)
- */
-function createElvishVisionary(
-  ownerId: string,
-  drawCallback?: () => void,
-): CardInstance {
-  return {
-    instanceId: `elvish-visionary-${Math.random()}`,
-    definition: {
-      id: "elvish-visionary",
-      name: "Elvish Visionary",
-      types: ["CREATURE"],
-      triggers: [
-        {
-          eventType: GameEventTypes.ZONE_CHANGED,
-          condition: (_game, event, source) =>
-            event.card.instanceId === source.instanceId &&
-            event.toZone === ZoneNames.BATTLEFIELD,
-          effect: (game, context) => {
-            // Draw a card when entering battlefield
-            game.drawCards(context.controllerId, 1)
-            drawCallback?.()
-          },
-        },
-      ],
-    },
-    ownerId,
-  }
-}
-
-/**
- * Creates Llanowar Elves card instance
- *
- * Real card text: "{T}: Add {G}."
- *
- * MVP limitations:
- * - Activated ability NOT implemented (no mana system yet)
- * - Card serves as "another elf" for conditional triggers
- * - Still a valid creature on battlefield
- *
- * TODO: Implement activated abilities when mana system exists
- *
- * @param ownerId - Player who owns the card
- */
-function createLlanowarElves(ownerId: string): CardInstance {
-  return {
-    instanceId: `llanowar-elves-${Math.random()}`,
-    definition: {
-      id: "llanowar-elves",
-      name: "Llanowar Elves",
-      types: ["CREATURE"],
-      // TODO: Add activatedAbility when mana system is implemented
-      // activatedAbility: {
-      //   cost: { type: "TAP" },
-      //   effect: (game, context) => game.addMana(context.controllerId, "G", 1)
-      // }
-    },
-    ownerId,
-  }
-}
-
-/**
- * Creates Elvish Warrior card instance
- *
- * Real card: Vanilla 2/3 creature (no abilities)
- *
- * MVP purpose:
- * - Tests that creatures without triggers don't execute anything
- * - Serves as "another elf" for conditional triggers
- *
- * @param ownerId - Player who owns the card
- */
-function createElvishWarrior(ownerId: string): CardInstance {
-  return {
-    instanceId: `elvish-warrior-${Math.random()}`,
-    definition: {
-      id: "elvish-warrior",
-      name: "Elvish Warrior",
-      types: ["CREATURE"],
-      // No triggers, no abilities - vanilla creature
-    },
-    ownerId,
-  }
-}
-
-/**
- * Creates a test elf with conditional ETB trigger
- *
- * Conceptual card text:
- * "When this enters the battlefield, if you control another Elf, draw a card."
- *
- * Implementation notes:
- * - "Another" means "a different elf, not this card itself"
- * - Condition inspects battlefield state at trigger evaluation time
- * - Tests that triggers can have complex conditional logic
- *
- * @param ownerId - Player who owns the card
- * @param drawCallback - Optional callback to track draw execution (for testing)
- */
-function createConditionalElf(
-  ownerId: string,
-  drawCallback?: () => void,
-): CardInstance {
-  return {
-    instanceId: `conditional-elf-${Math.random()}`,
-    definition: {
-      id: "conditional-elf",
-      name: "Conditional Elf",
-      types: ["CREATURE"],
-      triggers: [
-        {
-          eventType: GameEventTypes.ZONE_CHANGED,
-          condition: (game, event, source) => {
-            // Must be this card entering battlefield
-            if (event.card.instanceId !== source.instanceId) return false
-            if (event.toZone !== ZoneNames.BATTLEFIELD) return false
-
-            // Check if controller has ANOTHER elf (excluding this one)
-            const battlefield = game.getPlayerState(event.controllerId)
-              .battlefield.cards
-
-            const otherElves = battlefield.filter(
-              (card) =>
-                // Different card (not this one)
-                card.instanceId !== source.instanceId &&
-                // Is a creature
-                card.definition.types.includes("CREATURE") &&
-                // Card is an elf (MVP heuristic: check for "elf" or "elv" in ID or name)
-                // In a real implementation, this would check creature subtypes
-                (card.definition.id.includes("elf") ||
-                  card.definition.id.includes("elv") ||
-                  card.definition.name.toLowerCase().includes("elf") ||
-                  card.definition.name.toLowerCase().includes("elv")),
-            )
-
-            return otherElves.length > 0
-          },
-          effect: (game, context) => {
-            game.drawCards(context.controllerId, 1)
-            drawCallback?.()
-          },
-        },
-      ],
-    },
-    ownerId,
-  }
-}
-
-/**
- * Creates an elf with attack trigger
- *
- * Conceptual card text:
- * "Whenever this creature attacks, draw a card."
- *
- * Tests that attack triggers work correctly.
- *
- * @param ownerId - Player who owns the card
- * @param attackCallback - Optional callback to track attack trigger execution
- */
-function createElfWithAttackTrigger(
-  ownerId: string,
-  attackCallback?: () => void,
-): CardInstance {
-  return {
-    instanceId: `attacking-elf-${Math.random()}`,
-    definition: {
-      id: "attacking-elf",
-      name: "Attacking Elf",
-      types: ["CREATURE"],
-      triggers: [
-        {
-          eventType: GameEventTypes.CREATURE_DECLARED_ATTACKER,
-          condition: (_game, event, source) =>
-            event.creature.instanceId === source.instanceId,
-          effect: (game, context) => {
-            game.drawCards(context.controllerId, 1)
-            attackCallback?.()
-          },
-        },
-      ],
-    },
-    ownerId,
-  }
-}
-
-// ============================================================================
-// TEST 1 - ETB BÁSICO SE EJECUTA (Elvish Visionary)
+// TEST 1 - BASIC ETB TRIGGER EXECUTION (Elvish Visionary)
 // ============================================================================
 
 test("TEST 1: ETB trigger executes when Elvish Visionary enters battlefield", () => {
@@ -302,7 +104,7 @@ test("TEST 1 (variant): ETB trigger fires exactly once, not multiple times", () 
 })
 
 // ============================================================================
-// TEST 2 - ETB NO SE EJECUTA SI NO ENTRA AL BATTLEFIELD
+// TEST 2 - ETB DOES NOT EXECUTE IF CARD DOESN'T ENTER BATTLEFIELD
 // ============================================================================
 
 test("TEST 2: ETB trigger does NOT fire when card goes to graveyard instead of battlefield", () => {
@@ -351,7 +153,7 @@ test("TEST 2 (variant): ETB trigger condition requires toZone === BATTLEFIELD", 
 })
 
 // ============================================================================
-// TEST 3 - TRIGGER "CUANDO ESTA CRIATURA ATACA"
+// TEST 3 - ATTACK TRIGGER EXECUTION
 // ============================================================================
 
 test("TEST 3: Attack trigger executes when creature attacks", () => {
@@ -416,7 +218,7 @@ test("TEST 3 (negative): Attack trigger does NOT fire if creature doesn't attack
 })
 
 // ============================================================================
-// TEST 4 - TRIGGER CONDICIONAL BASADO EN ESTADO DEL BATTLEFIELD ("OTRO ELFO")
+// TEST 4 - CONDITIONAL TRIGGER BASED ON BATTLEFIELD STATE ("ANOTHER ELF")
 // ============================================================================
 
 test("TEST 4A: Conditional trigger does NOT fire when no other elves on battlefield", () => {
@@ -450,7 +252,7 @@ test("TEST 4B: Conditional trigger DOES fire when another elf is on battlefield"
   let battlefield = game.getPlayerState(player1.id).battlefield.cards
   expect(battlefield).toHaveLength(1)
 
-  // Debug: verify the llanowar has correct properties
+  // Verify the llanowar has correct properties
   const llanowarOnBattlefield = battlefield[0]
   expect(llanowarOnBattlefield.definition.name).toBe("Llanowar Elves")
   expect(llanowarOnBattlefield.definition.types).toContain("CREATURE")
@@ -499,7 +301,7 @@ test("TEST 4C: Conditional trigger validates 'another' (different card, not self
 })
 
 // ============================================================================
-// TEST 5 - CRIATURA SIN TRIGGERS NO EJECUTA NADA (Elvish Warrior)
+// TEST 5 - VANILLA CREATURE WITHOUT TRIGGERS
 // ============================================================================
 
 test("TEST 5: Vanilla creature without triggers executes no effects", () => {
