@@ -373,22 +373,7 @@ export class Game {
     // 2. Initialize creature state if needed
     this.initializeCreatureStateIfNeeded(permanent)
 
-    // 3. Execute legacy ETB effect if present (deprecated, use triggers instead)
-    const etbEffect = permanent.definition.onEnterBattlefield
-    if (etbEffect) {
-      // NOTE: ETB triggers are conceptually separate from spell resolution.
-      // In Magic, ETB triggers have their own targeting when applicable.
-      // For this MVP, we pass empty targets to make it explicit that
-      // ETB targeting is not yet implemented. This prevents accidental
-      // dependencies on spell targets and reduces technical debt.
-      etbEffect.resolve(this, {
-        source: permanent,
-        controllerId: controllerId,
-        targets: [], // ETB targeting not yet implemented
-      })
-    }
-
-    // 4. Emit zone change event and evaluate triggers
+    // 3. Emit zone change event and evaluate triggers
     // NOTE: fromZone defaults to STACK for backward compatibility
     // Most permanents enter from the stack when spells resolve
     this.evaluateTriggers({
