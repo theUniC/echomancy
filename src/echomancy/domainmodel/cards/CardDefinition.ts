@@ -25,17 +25,22 @@ export type CardDefinition = {
    *
    * The Game evaluates all triggers on all permanents whenever an event occurs.
    *
-   * Example:
+   * Example (ETB trigger that draws a card):
+   * ```typescript
+   * import { GameEventTypes } from "../game/GameEvents"
+   * import { ZoneNames } from "../zones/Zone"
+   *
    * triggers: [{
-   *   eventType: "ZONE_CHANGED",
+   *   eventType: GameEventTypes.ZONE_CHANGED,
    *   condition: (game, event, source) =>
    *     event.card.instanceId === source.instanceId &&
-   *     event.toZone === "BATTLEFIELD",
+   *     event.toZone === ZoneNames.BATTLEFIELD,
    *   effect: (game, context) =>
    *     game.drawCards(context.controllerId, 1)
    * }]
+   * ```
    *
-   * This would fire when this card enters the battlefield (ETB trigger).
+   * NOTE: Always use GameEventTypes and ZoneNames constants to avoid magic strings.
    */
   triggers?: Trigger[]
 }
