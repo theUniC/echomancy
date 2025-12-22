@@ -26,7 +26,10 @@ export function advanceToStep(game: Game, targetStep: GameSteps): void {
   }
 }
 
-export function createTestSpell(ownerId: string, instanceId?: string) {
+export function createTestSpell(
+  ownerId: string,
+  instanceId?: string,
+): CardInstance {
   const id = instanceId || "test-spell-instance"
   return {
     instanceId: id,

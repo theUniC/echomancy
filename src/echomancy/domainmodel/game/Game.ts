@@ -110,7 +110,7 @@ export type AbilityOnStack = {
   targets: Target[] // TODO: Implement targeting for abilities
 }
 
-type StackItem = SpellOnStack | AbilityOnStack
+export type StackItem = SpellOnStack | AbilityOnStack
 
 type Stack = {
   items: StackItem[]
@@ -609,49 +609,53 @@ export class Game {
     }
 
     match(stackItem)
-      .with({ kind: "SPELL" }, (spell) => {
-        // Execute effect if present
-        const effect = spell.card.definition.effect
-        if (effect) {
-          effect.resolve(this, {
-            source: spell.card,
-            controllerId: spell.controllerId,
-            targets: spell.targets,
-          })
-        }
-
-        const controllerState = this.getPlayerState(spell.controllerId)
-
-        // Move card to appropriate zone: permanents → battlefield, one-shots → graveyard
-        if (this.entersBattlefieldOnResolve(spell.card)) {
-          // Use enterBattlefield to ensure consistent ETB handling
-          this.enterBattlefield(spell.card, spell.controllerId)
-        } else {
-          controllerState.graveyard.cards.push(spell.card)
-        }
-      })
-      .with({ kind: "ABILITY" }, (ability) => {
-        // Resolve the ability using the stored effect (Last Known Information)
-        // The ability resolves even if its source permanent has left the battlefield
-        const controllerState = this.getPlayerState(ability.controllerId)
-        const permanent = controllerState.battlefield.cards.find(
-          (card) => card.instanceId === ability.sourceId,
-        )
-
-        // Use the effect stored when the ability was activated
-        ability.effect.resolve(this, {
-          source: permanent, // May be undefined if permanent left battlefield
-          controllerId: ability.controllerId,
-          targets: ability.targets,
-        })
-
-        // IMPORTANT: Abilities do NOT move cards or trigger ETB/LTB
-        // The source permanent remains on battlefield (if it still exists)
-      })
+      .with({ kind: "SPELL" }, (spell) => this.resolveSpell(spell))
+      .with({ kind: "ABILITY" }, (ability) => this.resolveAbility(ability))
       .exhaustive()
 
     this.playersWhoPassedPriority.clear()
     this.priorityPlayerId = this.currentPlayerId
+  }
+
+  private resolveSpell(spell: SpellOnStack): void {
+    // Execute effect if present
+    const effect = spell.card.definition.effect
+    if (effect) {
+      effect.resolve(this, {
+        source: spell.card,
+        controllerId: spell.controllerId,
+        targets: spell.targets,
+      })
+    }
+
+    const controllerState = this.getPlayerState(spell.controllerId)
+
+    // Move card to appropriate zone: permanents → battlefield, one-shots → graveyard
+    if (this.entersBattlefieldOnResolve(spell.card)) {
+      // Use enterBattlefield to ensure consistent ETB handling
+      this.enterBattlefield(spell.card, spell.controllerId)
+    } else {
+      controllerState.graveyard.cards.push(spell.card)
+    }
+  }
+
+  private resolveAbility(ability: AbilityOnStack): void {
+    // Resolve the ability using the stored effect (Last Known Information)
+    // The ability resolves even if its source permanent has left the battlefield
+    const controllerState = this.getPlayerState(ability.controllerId)
+    const permanent = controllerState.battlefield.cards.find(
+      (card) => card.instanceId === ability.sourceId,
+    )
+
+    // Use the effect stored when the ability was activated
+    ability.effect.resolve(this, {
+      source: permanent, // May be undefined if permanent left battlefield
+      controllerId: ability.controllerId,
+      targets: ability.targets,
+    })
+
+    // IMPORTANT: Abilities do NOT move cards or trigger ETB/LTB
+    // The source permanent remains on battlefield (if it still exists)
   }
 
   private givePriorityToOpponentOf(playerId: string): void {
