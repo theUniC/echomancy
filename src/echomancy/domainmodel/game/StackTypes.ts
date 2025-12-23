@@ -45,7 +45,7 @@ export type AbilityOnStack = {
 export type TriggeredAbilityOnStack = {
   kind: "TRIGGERED_ABILITY"
   sourceId: string
-  effect: (game: Game, context: EffectContext) => void
+  effect: Effect
   controllerId: string
   targets: Target[]
 }
