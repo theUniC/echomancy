@@ -4,10 +4,19 @@ import type { Game } from "@/echomancy/domainmodel/game/Game"
 import type { GameEvent } from "@/echomancy/domainmodel/game/GameEvents"
 
 /**
- * Trigger - A declarative triggered ability
+ * TRIGGERED ABILITY – MVP Implementation
+ *
+ * See abilities/Ability.ts for the full Ability contract.
+ *
+ * ============================================================================
+ * DEFINITION
+ * ============================================================================
+ *
+ * A Trigger is a declarative triggered ability that represents:
+ * "When X happens, if Y is true, do Z"
  *
  * IMPORTANT: Triggers are NOT active listeners or observers.
- * They are DECLARATIONS of "when X happens, if Y is true, do Z".
+ * They are DECLARATIONS that the Game evaluates at specific points.
  *
  * The Game is responsible for:
  * - Detecting when events occur
@@ -16,37 +25,71 @@ import type { GameEvent } from "@/echomancy/domainmodel/game/GameEvents"
  *
  * Cards declare triggers but do NOT execute logic actively.
  *
- * ---
+ * ============================================================================
+ * STRUCTURE
+ * ============================================================================
  *
- * Structure:
  * - eventType: Which type of event this trigger watches for
+ *              Must be one of GameEvent["type"]
  * - condition: A predicate that determines if the trigger fires
  *              Can inspect the full game state and event details
+ *              MUST be pure (no side effects)
  * - effect: The effect to execute when the trigger fires
  *           Receives the game instance and execution context
+ *           Can mutate game state via game.apply() and other Game methods
  *
- * ---
- *
- * Example (conceptual):
+ * ============================================================================
+ * EXAMPLE
+ * ============================================================================
  *
  * "Whenever this creature attacks, draw a card"
  *
  * {
- *   eventType: "CREATURE_DECLARED_ATTACKER",
+ *   eventType: GameEventTypes.CREATURE_DECLARED_ATTACKER,
  *   condition: (game, event, sourceCard) =>
  *     event.creature.instanceId === sourceCard.instanceId,
  *   effect: (game, context) =>
  *     game.drawCards(context.controllerId, 1)
  * }
  *
- * ---
+ * ============================================================================
+ * WHEN TRIGGERS ARE EVALUATED
+ * ============================================================================
  *
- * MVP Limitations (documented with TODOs):
- * - Triggers execute immediately (no separate trigger stack)
- * - No APNAP ordering (Active Player, Non-Active Player)
- * - No complex targeting in trigger effects
- * - No intervening-if clauses
+ * Triggers are evaluated ONLY at these specific points:
+ * 1. After enterBattlefield() → ZONE_CHANGED event
+ * 2. After declareAttacker() → CREATURE_DECLARED_ATTACKER event
+ * 3. After resolveSpell() → SPELL_RESOLVED event
+ * 4. On step transition → STEP_STARTED, COMBAT_ENDED events
+ *
+ * The Game calls evaluateTriggers(event) at these points.
+ * Triggers are NEVER evaluated continuously or reactively.
+ *
+ * See abilities/Ability.ts section 4 for complete evaluation rules.
+ *
+ * ============================================================================
+ * MVP LIMITATIONS
+ * ============================================================================
+ *
+ * The following are NOT supported yet:
+ *
+ * CRITICAL LIMITATION - Triggers execute immediately:
+ * - TODO: Triggers should create StackItem and go on the stack
+ * - TODO: Players should be able to respond to triggered abilities
+ * - TODO: Implement APNAP ordering for simultaneous triggers
+ *
+ * Other limitations:
+ * - No targeting in trigger effects (targets array always empty)
+ * - No intervening-if clauses ("whenever X, if Y, ..." where Y is checked on resolution)
  * - No duration tracking ("until end of turn")
+ * - No delayed triggered abilities ("at the beginning of the next end step")
+ * - No optional triggers ("you may...")
+ * - No replacement effects (not technically triggers)
+ * - No state-based triggers (triggers based on continuous state)
+ *
+ * See abilities/Ability.ts section 7 for complete non-goals list.
+ *
+ * ============================================================================
  */
 export type Trigger = {
   /**
