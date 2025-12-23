@@ -326,6 +326,27 @@ describe("Game - Cost System", () => {
       )
     })
 
+    it("pay cleans up creature state when sacrificing", () => {
+      const { game, player1 } = createStartedGame()
+      advanceToStep(game, Step.FIRST_MAIN)
+
+      const creature = createTestCreature(player1.id, "creature-1")
+      addCreatureToBattlefield(game, player1.id, creature)
+
+      // Verify creature state exists
+      const creatureStateBefore = game.getCreatureState(creature.instanceId)
+      expect(creatureStateBefore).toBeDefined()
+
+      const cost = new SacrificeSelfCost()
+      cost.pay(game, {
+        playerId: player1.id,
+        sourceId: creature.instanceId,
+      })
+
+      // Verify creature state is cleaned up
+      expect(() => game.getCreatureState(creature.instanceId)).toThrow()
+    })
+
     it("pay throws PermanentNotFoundError when permanent does not exist", () => {
       const { game, player1 } = createStartedGame()
 

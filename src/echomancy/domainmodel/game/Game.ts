@@ -505,6 +505,72 @@ export class Game {
     })
   }
 
+  /**
+   * Moves a permanent from the battlefield to the graveyard
+   *
+   * This method handles the complete zone transition including:
+   * - Removing the permanent from battlefield
+   * - Adding it to the appropriate graveyard
+   * - Cleaning up associated state (creature state, etc.)
+   * - Emitting ZONE_CHANGED event
+   * - Evaluating triggered abilities (e.g., "dies" triggers)
+   *
+   * @param permanentId - The instance ID of the permanent to move
+   * @param _reason - The reason for the zone change (reserved for future event metadata)
+   * @throws PermanentNotFoundError if permanent is not on any battlefield
+   */
+  movePermanentToGraveyard(
+    permanentId: string,
+    _reason: "sacrifice" | "destroy" | "state-based",
+  ): void {
+    // 1. Find the permanent on any battlefield
+    const playerIds = this.getPlayersInTurnOrder()
+    let permanent: CardInstance | null = null
+    let ownerState: PlayerState | null = null
+
+    for (const playerId of playerIds) {
+      const playerState = this.getPlayerState(playerId)
+      const found = playerState.battlefield.cards.find(
+        (card) => card.instanceId === permanentId,
+      )
+      if (found) {
+        permanent = found
+        ownerState = playerState
+        break
+      }
+    }
+
+    if (!permanent || !ownerState) {
+      throw new PermanentNotFoundError(permanentId)
+    }
+
+    const controllerId = permanent.ownerId
+
+    // 2. Remove from battlefield
+    const permanentIndex = ownerState.battlefield.cards.findIndex(
+      (card) => card.instanceId === permanentId,
+    )
+    ownerState.battlefield.cards.splice(permanentIndex, 1)
+
+    // 3. Add to graveyard
+    ownerState.graveyard.cards.push(permanent)
+
+    // 4. Clean up creature state if needed
+    if (this.creatureStates.has(permanentId)) {
+      this.creatureStates.delete(permanentId)
+    }
+
+    // 5. Emit zone change event and evaluate triggers
+    // This enables "dies" triggers and other zone-change abilities
+    this.evaluateTriggers({
+      type: GameEventTypes.ZONE_CHANGED,
+      card: permanent,
+      fromZone: ZoneNames.BATTLEFIELD,
+      toZone: ZoneNames.GRAVEYARD,
+      controllerId: controllerId,
+    })
+  }
+
   // ============================================================================
   // PRIVATE - ACTION HANDLERS (High-Level Commands)
   // ============================================================================

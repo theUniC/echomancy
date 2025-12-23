@@ -64,9 +64,7 @@ Sacrifice the permanent that has the ability being activated.
 - The permanent exists on the battlefield
 - The permanent is controlled by the player
 
-**Payment**: Moves the permanent from the battlefield to the graveyard.
-
-**MVP Limitation**: Does not emit ZONE_CHANGED events or trigger abilities that fire on sacrifice. These will be added in a future update.
+**Payment**: Moves the permanent from the battlefield to the graveyard, emits ZONE_CHANGED event, and evaluates triggered abilities (enabling "dies" triggers).
 
 ## Integration with Abilities
 
@@ -105,7 +103,6 @@ The following cost features are not supported in the current implementation:
 
 **Simplified:**
 - Only creatures track tap state (artifacts, lands, and enchantments are assumed untapped)
-- Sacrifice does not trigger abilities or emit events
 
 These limitations are documented in the code with TODO comments and will be addressed in future updates.
 
