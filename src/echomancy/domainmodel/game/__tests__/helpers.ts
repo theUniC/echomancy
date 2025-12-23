@@ -301,11 +301,11 @@ export function createElvishVisionary(
  * Real card text: "{T}: Add {G}."
  *
  * MVP limitations:
- * - Activated ability NOT implemented (no mana system yet)
+ * - Activated ability NOT YET ADDED (mana pool exists, but not wired to this card yet)
  * - Card serves as "another elf" for conditional triggers
  * - Still a valid creature on battlefield
  *
- * TODO: Implement activated abilities when mana system exists
+ * TODO: Add the activated ability now that mana pool exists
  *
  * @param ownerId - Player who owns the card
  */
@@ -316,7 +316,7 @@ export function createLlanowarElves(ownerId: string): CardInstance {
       id: "llanowar-elves",
       name: "Llanowar Elves",
       types: ["CREATURE"],
-      // TODO: Add activatedAbility when mana system is implemented
+      // TODO: Add activatedAbility now that mana pool is implemented
       // activatedAbility: {
       //   cost: { type: "TAP" },
       //   effect: (game, context) => game.addMana(context.controllerId, "G", 1)

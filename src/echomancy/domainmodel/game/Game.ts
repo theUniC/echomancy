@@ -11,8 +11,10 @@ import {
   CardIsNotSpellError,
   CardNotFoundInHandError,
   CreatureAlreadyAttackedError,
+  InsufficientManaError,
   InvalidCastSpellStepError,
   InvalidEndTurnError,
+  InvalidManaAmountError,
   InvalidPlayerActionError,
   InvalidPlayerCountError,
   InvalidPlayLandStepError,
@@ -39,6 +41,23 @@ export type CreatureState = {
   hasAttackedThisTurn: boolean
 }
 
+// ============================================================================
+// MANA POOL TYPES
+// ============================================================================
+
+export type ManaColor = "W" | "U" | "B" | "R" | "G" | "C"
+
+export type ManaPool = {
+  W: number
+  U: number
+  B: number
+  R: number
+  G: number
+  C: number
+}
+
+export type ManaPoolSnapshot = Readonly<ManaPool>
+
 type Stack = {
   items: StackItem[]
 }
@@ -63,6 +82,7 @@ type GameParams = {
 export class Game {
   private playedLands: number
   private playerStates: Map<string, PlayerState>
+  private manaPools: Map<string, ManaPool>
   private stack: Stack
   private priorityPlayerId: string | null
   private playersWhoPassedPriority: Set<string>
@@ -77,9 +97,11 @@ export class Game {
     public currentPlayerId: string,
     public currentStep: GameSteps,
     playerStates: Map<string, PlayerState>,
+    manaPools: Map<string, ManaPool>,
   ) {
     this.playedLands = 0
     this.playerStates = playerStates
+    this.manaPools = manaPools
     this.stack = { items: [] }
     this.priorityPlayerId = null
     this.playersWhoPassedPriority = new Set()
@@ -126,6 +148,14 @@ export class Game {
       }),
     )
 
+    // Initialize mana pools (all colors start at 0)
+    const manaPools = new Map(
+      players.map((player) => [
+        player.id,
+        { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+      ]),
+    )
+
     const game = new Game(
       id,
       playersById,
@@ -133,6 +163,7 @@ export class Game {
       startingPlayerId,
       Step.UNTAP,
       playerStates,
+      manaPools,
     )
     game.priorityPlayerId = startingPlayerId
     return game
@@ -267,6 +298,15 @@ export class Game {
     return this.getCreatureStateOrThrow(creatureId)
   }
 
+  getManaPool(playerId: string): ManaPoolSnapshot {
+    const pool = this.manaPools.get(playerId)
+    if (!pool) {
+      throw new PlayerNotFoundError(playerId)
+    }
+    // Return a copy to prevent mutation
+    return { ...pool }
+  }
+
   // ============================================================================
   // PUBLIC API - COMMANDS (State Mutations)
   // ============================================================================
@@ -312,6 +352,89 @@ export class Game {
         isAttacking: false,
         hasAttackedThisTurn: false,
       })
+    }
+  }
+
+  /**
+   * Add mana of a specific color to a player's mana pool.
+   *
+   * @param playerId - The player receiving the mana
+   * @param color - The color of mana to add
+   * @param amount - The amount of mana to add (must be > 0)
+   * @throws PlayerNotFoundError if player doesn't exist
+   * @throws InvalidManaAmountError if amount <= 0
+   */
+  addMana(playerId: string, color: ManaColor, amount: number): void {
+    if (amount <= 0) {
+      throw new InvalidManaAmountError(amount)
+    }
+
+    const pool = this.manaPools.get(playerId)
+    if (!pool) {
+      throw new PlayerNotFoundError(playerId)
+    }
+
+    pool[color] += amount
+  }
+
+  /**
+   * Spend mana of a specific color from a player's mana pool.
+   *
+   * @param playerId - The player spending the mana
+   * @param color - The color of mana to spend
+   * @param amount - The amount of mana to spend (must be > 0)
+   * @throws PlayerNotFoundError if player doesn't exist
+   * @throws InvalidManaAmountError if amount <= 0
+   * @throws InsufficientManaError if player doesn't have enough mana
+   */
+  spendMana(playerId: string, color: ManaColor, amount: number): void {
+    if (amount <= 0) {
+      throw new InvalidManaAmountError(amount)
+    }
+
+    const pool = this.manaPools.get(playerId)
+    if (!pool) {
+      throw new PlayerNotFoundError(playerId)
+    }
+
+    if (pool[color] < amount) {
+      throw new InsufficientManaError(playerId, color, amount, pool[color])
+    }
+
+    pool[color] -= amount
+  }
+
+  /**
+   * Clear all mana from a specific player's mana pool.
+   *
+   * @param playerId - The player whose mana pool to clear
+   * @throws PlayerNotFoundError if player doesn't exist
+   */
+  clearManaPool(playerId: string): void {
+    const pool = this.manaPools.get(playerId)
+    if (!pool) {
+      throw new PlayerNotFoundError(playerId)
+    }
+
+    pool.W = 0
+    pool.U = 0
+    pool.B = 0
+    pool.R = 0
+    pool.G = 0
+    pool.C = 0
+  }
+
+  /**
+   * Clear all mana from all players' mana pools.
+   *
+   * This is called during step transitions (currently at CLEANUP step only in MVP).
+   *
+   * TODO: In real Magic, mana empties at the end of each step and phase.
+   * TODO: For MVP we clear at CLEANUP only to keep behavior deterministic.
+   */
+  clearAllManaPools(): void {
+    for (const playerId of this.turnOrder) {
+      this.clearManaPool(playerId)
     }
   }
 
@@ -652,6 +775,13 @@ export class Game {
     // Execute step-specific actions first
     if (step === Step.UNTAP) {
       this.autoUntapForCurrentPlayer()
+    }
+
+    // Clear mana pools when entering CLEANUP step (MVP behavior)
+    // TODO: In real Magic, mana empties at the end of each step and phase.
+    // TODO: For MVP we clear at CLEANUP only to keep behavior deterministic.
+    if (step === Step.CLEANUP) {
+      this.clearAllManaPools()
     }
 
     // Emit step started event and evaluate triggers

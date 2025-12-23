@@ -88,8 +88,8 @@ The following are explicitly out of scope for the MVP:
 - Mana abilities
 
 **Features Not Supported:**
-- Mana costs (only tap cost for activated abilities)
-- Targeting system
+- Mana costs (mana pool exists but cost evaluation not implemented)
+- Targeting system (basic targeting for spells exists but incomplete)
 - Duration tracking ("until end of turn" effects)
 - APNAP ordering for simultaneous triggers
 - Choice-based or optional abilities

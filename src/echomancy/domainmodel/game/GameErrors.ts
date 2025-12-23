@@ -108,3 +108,22 @@ export class CannotPayActivationCostError extends GameError {
     super(`Cannot activate ability of '${permanentId}': ${reason}`)
   }
 }
+
+export class InsufficientManaError extends GameError {
+  constructor(
+    playerId: string,
+    color: string,
+    requested: number,
+    available: number,
+  ) {
+    super(
+      `Player '${playerId}' has insufficient ${color} mana: requested ${requested}, available ${available}`,
+    )
+  }
+}
+
+export class InvalidManaAmountError extends GameError {
+  constructor(amount: number) {
+    super(`Invalid mana amount: ${amount}. Amount must be greater than 0.`)
+  }
+}
