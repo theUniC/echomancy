@@ -64,7 +64,7 @@ The core **does NOT aim to cover all of Magic**.
 - Add and spend mana operations
 - Pool clearing at CLEANUP step (MVP behavior)
 - Error handling (insufficient mana, invalid amounts)
-- Complete test coverage (24 tests)
+- Complete test coverage (23 tests)
 - Known limitation: pools clear only at CLEANUP, not per-step (documented)
 
 ---
