@@ -8,18 +8,47 @@
 
 When starting any task, follow this order:
 
-1. **Understand** - Read relevant source files before writing code
-2. **Check patterns** - Look at existing similar code/tests
-3. **Implement** - Write the code
-4. **Test** - Run `bun test`
-5. **Lint** - Run `bun run lint && bun run format`
-6. **Commit** - Only if steps 4-5 pass
+1. **Read docs first** - Read all files in `docs/` before doing anything else
+2. **Understand** - Read relevant source files before writing code
+3. **Check patterns** - Look at existing similar code/tests
+4. **Implement** - Write the code
+5. **Test** - Run `bun test`
+6. **Lint** - Run `bun run lint && bun run format`
+7. **Update docs** - If you added/changed functionality, update relevant docs
+8. **Commit** - Only if steps 5-6 pass
 
 ---
 
 ## P0: Never Violate
 
 These rules exist to prevent silent bugs that pass tests but break game logic.
+
+### Read documentation before any task
+
+Before writing any code, read all documentation in `docs/`:
+
+- `docs/README.md` - Documentation index
+- `docs/architecture.md` - Core principles (Game as authority, declarative abilities)
+- `docs/ability-system.md` - How abilities work
+- `docs/effect-system.md` - How effects execute
+- `docs/game-events.md` - Event types and trigger evaluation
+- `docs/stack-and-priority.md` - Stack resolution
+- `docs/turn-structure.md` - Phases and steps
+- `docs/zones-and-cards.md` - Zone system and card model
+- `docs/testing-guide.md` - Test helpers and patterns
+
+> **Why**: The documentation explains architectural decisions and constraints. Without understanding these, you will likely violate core principles.
+
+### Update documentation when adding features
+
+When you implement new functionality:
+
+1. Check if it affects concepts described in `docs/`
+2. Update the relevant documentation file
+3. Keep explanations conceptual (no code blocks in docs)
+4. Add new MVP limitations if applicable
+
+> **Why**: Documentation must stay synchronized with the engine. Outdated docs cause future agents to make incorrect assumptions.
 
 ### Use `enterBattlefield()` for all permanents
 
@@ -138,6 +167,7 @@ If you see yourself doing any of these, stop and reconsider:
 
 | Red Flag | What to do instead |
 |----------|---------------------|
+| Starting without reading `docs/` | Read all documentation first |
 | `battlefield.cards.push(...)` | Use `enterBattlefield()` |
 | `hand.cards.splice(...)` | Use `game.apply()` with appropriate action |
 | `new Game(...)` in tests | Use `createStartedGame()` |
@@ -145,6 +175,7 @@ If you see yourself doing any of these, stop and reconsider:
 | Using `any` type | Find or create proper type |
 | Skipping `resolveStack()` | Always resolve before asserting effects |
 | Committing without `bun test` | Run tests first |
+| Adding feature without updating docs | Update relevant `docs/*.md` file |
 
 ---
 
@@ -181,6 +212,7 @@ bun run format   # Auto-format code
 
 | What | Where |
 |------|-------|
+| Documentation | `docs/` (read this first!) |
 | Game engine core | `src/echomancy/domainmodel/game/` |
 | Card/Effect types | `src/echomancy/domainmodel/cards/`, `effects/` |
 | Test helpers | `src/echomancy/domainmodel/game/__tests__/helpers.ts` |
