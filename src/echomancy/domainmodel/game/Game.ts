@@ -150,10 +150,7 @@ export class Game {
 
     // Initialize mana pools (all colors start at 0)
     const manaPools = new Map(
-      players.map((player) => [
-        player.id,
-        { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-      ]),
+      players.map((player) => [player.id, Game.createEmptyManaPool()]),
     )
 
     const game = new Game(
@@ -183,6 +180,10 @@ export class Game {
     if (players.length < 2) {
       throw new InvalidPlayerCountError(players.length)
     }
+  }
+
+  private static createEmptyManaPool(): ManaPool {
+    return { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }
   }
 
   // ============================================================================
@@ -416,12 +417,8 @@ export class Game {
       throw new PlayerNotFoundError(playerId)
     }
 
-    pool.W = 0
-    pool.U = 0
-    pool.B = 0
-    pool.R = 0
-    pool.G = 0
-    pool.C = 0
+    // Reset all colors to 0 using Object.assign for cleaner code
+    Object.assign(pool, Game.createEmptyManaPool())
   }
 
   /**

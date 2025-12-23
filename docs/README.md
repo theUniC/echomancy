@@ -19,6 +19,7 @@ Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design 
 | [Ability System](./ability-system.md) | Activated abilities, triggers, and ability evaluation |
 | [Effect System](./effect-system.md) | Effect implementation and execution context |
 | [Game Events](./game-events.md) | Event types and trigger evaluation |
+| [Mana System](./mana-system.md) | Mana pool, mana production and consumption |
 | [Stack and Priority](./stack-and-priority.md) | Stack resolution and priority system |
 
 ### Development
