@@ -17,6 +17,7 @@ Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design 
 | Document | Description |
 |----------|-------------|
 | [Ability System](./ability-system.md) | Activated abilities, triggers, and ability evaluation |
+| [Cost System](./cost-system.md) | Cost validation, payment, and atomic cost handling |
 | [Effect System](./effect-system.md) | Effect implementation and execution context |
 | [Game Events](./game-events.md) | Event types and trigger evaluation |
 | [Mana System](./mana-system.md) | Mana pool, mana production and consumption |
@@ -38,6 +39,7 @@ Echomancy is in MVP phase, focusing on fundamental game mechanics:
 - Triggered and activated abilities
 - Creature combat basics
 - Mana pool (basic operations: add, spend, clear)
+- Cost system (mana, tap, sacrifice costs with atomic payment)
 
 ## Source Code Structure
 
@@ -45,6 +47,8 @@ Echomancy is in MVP phase, focusing on fundamental game mechanics:
 src/echomancy/domainmodel/
 ├── abilities/       # Ability system
 ├── cards/           # Card definitions and instances
+├── costs/           # Cost system
+│   └── impl/        # Concrete cost types (ManaCost, TapSelfCost, etc.)
 ├── effects/         # Effect interface and implementations
 │   └── impl/        # Concrete effect classes
 ├── game/            # Core game engine
