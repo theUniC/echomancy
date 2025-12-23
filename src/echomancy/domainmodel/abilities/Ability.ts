@@ -34,7 +34,7 @@ import type { ActivatedAbility } from "./ActivatedAbility"
  * - StaticAbility (TODO)
  * - ManaAbility (TODO)
  */
-export type Ability = ActivatedAbility | { trigger: Trigger }
+export type Ability = ActivatedAbility | Trigger
 
 /**
  * Type guard to check if an ability is an ActivatedAbility
@@ -48,6 +48,6 @@ export function isActivatedAbility(
 /**
  * Type guard to check if an ability is a Trigger
  */
-export function isTrigger(ability: Ability): ability is { trigger: Trigger } {
-  return "trigger" in ability
+export function isTrigger(ability: Ability): ability is Trigger {
+  return "eventType" in ability && "condition" in ability
 }
