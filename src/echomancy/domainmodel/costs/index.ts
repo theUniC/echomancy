@@ -8,4 +8,6 @@
 
 export type { Cost, CostContext } from "./Cost"
 export { canPayAllCosts, payAllCosts } from "./Cost"
-export { ManaCost, SacrificeSelfCost, TapSelfCost } from "./impl/CostImpls"
+export { ManaCost } from "./impl/ManaCost"
+export { SacrificeSelfCost } from "./impl/SacrificeSelfCost"
+export { TapSelfCost } from "./impl/TapSelfCost"

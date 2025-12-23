@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { canPayAllCosts, payAllCosts } from "../../costs/Cost"
-import {
-  ManaCost,
-  SacrificeSelfCost,
-  TapSelfCost,
-} from "../../costs/impl/CostImpls"
+import { ManaCost } from "../../costs/impl/ManaCost"
+import { SacrificeSelfCost } from "../../costs/impl/SacrificeSelfCost"
+import { TapSelfCost } from "../../costs/impl/TapSelfCost"
 import {
   InsufficientManaError,
   PermanentAlreadyTappedError,
