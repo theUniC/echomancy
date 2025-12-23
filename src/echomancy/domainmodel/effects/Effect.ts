@@ -8,13 +8,16 @@ import type { EffectContext } from "./EffectContext"
  * Examples: DrawCardsEffect, DamageEffect (future), CreateTokenEffect (future)
  *
  * IMPLEMENTATION RULES (CRITICAL):
- * MUST use:
- * - game.apply() for state mutations (never direct mutation)
+ * MUST use Game methods for mutations:
+ * - game.drawCards() for drawing
  * - game.enterBattlefield() for permanents (never array.push)
+ * - game.dealDamage() for damage (future)
  * - context.controllerId for the controlling player
  *
  * MUST NOT:
- * - Mutate state directly, subscribe to events, access external state
+ * - Mutate state directly (no array.push, property assignment, etc.)
+ * - Use game.apply() (that's for player actions, not effects)
+ * - Subscribe to events or access external state
  * - Have instance variables or lifecycle (effects are stateless)
  *
  * MVP Limitations:
@@ -26,8 +29,8 @@ import type { EffectContext } from "./EffectContext"
  */
 export interface Effect {
   /**
-   * Resolves this effect. Use game methods (game.apply, etc.) to mutate state.
-   * Never mutate state directly.
+   * Resolves this effect. Use Game methods (drawCards, enterBattlefield, etc.).
+   * Never mutate state directly or use game.apply() (that's for player actions).
    */
   resolve(game: Game, context: EffectContext): void
 }

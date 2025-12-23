@@ -55,7 +55,7 @@ This update formalizes the contract for Abilities in Echomancy without introduci
 
 **`src/echomancy/domainmodel/effects/Effect.ts`**
 - Added comprehensive documentation header
-- Documented implementation rules (must use game.apply(), etc.)
+- Documented implementation rules (use Game methods, never game.apply)
 - Clarified execution context
 - Listed what effects can and cannot do
 - Added MVP limitations section
@@ -169,7 +169,7 @@ Future behavior (TODO):
 
 When implementing abilities, ensure:
 
-1. Effects use `game.apply()` for state mutations (never direct mutation)
+1. Effects use Game methods for mutations (drawCards, enterBattlefield, etc., NEVER game.apply - that's for player actions)
 2. Effects use `game.enterBattlefield()` for permanents (never array.push)
 3. Triggers are pure predicates (no side effects in conditions)
 4. Abilities do not store mutable state
