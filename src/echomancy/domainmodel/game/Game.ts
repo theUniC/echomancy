@@ -789,6 +789,12 @@ export class Game {
   /**
    * Evaluates triggers for a given game event.
    *
+   * See abilities/Ability.ts for the full Ability contract.
+   *
+   * ============================================================================
+   * TRIGGER SYSTEM – Declarative, Not Reactive
+   * ============================================================================
+   *
    * This is the core of the trigger system. When an event occurs,
    * the Game calls this method to:
    * 1. Inspect all permanents on the battlefield
@@ -798,25 +804,53 @@ export class Game {
    * IMPORTANT: This is NOT an event bus or subscription system.
    * Cards do NOT actively listen. The Game actively evaluates.
    *
-   * Flow:
-   * - Game detects event E (ETB, attack, step change, etc.)
-   * - Game constructs event object
-   * - Game calls evaluateTriggers(E)
-   * - For each permanent with triggers:
-   *   - For each trigger on that permanent:
-   *     - If trigger.eventType matches E.type
-   *     - AND trigger.condition(game, E, permanent) is true
-   *     - Then execute trigger.effect(game, context)
+   * This method is called ONLY at these specific points:
+   * 1. After enterBattlefield() → ZONE_CHANGED event (ETB triggers)
+   * 2. After declareAttacker() → CREATURE_DECLARED_ATTACKER event
+   * 3. After resolveSpell() → SPELL_RESOLVED event
+   * 4. On step transition → STEP_STARTED, COMBAT_ENDED events
    *
-   * MVP Limitations (documented with TODOs):
-   * - Triggers execute immediately (no separate trigger stack)
-   * - No APNAP ordering (Active Player, Non-Active Player)
-   * - No complex trigger targeting
+   * Triggers are NEVER evaluated continuously or reactively.
+   * No event subscription or observer pattern.
+   *
+   * ============================================================================
+   * EVALUATION FLOW
+   * ============================================================================
+   *
+   * 1. Game detects event E (ETB, attack, step change, etc.)
+   * 2. Game constructs event object
+   * 3. Game calls evaluateTriggers(E)
+   * 4. For each permanent on all battlefields:
+   *    - For each trigger on that permanent:
+   *      - If trigger.eventType matches E.type
+   *      - AND trigger.condition(game, E, permanent) is true
+   *      - Then execute trigger.effect(game, context)
+   *
+   * ============================================================================
+   * MVP LIMITATIONS
+   * ============================================================================
+   *
+   * CRITICAL LIMITATION - Triggers execute immediately:
+   * - No StackItem created for triggered abilities
+   * - No priority round for responses
+   * - No APNAP ordering (just collection order)
+   *
+   * Other limitations:
+   * - No targeting in trigger effects (targets always empty array)
    * - Execution order is deterministic but simplified
+   * - No delayed triggers
+   * - No optional triggers ("you may...")
    *
-   * TODO: Implement APNAP ordering for simultaneous triggers
-   * TODO: Add triggers to a separate stack instead of immediate execution
-   * TODO: Support targeting in trigger effects
+   * TODO: Implement proper triggered ability stack behavior:
+   * 1. Create TriggeredAbilityOnStack instead of executing immediately
+   * 2. Add triggers to the stack
+   * 3. Allow players to respond before triggers resolve
+   * 4. Implement APNAP ordering for simultaneous triggers
+   * 5. Support targeting in trigger effects
+   *
+   * See abilities/Ability.ts sections 3 and 7 for complete contract.
+   *
+   * ============================================================================
    *
    * @param event - The game event that occurred
    */
@@ -887,8 +921,28 @@ export class Game {
   /**
    * Executes triggered abilities in order.
    *
-   * MVP: Executes triggers in the order they were collected.
-   * TODO: Implement APNAP ordering (active player's triggers first, then non-active)
+   * MVP CRITICAL LIMITATION: Executes triggers IMMEDIATELY.
+   *
+   * See abilities/Ability.ts for the full Ability contract.
+   *
+   * CURRENT BEHAVIOR:
+   * - Triggers execute immediately when conditions are met
+   * - No StackItem created for triggered abilities
+   * - No priority round for responses
+   * - No APNAP ordering (just collection order)
+   *
+   * TODO: Implement proper triggered ability stack behavior:
+   * 1. Create TriggeredAbilityOnStack for each trigger instead of executing immediately
+   * 2. Add triggered abilities to the stack
+   * 3. Allow players to respond before triggers resolve
+   * 4. Implement APNAP ordering (active player's triggers first, then non-active)
+   * 5. Resolve triggered abilities via normal stack resolution (LIFO)
+   *
+   * Once implemented, triggered abilities will work like activated abilities:
+   * - Go on the stack
+   * - Players can respond
+   * - Resolve in LIFO order
+   * - Use Last Known Information
    *
    * @param triggeredAbilities - Abilities to execute
    */
