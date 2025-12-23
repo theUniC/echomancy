@@ -12,82 +12,48 @@ export type SpellOnStack = {
 }
 
 /**
- * Represents an activated ability on the stack.
+ * Activated ability on the stack
  *
- * See abilities/Ability.ts for the full Ability contract.
+ * NOT a spell - doesn't move cards, doesn't trigger ETB/LTB.
+ * Uses Last Known Information (resolves even if source leaves battlefield).
  *
- * IMPORTANT: This is NOT a spell. Abilities:
- * - Do not move cards between zones
- * - Do not trigger ETB/LTB effects
- * - Are not affected by "counter target spell" effects (TODO: some spells can counter abilities)
- * - Come from permanents on the battlefield
- * - Resolve independently once on stack (Last Known Information)
- *
- * The effect is stored when activated so the ability can resolve
- * even if the source permanent leaves the battlefield.
- *
- * MVP LIMITATIONS:
- * - No targeting support (targets array always empty)
- * - Only supports permanents as sources (not emblems, etc.)
- *
- * TODO: Add support for:
- * - Targeting in abilities
- * - Mana abilities (special rules, don't use stack)
- * - Loyalty abilities (planeswalkers)
+ * TODO(targeting): Add targeting support
+ * TODO(costs): Add mana abilities (don't use stack)
+ * TODO(planeswalkers): Add loyalty abilities
  */
 export type AbilityOnStack = {
   kind: "ABILITY"
-  sourceId: string // permanentId of the card with the ability
-  effect: Effect // Stored when activated for Last Known Information
+  sourceId: string
+  effect: Effect
   controllerId: string
-  targets: Target[] // TODO: Implement targeting for abilities
+  targets: Target[]
 }
 
 /**
- * Represents a triggered ability on the stack.
+ * Triggered ability on the stack
  *
- * See abilities/Ability.ts for the full Ability contract.
+ * CRITICAL: This type is defined but NOT YET USED.
+ * MVP: Triggered abilities execute immediately instead of going on stack.
  *
- * MVP CRITICAL LIMITATION:
- * This type is defined but NOT YET USED.
- * Triggered abilities currently execute immediately instead of going on the stack.
+ * TODO(stack): Create TriggeredAbilityOnStack when trigger fires (not execute immediately)
+ * TODO(stack): Add to stack before priority round
+ * TODO(apnap): Implement APNAP ordering for simultaneous triggers
+ * TODO(targeting): Add target selection for triggered abilities
  *
- * TODO: Implement triggered abilities on stack:
- * 1. When a trigger fires, create TriggeredAbilityOnStack instead of executing immediately
- * 2. Add to stack before priority round
- * 3. Resolve via normal stack resolution
- * 4. Implement APNAP ordering for simultaneous triggers
- * 5. Allow players to respond to triggered abilities
- *
- * Once implemented, this will work like AbilityOnStack:
- * - sourceId: The permanent that has the trigger
- * - effect: The trigger's effect (captured for Last Known Information)
- * - controllerId: The player who controls the permanent
- * - targets: Target selection (future - requires targeting infrastructure)
- *
- * IMPORTANT: Unlike activated abilities, triggered abilities:
- * - Fire automatically when conditions are met
- * - Do not have a cost
- * - Use APNAP ordering when multiple trigger simultaneously
- * - May have intervening-if clauses (future)
+ * Unlike activated abilities: fire automatically, no cost, use APNAP ordering
  */
 export type TriggeredAbilityOnStack = {
   kind: "TRIGGERED_ABILITY"
-  sourceId: string // permanentId of the card with the trigger
-  effect: (game: Game, context: EffectContext) => void // The trigger's effect
+  sourceId: string
+  effect: (game: Game, context: EffectContext) => void
   controllerId: string
-  targets: Target[] // TODO: Implement targeting for triggered abilities
+  targets: Target[]
 }
 
 /**
- * StackItem - Items that can be on the stack
+ * Items that can be on the stack (resolution order: LIFO)
  *
- * Currently supported:
- * - SpellOnStack: Cast spells (instant, sorcery, creature, etc.)
- * - AbilityOnStack: Activated abilities
- *
- * TODO: Add TriggeredAbilityOnStack to this union when implemented
- *
- * Resolution order: Last In, First Out (LIFO)
+ * Currently: SpellOnStack, AbilityOnStack
+ * TODO(stack): Add TriggeredAbilityOnStack when implemented
  */
-export type StackItem = SpellOnStack | AbilityOnStack // | TriggeredAbilityOnStack (TODO)
+export type StackItem = SpellOnStack | AbilityOnStack
