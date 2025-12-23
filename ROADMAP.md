@@ -73,133 +73,116 @@ The core **does NOT aim to cover all of Magic**.
 
 ### 1️⃣ Costs (Beyond Mana)
 **Goal**
+- Introduce a first-class `Cost` concept
 - Clearly separate `cost` from `effect`
 
 **Examples**
-- Tap this creature
+- Tap this permanent
 - Sacrifice a permanent
-- Pay mana
+- Pay X mana
+- Composite costs (e.g. tap + mana)
 
 **Notes**
 - No UI required
 - Domain-level tests only
+- Costs must be reusable by:
+  - spells
+  - activated abilities
+  - future planeswalker abilities
 
 ---
 
-### 2️⃣ Power / Toughness + Counters
+### 2️⃣ Permanent Types — MVP
 **Goal**
-- Model base power and toughness
-- Support +1/+1 counters
+- Support all core permanent types required for a minimal UI
+
+**Permanent Types**
+- Creature (already implemented)
+- Land (already implemented)
+- Artifact
+- Enchantment
+- Planeswalker
 
 **Scope**
-- Simple counters
-- No continuous effects yet
+- Correct battlefield presence
+- Zone transitions
+- Minimal state per type
+- Targetable as permanents
+
+**Explicitly Out**
+- Auras (attachment rules deferred)
+- Equipment (attachment rules deferred)
+- Damage rules specific to planeswalkers (handled later with combat)
 
 ---
 
-### 3️⃣ Static Abilities — Local (MVP)
+### 3️⃣ Power / Toughness + Counters
 **Goal**
-- Support static abilities that affect only the permanent itself
+- Model combat-relevant numeric state
 
-**Examples**
-- Haste
-- Enters tapped
-- Cannot attack
-- Vigilance (simplified)
+**Scope**
+- Base power / toughness
+- +1/+1 counters
+- Counter application and removal
+- Lethal damage checks (no combat yet)
+
+**Accepted limitations**
+- No continuous effects yet
+- No layer system
+
+---
+
+### 4️⃣ Combat — Resolution MVP
+**Goal**
+- Make combat real and resolvable
+
+**Scope**
+- Declare attackers
+- Declare blockers
+- Damage assignment
+- Damage resolution
+- Creature destruction
+- Damage to players
 
 **Notes**
-- Evaluated as local state or computed flags
-- No dependency resolution
-- No layer system
-- Required for a minimally honest Magic UI
+- Uses Power/Toughness
+- No advanced combat abilities yet (first strike, trample, etc.)
 
 ---
 
-### 4️⃣ Simple Continuous Effects (Lords)
+### 5️⃣ Static Abilities — MVP
 **Goal**
-- Support simple global modifiers
+- Support always-on effects that modify game state
 
 **Examples**
 - “Other elves you control get +1/+1”
+- Simple global modifiers
+
+**Scope**
+- Static effects evaluated dynamically
+- Limited to battlefield interactions
 
 **Accepted limitations**
-- No full layer system
-- No dependency resolution
-- No interaction with rule-changing effects
+- No full 7-layer system yet
+- No dependency resolution between static effects
+
+**Future**
+- 7-layer system planned, but explicitly out of Core MVP
 
 ---
 
-## 🔴 Explicitly Out of Core (MVP)
+## 🔴 Explicitly Out of Core (for now)
 
 These features **do not block UI** and are intentionally excluded from the initial core:
 
-- Full layer rules
+- Full 7-layer rules
 - Complex replacement effects
-- Fully generalized stack actions
 - Spell copying
 - Advanced alternative costs
+- Full attachment rules (auras, equipment)
 - Fine-grained automatic priority passing
 - Automatic parsing of card text
 - Expert-system approaches (Arena / CLIPS / GRP)
-
----
-
-## 🔵 Long-Term Correctness Goals (Post-MVP)
-
-These items are **not required to close the Core**, but are part of
-Echomancy’s long-term vision as a correct, transparent Magic rules engine.
-
-They are documented to:
-- Avoid architectural dead-ends
-- Make limitations explicit
-- Set expectations for contributors and players
-
----
-
-### 7-Layer Continuous Effects System
-
-**Goal**
-- Support Magic’s official continuous effects ordering model
-
-**Scope (Future)**
-- Copy effects
-- Control-changing effects
-- Text-changing effects
-- Type-changing effects
-- Color-changing effects
-- Ability adding/removing effects
-- Power/Toughness layers (including sublayers)
-
-**Notes**
-- Requires dependency resolution and deterministic evaluation
-- Explicitly deferred
-- No partial or simplified implementation in the MVP
-
----
-
-### Advanced Static & Rule-Changing Abilities
-
-**Examples**
-- “Creatures lose all abilities”
-- “Players can’t cast spells during combat”
-- Replacement effects (“If X would happen, instead Y”)
-
-**Status**
-- Depends on the 7-layer system
-- Explicitly postponed
-
----
-
-### Card Text Interpretation / Rule Engines
-
-**Examples**
-- Interpreter patterns
-- Expert systems (e.g. CLIPS / GRP-style approaches)
-- Automatic Oracle text parsing
-
-**Status**
-- Research topic
-- Not required for Echomancy to be playable, fair, or transparent
 
 ---
 
@@ -208,8 +191,9 @@ They are documented to:
 Once the following are completed:
 - ~~Mana Pool MVP~~ ✅
 - Costs
+- Permanent Types MVP
 - Power/Toughness + Counters
-- Static Abilities — Local (MVP)
+- Combat MVP
 
 We can safely start:
 - Zone UI
