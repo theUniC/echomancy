@@ -13,56 +13,33 @@
  */
 
 import type { Game } from "../../game/Game"
-import {
-  PermanentNotControlledError,
-  PermanentNotFoundError,
-} from "../../game/GameErrors"
 import type { Cost, CostContext } from "../Cost"
+import {
+  assertPermanentControl,
+  findControlledPermanent,
+  findPermanentOnAnyBattlefield,
+} from "./helpers"
 
 export class SacrificeSelfCost implements Cost {
   canPay(game: Game, context: CostContext): boolean {
-    // Find the permanent
-    const playerState = game.getPlayerState(context.playerId)
-    const permanent = playerState.battlefield.cards.find(
-      (card) => card.instanceId === context.sourceId,
-    )
-
+    const permanent = findControlledPermanent(game, context)
     return permanent !== undefined
   }
 
   pay(game: Game, context: CostContext): void {
-    // Find the permanent on ANY battlefield
-    const playerIds = game.getPlayersInTurnOrder()
-    let permanent = null
-    let permanentOwnerState = null
+    const { permanent, ownerState } = findPermanentOnAnyBattlefield(
+      game,
+      context.sourceId,
+    )
 
-    for (const playerId of playerIds) {
-      const playerState = game.getPlayerState(playerId)
-      const found = playerState.battlefield.cards.find(
-        (card) => card.instanceId === context.sourceId,
-      )
-      if (found) {
-        permanent = found
-        permanentOwnerState = playerState
-        break
-      }
-    }
-
-    if (!permanent) {
-      throw new PermanentNotFoundError(context.sourceId)
-    }
-
-    // Verify control
-    if (permanent.ownerId !== context.playerId) {
-      throw new PermanentNotControlledError(context.sourceId, context.playerId)
-    }
+    assertPermanentControl(permanent, context.playerId, context.sourceId)
 
     // Move from battlefield to graveyard
-    const permanentIndex = permanentOwnerState?.battlefield.cards.findIndex(
+    const permanentIndex = ownerState.battlefield.cards.findIndex(
       (card) => card.instanceId === context.sourceId,
     )
-    permanentOwnerState?.battlefield.cards.splice(permanentIndex, 1)
-    permanentOwnerState?.graveyard.cards.push(permanent)
+    ownerState.battlefield.cards.splice(permanentIndex, 1)
+    ownerState.graveyard.cards.push(permanent)
 
     // TODO: Emit ZONE_CHANGED event for sacrifice
     // TODO: Handle triggered abilities that fire on sacrifice

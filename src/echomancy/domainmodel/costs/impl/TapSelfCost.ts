@@ -11,20 +11,17 @@
  */
 
 import type { Game } from "../../game/Game"
-import {
-  PermanentAlreadyTappedError,
-  PermanentNotControlledError,
-  PermanentNotFoundError,
-} from "../../game/GameErrors"
+import { PermanentAlreadyTappedError } from "../../game/GameErrors"
 import type { Cost, CostContext } from "../Cost"
+import {
+  assertPermanentControl,
+  findControlledPermanent,
+  findPermanentOnAnyBattlefield,
+} from "./helpers"
 
 export class TapSelfCost implements Cost {
   canPay(game: Game, context: CostContext): boolean {
-    // Find the permanent
-    const playerState = game.getPlayerState(context.playerId)
-    const permanent = playerState.battlefield.cards.find(
-      (card) => card.instanceId === context.sourceId,
-    )
+    const permanent = findControlledPermanent(game, context)
 
     if (!permanent) {
       return false
@@ -44,29 +41,9 @@ export class TapSelfCost implements Cost {
   }
 
   pay(game: Game, context: CostContext): void {
-    // Find the permanent on ANY battlefield
-    const playerIds = game.getPlayersInTurnOrder()
-    let permanent = null
+    const { permanent } = findPermanentOnAnyBattlefield(game, context.sourceId)
 
-    for (const playerId of playerIds) {
-      const playerState = game.getPlayerState(playerId)
-      const found = playerState.battlefield.cards.find(
-        (card) => card.instanceId === context.sourceId,
-      )
-      if (found) {
-        permanent = found
-        break
-      }
-    }
-
-    if (!permanent) {
-      throw new PermanentNotFoundError(context.sourceId)
-    }
-
-    // Verify control
-    if (permanent.ownerId !== context.playerId) {
-      throw new PermanentNotControlledError(context.sourceId, context.playerId)
-    }
+    assertPermanentControl(permanent, context.playerId, context.sourceId)
 
     // Check if permanent is a creature (MVP: only creatures have tap state)
     const isCreature = permanent.definition.types.includes("CREATURE")
