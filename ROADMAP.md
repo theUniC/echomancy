@@ -64,7 +64,7 @@ The core **does NOT aim to cover all of Magic**.
 - Add and spend mana operations
 - Pool clearing at CLEANUP step (MVP behavior)
 - Error handling (insufficient mana, invalid amounts)
-- Complete test coverage (23 tests)
+- Complete test coverage
 - Known limitation: pools clear only at CLEANUP, not per-step (documented)
 
 ---
@@ -78,7 +78,7 @@ The core **does NOT aim to cover all of Magic**.
 **Examples**
 - Tap this creature
 - Sacrifice a permanent
-- Pay X mana
+- Pay mana
 
 **Notes**
 - No UI required
@@ -97,17 +97,39 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 3️⃣ Simple Continuous Effects (Lords)
+### 3️⃣ Static Abilities — Local (MVP)
 **Goal**
-- Support effects like “Other elves you control get +1/+1”
+- Support static abilities that affect only the permanent itself
 
-**Accepted limitations**
-- No full layer system
-- No complex dependency resolution
+**Examples**
+- Haste
+- Enters tapped
+- Cannot attack
+- Vigilance (simplified)
+
+**Notes**
+- Evaluated as local state or computed flags
+- No dependency resolution
+- No layer system
+- Required for a minimally honest Magic UI
 
 ---
 
-## 🔴 Explicitly Out of Core
+### 4️⃣ Simple Continuous Effects (Lords)
+**Goal**
+- Support simple global modifiers
+
+**Examples**
+- “Other elves you control get +1/+1”
+
+**Accepted limitations**
+- No full layer system
+- No dependency resolution
+- No interaction with rule-changing effects
+
+---
+
+## 🔴 Explicitly Out of Core (MVP)
 
 These features **do not block UI** and are intentionally excluded from the initial core:
 
@@ -122,12 +144,72 @@ These features **do not block UI** and are intentionally excluded from the initi
 
 ---
 
+## 🔵 Long-Term Correctness Goals (Post-MVP)
+
+These items are **not required to close the Core**, but are part of
+Echomancy’s long-term vision as a correct, transparent Magic rules engine.
+
+They are documented to:
+- Avoid architectural dead-ends
+- Make limitations explicit
+- Set expectations for contributors and players
+
+---
+
+### 7-Layer Continuous Effects System
+
+**Goal**
+- Support Magic’s official continuous effects ordering model
+
+**Scope (Future)**
+- Copy effects
+- Control-changing effects
+- Text-changing effects
+- Type-changing effects
+- Color-changing effects
+- Ability adding/removing effects
+- Power/Toughness layers (including sublayers)
+
+**Notes**
+- Requires dependency resolution and deterministic evaluation
+- Explicitly deferred
+- No partial or simplified implementation in the MVP
+
+---
+
+### Advanced Static & Rule-Changing Abilities
+
+**Examples**
+- “Creatures lose all abilities”
+- “Players can’t cast spells during combat”
+- Replacement effects (“If X would happen, instead Y”)
+
+**Status**
+- Depends on the 7-layer system
+- Explicitly postponed
+
+---
+
+### Card Text Interpretation / Rule Engines
+
+**Examples**
+- Interpreter patterns
+- Expert systems (e.g. CLIPS / GRP-style approaches)
+- Automatic Oracle text parsing
+
+**Status**
+- Research topic
+- Not required for Echomancy to be playable, fair, or transparent
+
+---
+
 ## 🧩 What Unlocks UI Work
 
 Once the following are completed:
 - ~~Mana Pool MVP~~ ✅
 - Costs
 - Power/Toughness + Counters
+- Static Abilities — Local (MVP)
 
 We can safely start:
 - Zone UI
