@@ -33,7 +33,7 @@
     "jsdom": "^27.3.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vite-tsconfig-paths": "^5.1.4",
+    "vite-tsconfig-paths": "^6.0.3",
     "vitest": "^4.0.15"
   }
 }
