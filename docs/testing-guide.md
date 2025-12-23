@@ -4,369 +4,115 @@ This guide covers testing patterns, helpers, and best practices for the Echomanc
 
 ## Running Tests
 
-```bash
-# Run all tests
-bun test
+Use Bun for all test operations:
+- `bun test` runs all tests
+- `bun test <pattern>` runs tests matching the pattern
+- `bun test --watch` runs in watch mode
 
-# Run tests matching a pattern
-bun test <name>
-
-# Run specific test file
-bun test Game.triggers
-
-# Watch mode
-bun test --watch
-```
+Always run `bun test && bun run lint && bun run format` before committing.
 
 ## Test Helpers
 
-Test helpers are located in `src/echomancy/domainmodel/game/__tests__/helpers.ts`. Always use these instead of manual setup.
+Test helpers are located in the `__tests__/helpers.ts` file. Always use these instead of manual setup to ensure consistent game state initialization.
 
-### Game Setup
+### Game Setup Helpers
 
-#### createStartedGame()
+**createStartedGame()** creates a 2-player game in the UNTAP step. Returns the game, both players, and a dummy land ID for testing land plays.
 
-Creates a 2-player game in the UNTAP step.
+**createGameInMainPhase()** creates a game and advances it to FIRST_MAIN, where most actions are legal.
 
-```typescript
-import { createStartedGame } from "./helpers"
+**advanceToStep()** advances the game to any specified step, handling all intermediate step transitions.
 
-const { game, player1, player2, dummyLandInstanceId } = createStartedGame()
-```
+### Card Creation Helpers
 
-Returns:
-- `game`: Game instance
-- `player1`, `player2`: Player instances
-- `dummyLandInstanceId`: ID of a dummy land in player1's hand
+**createTestCreature()** creates a basic creature card with an owner.
 
-#### createGameInMainPhase()
+**createTestSpell()** creates a basic instant spell.
 
-Creates a game advanced to FIRST_MAIN phase.
+**createCreatureWithETBTrigger()** creates a creature with a callback that fires on enter-the-battlefield. Useful for verifying trigger execution.
 
-```typescript
-import { createGameInMainPhase } from "./helpers"
+**Themed card helpers** (createElvishVisionary, createLlanowarElves, etc.) create specific card configurations for testing trigger scenarios.
 
-const { game, player1, player2 } = createGameInMainPhase()
-// game.currentStep === Step.FIRST_MAIN
-```
+### Zone Manipulation Helpers
 
-### Step Navigation
+**addCreatureToBattlefield()** puts a creature on the battlefield using the proper `game.enterBattlefield()` method. This ensures ETB triggers fire correctly.
 
-#### advanceToStep()
+**addSpellToHand()** adds a spell to a player's hand for casting.
 
-Advances the game to a specific step.
+**addCreatureToHand()** adds a creature to a player's hand.
 
-```typescript
-import { advanceToStep } from "./helpers"
-import { Step } from "../Steps"
+### Combat Helpers
 
-advanceToStep(game, Step.DECLARE_ATTACKERS)
-```
+**setupCreatureInCombat()** creates a creature, adds it to the battlefield, and advances to DECLARE_ATTACKERS step.
 
-### Card Creation
+**setupMultipleCreatures()** creates and adds multiple creatures to the battlefield.
 
-#### createTestCreature()
+### Stack Helpers
 
-Creates a basic creature card.
+**resolveStack()** makes both players pass priority, causing the top stack item to resolve. Essential for testing spell and ability resolution.
 
-```typescript
-import { createTestCreature } from "./helpers"
+**assertSpellAt()** and **assertAbilityAt()** provide type-safe inspection of stack items.
 
-const creature = createTestCreature(playerId)
-// Or with specific ID
-const creature = createTestCreature(playerId, "my-creature-id")
-```
+### Extra Phase Helpers
 
-#### createTestSpell()
-
-Creates a basic instant spell.
-
-```typescript
-import { createTestSpell } from "./helpers"
-
-const spell = createTestSpell(playerId)
-const spell = createTestSpell(playerId, "spell-1")
-```
-
-#### createCreatureWithETBTrigger()
-
-Creates a creature with a custom ETB callback.
-
-```typescript
-import { createCreatureWithETBTrigger } from "./helpers"
-
-let etbFired = false
-const creature = createCreatureWithETBTrigger(
-  "creature-id",
-  playerId,
-  () => { etbFired = true }
-)
-
-addCreatureToBattlefield(game, playerId, creature)
-expect(etbFired).toBe(true)
-```
-
-### Themed Card Helpers
-
-For trigger system testing:
-
-```typescript
-import {
-  createElvishVisionary,    // ETB: draw a card
-  createLlanowarElves,      // Vanilla elf (mana ability TODO)
-  createElvishWarrior,      // Vanilla elf
-  createConditionalElf,     // ETB if you control another elf
-  createElfWithAttackTrigger // Attack trigger: draw a card
-} from "./helpers"
-```
-
-### Zone Manipulation
-
-#### addCreatureToBattlefield()
-
-**IMPORTANT**: Uses `game.enterBattlefield()` internally to ensure ETB triggers fire.
-
-```typescript
-import { addCreatureToBattlefield } from "./helpers"
-
-const creature = createTestCreature(playerId)
-addCreatureToBattlefield(game, playerId, creature)
-// ETB triggers will fire!
-```
-
-#### addSpellToHand()
-
-```typescript
-import { addSpellToHand } from "./helpers"
-
-const spell = createTestSpell(playerId)
-addSpellToHand(game, playerId, spell)
-```
-
-#### addCreatureToHand()
-
-```typescript
-import { addCreatureToHand } from "./helpers"
-
-const creature = createTestCreature(playerId)
-addCreatureToHand(game, playerId, creature)
-```
-
-### Combat Setup
-
-#### setupCreatureInCombat()
-
-Creates a creature and advances to DECLARE_ATTACKERS.
-
-```typescript
-import { setupCreatureInCombat } from "./helpers"
-
-const creature = setupCreatureInCombat(game, playerId)
-// game.currentStep === Step.DECLARE_ATTACKERS
-// creature is on battlefield, ready to attack
-```
-
-#### setupMultipleCreatures()
-
-Creates multiple creatures on the battlefield.
-
-```typescript
-import { setupMultipleCreatures } from "./helpers"
-
-const creatures = setupMultipleCreatures(game, playerId, 3)
-// creatures.length === 3
-```
-
-### Stack Resolution
-
-#### resolveStack()
-
-Makes both players pass priority to resolve the top stack item.
-
-```typescript
-import { resolveStack } from "./helpers"
-
-game.apply({ type: "CAST_SPELL", playerId, cardId, targets: [] })
-resolveStack(game, opponentId, playerId)
-expect(game.getStack()).toHaveLength(0)
-```
-
-#### assertSpellAt() / assertAbilityAt()
-
-Type-safe stack inspection.
-
-```typescript
-import { assertSpellAt, assertAbilityAt } from "./helpers"
-
-const spell = assertSpellAt(game.getStack(), 0)
-// spell is typed as SpellOnStack
-
-const ability = assertAbilityAt(game.getStack(), 0)
-// ability is typed as AbilityOnStack
-```
-
-### Extra Phases
-
-#### scheduleExtraCombatPhase()
-
-```typescript
-import { scheduleExtraCombatPhase } from "./helpers"
-
-scheduleExtraCombatPhase(game)
-// Extra combat steps will occur after current sequence
-```
+**scheduleExtraCombatPhase()** schedules an additional combat phase, useful for testing effects that grant extra combats.
 
 ## Testing Patterns
 
 ### Basic Test Structure
 
-```typescript
-import { describe, it, expect } from "vitest"
-import { createStartedGame, advanceToStep } from "./helpers"
-import { Step } from "../Steps"
-
-describe("Feature", () => {
-  it("should do something", () => {
-    // Arrange
-    const { game, player1 } = createStartedGame()
-    advanceToStep(game, Step.FIRST_MAIN)
-
-    // Act
-    game.apply({ type: "SOME_ACTION", playerId: player1.id })
-
-    // Assert
-    expect(game.someState).toBe(expectedValue)
-  })
-})
-```
+Follow Arrange-Act-Assert:
+1. Set up the game state using helpers
+2. Perform the action being tested
+3. Assert the expected outcome
 
 ### Testing Triggers
 
-```typescript
-it("should fire ETB trigger", () => {
-  const { game, player1 } = createGameInMainPhase()
-
-  let triggerFired = false
-  const creature = createCreatureWithETBTrigger(
-    "creature-1",
-    player1.id,
-    () => { triggerFired = true }
-  )
-
-  addCreatureToBattlefield(game, player1.id, creature)
-
-  expect(triggerFired).toBe(true)
-})
-```
+Create a creature with a trigger callback that sets a flag or captures data. Add the creature to the battlefield. Verify the callback was invoked.
 
 ### Testing Stack Resolution
 
-```typescript
-it("should resolve spell from stack", () => {
-  const { game, player1, player2 } = createGameInMainPhase()
-
-  const spell = createTestSpell(player1.id)
-  addSpellToHand(game, player1.id, spell)
-
-  game.apply({
-    type: "CAST_SPELL",
-    playerId: player1.id,
-    cardId: spell.instanceId,
-    targets: []
-  })
-
-  expect(game.getStack()).toHaveLength(1)
-
-  resolveStack(game, player2.id, player1.id)
-
-  expect(game.getStack()).toHaveLength(0)
-})
-```
+Cast a spell or activate an ability. Verify it's on the stack. Call resolveStack(). Verify the stack is empty and the effect occurred.
 
 ### Testing Errors
 
-```typescript
-import { LandLimitExceededError } from "../GameErrors"
+Use expect().toThrow() to verify that invalid actions throw the appropriate error type.
 
-it("should throw when playing second land", () => {
-  const { game, player1, dummyLandInstanceId } = createGameInMainPhase()
+## Common Mistakes to Avoid
 
-  // Play first land
-  game.apply({ type: "PLAY_LAND", playerId: player1.id, cardId: dummyLandInstanceId })
+**Don't use `new Game()` directly.** Use the helper functions which set up proper initial state.
 
-  // Create second land
-  const secondLand = createLand(player1.id, "land-2")
-  addCardToHand(game, player1.id, secondLand)
+**Don't push directly to battlefield arrays.** Use `addCreatureToBattlefield()` which calls `enterBattlefield()` properly.
 
-  // Should throw
-  expect(() => {
-    game.apply({ type: "PLAY_LAND", playerId: player1.id, cardId: "land-2" })
-  }).toThrow(LandLimitExceededError)
-})
-```
+**Don't forget to resolve the stack.** If you're testing what happens when a spell resolves, you must call resolveStack() before asserting.
 
-## Red Flags
-
-Avoid these patterns in tests:
-
-| Red Flag | Use Instead |
-|----------|-------------|
-| `new Game(...)` | `createStartedGame()` |
-| `battlefield.cards.push(...)` | `addCreatureToBattlefield()` |
-| Manual step loop | `advanceToStep()` |
-| Missing `resolveStack()` | Always resolve before asserting effects |
-| Asserting before resolution | Resolve stack first |
+**Don't assert on unresolved state.** The spell's effect hasn't happened until the stack resolves.
 
 ## Test Organization
 
 Tests are organized by feature:
-
-```
-game/__tests__/
-├── helpers.ts                              # All test helpers
-├── Game.test.ts                            # Core game mechanics
-├── Game.triggers.test.ts                   # Trigger system
-├── Game.activatedAbilities.test.ts         # Activated abilities
-├── Game.priorityAndStackResolution.test.ts # Stack and priority
-├── Game.enterBattlefield.test.ts           # ETB mechanics
-├── Game.declareAttacker.test.ts            # Combat attacks
-├── Game.castSpell.test.ts                  # Spell casting
-├── Game.playLand.test.ts                   # Land playing
-└── ...
-```
+- Game.test.ts - Core game mechanics
+- Game.triggers.test.ts - Trigger system
+- Game.activatedAbilities.test.ts - Activated abilities
+- Game.priorityAndStackResolution.test.ts - Stack and priority
+- Game.enterBattlefield.test.ts - ETB mechanics
+- Game.declareAttacker.test.ts - Combat attacks
+- Game.castSpell.test.ts - Spell casting
+- Game.playLand.test.ts - Land playing
 
 ## Debugging Tips
 
-### Check Stack State
-
-```typescript
-console.log("Stack:", game.getStack().map(item => ({
-  kind: item.kind,
-  name: item.kind === "SPELL" ? item.card.definition.name : "ability"
-})))
-```
-
-### Check Player State
-
-```typescript
-const state = game.getPlayerState(playerId)
-console.log("Hand:", state.hand.cards.map(c => c.definition.name))
-console.log("Battlefield:", state.battlefield.cards.map(c => c.definition.name))
-```
-
-### Trace Step Changes
-
-```typescript
-console.log("Current step:", game.currentStep)
-console.log("Current player:", game.currentPlayerId)
-```
+If a test fails unexpectedly:
+1. Check if the stack was resolved before asserting
+2. Verify the game is in the correct step for the action
+3. Confirm creatures were added via enterBattlefield, not direct array push
+4. Check that the correct player is taking the action
 
 ## Before Committing
 
-Always run the full test suite:
+Run the full validation suite:
+- `bun test` - All tests must pass
+- `bun run lint` - No linting errors
+- `bun run format` - Code properly formatted
 
-```bash
-bun test && bun run lint && bun run format
-```
-
-All three must pass before committing.
+All three must pass before any commit.
