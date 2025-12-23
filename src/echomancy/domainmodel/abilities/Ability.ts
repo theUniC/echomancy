@@ -218,8 +218,8 @@
  * ============================================================================
  */
 
-import type { ActivatedAbility } from "./ActivatedAbility"
 import type { Trigger } from "../triggers/Trigger"
+import type { ActivatedAbility } from "./ActivatedAbility"
 
 /**
  * Union type for all ability types in the system.
