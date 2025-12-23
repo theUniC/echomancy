@@ -4,12 +4,12 @@ This document defines the scope of the **core rules engine** of Echomancy.
 It is a living document and will be updated as milestones are completed.
 
 The final goal of the core is:
-👉 to provide a stable, well-tested rules engine  
+👉 to provide a stable, well-tested rules engine
 👉 so that a minimal UI can be built without reworking fundamentals
 
 ---
 
-## 🎯 Definition of “Core Closed”
+## 🎯 Definition of "Core Closed"
 
 The **core is considered closed** when:
 
@@ -67,32 +67,26 @@ The core **does NOT aim to cover all of Magic**.
 - Complete test coverage
 - Known limitation: pools clear only at CLEANUP, not per-step (documented)
 
+### Costs (Beyond Mana)
+- Explicit cost model with validation and payment
+- Separation of cost from effect
+- Atomic cost payment (all or nothing)
+- Supported cost types: ManaCost, TapSelfCost, SacrificeSelfCost
+- Domain errors for cost validation
+- Complete test coverage
+- Costs are reusable by spells, activated abilities, and future planeswalker abilities
+- Known limitations:
+  - No alternative costs
+  - No cost reductions
+  - No X costs
+  - No hybrid/Phyrexian mana costs
+  - (Documented with TODOs for future expansion)
+
 ---
 
 ## 🟡 Pending to Close the Core
 
-### 1️⃣ Costs (Beyond Mana)
-**Goal**
-- Introduce a first-class `Cost` concept
-- Clearly separate `cost` from `effect`
-
-**Examples**
-- Tap this permanent
-- Sacrifice a permanent
-- Pay X mana
-- Composite costs (e.g. tap + mana)
-
-**Notes**
-- No UI required
-- Domain-level tests only
-- Costs must be reusable by:
-  - spells
-  - activated abilities
-  - future planeswalker abilities
-
----
-
-### 2️⃣ Permanent Types — MVP
+### 1️⃣ Permanent Types — MVP
 **Goal**
 - Support all core permanent types required for a minimal UI
 
@@ -116,7 +110,7 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 3️⃣ Power / Toughness + Counters
+### 2️⃣ Power / Toughness + Counters
 **Goal**
 - Model combat-relevant numeric state
 
@@ -132,7 +126,7 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 4️⃣ Combat — Resolution MVP
+### 3️⃣ Combat — Resolution MVP
 **Goal**
 - Make combat real and resolvable
 
@@ -150,12 +144,12 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 5️⃣ Static Abilities — MVP
+### 4️⃣ Static Abilities — MVP
 **Goal**
 - Support always-on effects that modify game state
 
 **Examples**
-- “Other elves you control get +1/+1”
+- "Other elves you control get +1/+1"
 - Simple global modifiers
 
 **Scope**
@@ -190,7 +184,7 @@ These features **do not block UI** and are intentionally excluded from the initi
 
 Once the following are completed:
 - ~~Mana Pool MVP~~ ✅
-- Costs
+- ~~Costs~~ ✅
 - Permanent Types MVP
 - Power/Toughness + Counters
 - Combat MVP
