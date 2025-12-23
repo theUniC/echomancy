@@ -59,32 +59,19 @@ The core **does NOT aim to cover all of Magic**.
 - Integrated with the stack
 - Real tests (Elves)
 
+### Mana Pool (MVP)
+- Mana pool per player (6 colors: W, U, B, R, G, C)
+- Add and spend mana operations
+- Pool clearing at CLEANUP step (MVP behavior)
+- Error handling (insufficient mana, invalid amounts)
+- Complete test coverage (24 tests)
+- Known limitation: pools clear only at CLEANUP, not per-step (documented)
+
 ---
 
 ## 🟡 Pending to Close the Core
 
-### 1️⃣ Mana Pool (MVP)
-**Goal**
-- Support real costs and mana production
-- Unlock realistic activated abilities
-
-**In scope**
-- Mana pool per player
-- Add mana
-- Spend mana
-- Simplified pool emptying rules
-
-**Out of scope**
-- Mana burn
-- Hybrid / Phyrexian costs
-- Advanced filtering
-
-➡️ Blocks: nothing  
-➡️ Unlocks: real Llanowar Elves, real costs
-
----
-
-### 2️⃣ Costs (Beyond Mana)
+### 1️⃣ Costs (Beyond Mana)
 **Goal**
 - Clearly separate `cost` from `effect`
 
@@ -99,7 +86,7 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 3️⃣ Power / Toughness + Counters
+### 2️⃣ Power / Toughness + Counters
 **Goal**
 - Model base power and toughness
 - Support +1/+1 counters
@@ -110,7 +97,7 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 4️⃣ Simple Continuous Effects (Lords)
+### 3️⃣ Simple Continuous Effects (Lords)
 **Goal**
 - Support effects like “Other elves you control get +1/+1”
 
@@ -138,7 +125,7 @@ These features **do not block UI** and are intentionally excluded from the initi
 ## 🧩 What Unlocks UI Work
 
 Once the following are completed:
-- Mana Pool MVP
+- ~~Mana Pool MVP~~ ✅
 - Costs
 - Power/Toughness + Counters
 
