@@ -801,8 +801,6 @@ export class Game {
    * Flow: Collect permanents → Check trigger conditions → Execute matching triggers
    *
    * CRITICAL MVP LIMITATION: Triggers execute immediately (see executeTriggeredAbilities).
-   *
-   * See ABILITY_CONTRACT_MVP.md for complete evaluation rules.
    */
   private evaluateTriggers(event: GameEvent): void {
     const permanents = this.collectPermanentsFromBattlefield()
@@ -877,8 +875,6 @@ export class Game {
    * TODO(stack): Add triggered abilities to stack, allow responses
    * TODO(apnap): Implement APNAP ordering (active player first, then non-active)
    * TODO(targeting): Support targeting in trigger effects
-   *
-   * See ABILITY_CONTRACT_MVP.md for complete contract.
    */
   private executeTriggeredAbilities(
     triggeredAbilities: TriggeredAbility[],
