@@ -36,6 +36,7 @@ Echomancy is in MVP phase, focusing on fundamental game mechanics:
 - Priority system with stack resolution
 - Triggered and activated abilities
 - Creature combat basics
+- Mana pool (basic operations: add, spend, clear)
 
 ## Source Code Structure
 
