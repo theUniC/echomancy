@@ -127,3 +127,25 @@ export class InvalidManaAmountError extends GameError {
     super(`Invalid mana amount: ${amount}. Amount must be greater than 0.`)
   }
 }
+
+// ============================================================================
+// Cost System Errors
+// ============================================================================
+
+export class PermanentAlreadyTappedError extends GameError {
+  constructor(permanentId: string) {
+    super(`Permanent '${permanentId}' is already tapped`)
+  }
+}
+
+export class PermanentNotControlledError extends GameError {
+  constructor(permanentId: string, playerId: string) {
+    super(`Player '${playerId}' does not control permanent '${permanentId}'`)
+  }
+}
+
+export class CannotPayCostsError extends GameError {
+  constructor(reason: string) {
+    super(`Cannot pay costs: ${reason}`)
+  }
+}
