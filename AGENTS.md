@@ -74,19 +74,19 @@ playerState.hand.cards.splice(index, 1)
 
 > **Why**: `apply()` validates game rules (timing, permissions, costs). Direct mutation creates illegal game states.
 
-### Use Bun, never npm/yarn/pnpm
+### Prefer Bun, npm only as fallback
 
 ```bash
-# CORRECT
+# PREFERRED
 bun install
 bun test
 bun run dev
 
-# WRONG - creates conflicting lockfiles
+# FALLBACK - only if bun install fails
 npm install
 ```
 
-> **Why**: Mixed package managers cause dependency conflicts and CI failures.
+> **Why**: Bun is faster and the primary package manager. Use npm only if Bun fails due to compatibility issues.
 
 ---
 
@@ -171,7 +171,7 @@ If you see yourself doing any of these, stop and reconsider:
 | `battlefield.cards.push(...)` | Use `enterBattlefield()` |
 | `hand.cards.splice(...)` | Use `game.apply()` with appropriate action |
 | `new Game(...)` in tests | Use `createStartedGame()` |
-| `npm install` or `yarn add` | Use `bun install` or `bun add` |
+| `npm install` without trying bun first | Try `bun install` first, npm only as fallback |
 | Using `any` type | Find or create proper type |
 | Skipping `resolveStack()` | Always resolve before asserting effects |
 | Committing without `bun test` | Run tests first |
