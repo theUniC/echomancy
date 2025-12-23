@@ -5,7 +5,8 @@
  * - Permanent exists on battlefield
  * - Permanent is controlled by the player
  *
- * Moves the permanent from battlefield to graveyard
+ * Moves the permanent from battlefield to graveyard and triggers
+ * zone change events (enabling "dies" triggers).
  *
  * TODO: Support sacrificing other permanents (not just self)
  * TODO: Support sacrificing multiple permanents
@@ -27,21 +28,20 @@ export class SacrificeSelfCost implements Cost {
   }
 
   pay(game: Game, context: CostContext): void {
-    const { permanent, ownerState } = findPermanentOnAnyBattlefield(
-      game,
-      context.sourceId,
-    )
+    // Verify the permanent exists and is controlled by the player
+    // Note: We need to check control here because movePermanentToGraveyard
+    // doesn't validate control (it can move any permanent to graveyard)
+    const { permanent } = findPermanentOnAnyBattlefield(game, context.sourceId)
 
     assertPermanentControl(permanent, context.playerId, context.sourceId)
 
-    // Move from battlefield to graveyard
-    const permanentIndex = ownerState.battlefield.cards.findIndex(
-      (card) => card.instanceId === context.sourceId,
-    )
-    ownerState.battlefield.cards.splice(permanentIndex, 1)
-    ownerState.graveyard.cards.push(permanent)
-
-    // TODO: Emit ZONE_CHANGED event for sacrifice
-    // TODO: Handle triggered abilities that fire on sacrifice
+    // Use Game's method to handle complete zone transition with events
+    // This will:
+    // - Remove from battlefield
+    // - Add to graveyard
+    // - Clean up state
+    // - Emit ZONE_CHANGED event
+    // - Evaluate "dies" triggers
+    game.movePermanentToGraveyard(context.sourceId, "sacrifice")
   }
 }
