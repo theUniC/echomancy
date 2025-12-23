@@ -4,229 +4,79 @@ The ability system defines how cards produce effects through activated and trigg
 
 ## Overview
 
-An **Ability** is a rule unit attached to a card that produces effects when specific conditions are met. Abilities are **DECLARATIVE** - they don't execute actively, but are evaluated by the Game at specific points.
+An Ability is a rule unit attached to a card that produces effects when specific conditions are met. Abilities are declarative - they describe what should happen, not how to make it happen. The Game evaluates them at specific points.
 
-```typescript
-type Ability = ActivatedAbility | Trigger
-```
-
-## Supported Ability Types
+## Ability Types
 
 ### Activated Abilities
 
-Player-activated abilities with costs that go on the stack.
+Activated abilities are player-initiated. A player with priority pays a cost and the ability goes on the stack. When it resolves, the effect executes.
 
-**Example**: `{T}: Draw a card`
-
-```typescript
-type ActivatedAbility = {
-  cost: ActivationCost
-  effect: Effect
-}
-```
-
-**Activation Flow**:
+The activation flow:
 1. Player has priority
-2. Player pays the cost (currently only tap)
-3. `AbilityOnStack` is created
-4. Opponents get priority to respond
-5. Ability resolves (LIFO)
+2. Player pays the cost (in MVP, only tap cost is supported)
+3. An ability item is created and put on the stack
+4. Other players get priority to respond
+5. When the stack resolves, the effect executes
 
-**MVP Limitations**:
-- Only `{T}` (tap) cost supported
-- No mana costs, sacrifice, discard, or life payment
-- No targeting
-- No timing restrictions (can activate any time with priority)
+Activated abilities use "Last Known Information" - if the source permanent leaves the battlefield before resolution, the ability still resolves using the information captured at activation time.
 
 ### Triggered Abilities
 
-Event-based abilities that fire automatically when conditions are met.
+Triggered abilities fire automatically when their trigger condition is met. Unlike activated abilities, the player doesn't choose when they happen.
 
-**Example**: `When this creature attacks, draw a card`
+The trigger flow:
+1. A game event occurs (creature enters battlefield, attacks, etc.)
+2. Game evaluates all triggers on all permanents
+3. Triggers whose conditions match the event fire
+4. The trigger's effect executes
 
-```typescript
-type Trigger = {
-  eventType: GameEvent["type"]
-  condition: (game: Game, event: GameEvent, sourceCard: CardInstance) => boolean
-  effect: (game: Game, context: EffectContext) => void
-}
-```
+**MVP Limitation:** Currently, triggered abilities execute immediately when they fire. In the full rules, they should go on the stack and players can respond. This simplification will be addressed in a future update.
 
-**Evaluation Flow**:
-1. Game detects an event occurred
-2. Game constructs event object
-3. Game evaluates all triggers on all permanents
-4. Matching triggers execute their effects
+## Trigger Conditions
 
-**MVP Limitations**:
-- Triggers execute immediately (don't go on stack yet)
-- No targeting
-- No optional triggers
-- No intervening-if clauses
-- No APNAP ordering
+A trigger consists of three parts:
+- **Event type**: What kind of game event activates this trigger
+- **Condition**: A predicate that must be true for the trigger to fire
+- **Effect**: What happens when the trigger fires
+
+The condition is a pure predicate with no side effects. It receives the game state, the event that occurred, and the source card, then returns true or false.
 
 ## Type Guards
 
-Use type guards to distinguish ability types at runtime:
-
-```typescript
-import { isActivatedAbility, isTrigger } from "@/echomancy/domainmodel/abilities/Ability"
-
-if (isActivatedAbility(ability)) {
-  // ability.cost, ability.effect available
-}
-
-if (isTrigger(ability)) {
-  // ability.eventType, ability.condition, ability.effect available
-}
-```
+Two type guard functions distinguish ability types at runtime: `isActivatedAbility()` checks for cost and effect properties, while `isTrigger()` checks for eventType and condition properties.
 
 ## Activation Costs
 
-Currently only tap cost is supported:
-
-```typescript
-type ActivationCost = {
-  type: "TAP"
-}
-```
-
-**Future cost types** (TODO):
+The MVP supports only tap cost. Future cost types planned:
 - Mana costs
 - Sacrifice costs
 - Discard costs
 - Life payment
-- Multiple combined costs
+- Combined costs
 - X costs
-
-## Defining Triggers
-
-### ETB Trigger (Enter the Battlefield)
-
-```typescript
-import { GameEventTypes } from "@/echomancy/domainmodel/game/GameEvents"
-import { ZoneNames } from "@/echomancy/domainmodel/zones/Zone"
-
-const etbTrigger: Trigger = {
-  eventType: GameEventTypes.ZONE_CHANGED,
-  condition: (game, event, source) =>
-    event.card.instanceId === source.instanceId &&
-    event.toZone === ZoneNames.BATTLEFIELD,
-  effect: (game, context) =>
-    game.drawCards(context.controllerId, 1)
-}
-```
-
-### Attack Trigger
-
-```typescript
-const attackTrigger: Trigger = {
-  eventType: GameEventTypes.CREATURE_DECLARED_ATTACKER,
-  condition: (game, event, source) =>
-    event.creature.instanceId === source.instanceId,
-  effect: (game, context) =>
-    game.drawCards(context.controllerId, 1)
-}
-```
-
-### Conditional Trigger
-
-```typescript
-// "When this enters, if you control another Elf, draw a card"
-const conditionalTrigger: Trigger = {
-  eventType: GameEventTypes.ZONE_CHANGED,
-  condition: (game, event, source) => {
-    if (event.card.instanceId !== source.instanceId) return false
-    if (event.toZone !== ZoneNames.BATTLEFIELD) return false
-
-    // Check for another elf
-    const battlefield = game.getPlayerState(event.controllerId).battlefield.cards
-    return battlefield.some(card =>
-      card.instanceId !== source.instanceId &&
-      card.definition.name.toLowerCase().includes("elf")
-    )
-  },
-  effect: (game, context) => game.drawCards(context.controllerId, 1)
-}
-```
-
-## Helper Type for Better Inference
-
-Use `TriggerDefinition<T>` for better type inference on the event parameter:
-
-```typescript
-import type { TriggerDefinition } from "@/echomancy/domainmodel/triggers/Trigger"
-
-const etbTrigger: TriggerDefinition<"ZONE_CHANGED"> = {
-  eventType: "ZONE_CHANGED",
-  condition: (game, event, source) => {
-    // event is typed as ZoneChangedEvent
-    return event.toZone === "BATTLEFIELD"
-  },
-  effect: (game, context) => game.drawCards(context.controllerId, 1)
-}
-```
 
 ## Adding Abilities to Cards
 
-### Card with Activated Ability
+Cards can have:
+- An `activatedAbility` property for a single activated ability
+- A `triggers` array for multiple triggered abilities
 
-```typescript
-const cardWithTapAbility: CardDefinition = {
-  id: "tap-to-draw",
-  name: "Card That Draws",
-  types: ["CREATURE"],
-  activatedAbility: {
-    cost: { type: "TAP" },
-    effect: new DrawCardsEffect(1)
-  }
-}
-```
-
-### Card with Trigger
-
-```typescript
-const cardWithETB: CardDefinition = {
-  id: "elvish-visionary",
-  name: "Elvish Visionary",
-  types: ["CREATURE"],
-  triggers: [{
-    eventType: GameEventTypes.ZONE_CHANGED,
-    condition: (game, event, source) =>
-      event.card.instanceId === source.instanceId &&
-      event.toZone === ZoneNames.BATTLEFIELD,
-    effect: (game, context) => game.drawCards(context.controllerId, 1)
-  }]
-}
-```
+The MVP doesn't support cards with multiple activated abilities.
 
 ## Implementation Rules
 
 When implementing abilities:
+- Effects must use Game methods for all state mutations
+- Never use `game.apply()` inside an effect (that's for player actions)
+- Trigger conditions must be pure functions with no side effects
+- Abilities don't store mutable state
+- Use the provided constants (GameEventTypes, ZoneNames) instead of string literals
 
-1. **Effects use Game methods** for mutations (`drawCards`, `enterBattlefield`, etc.)
-2. **Never use `game.apply()`** in effects - that's for player actions
-3. **Triggers are pure predicates** - no side effects in conditions
-4. **Abilities don't store mutable state**
-5. **Use constants** - `GameEventTypes` and `ZoneNames` to avoid magic strings
-6. **Effects receive only** `Game` and `EffectContext`
+## Not Supported in MVP
 
-## Not Supported (Out of MVP Scope)
-
-The following ability types are not implemented:
-
-| Type | Description |
-|------|-------------|
-| StaticAbility | Continuous effects while on battlefield |
-| ReplacementEffect | "If X would happen, instead Y" |
-| PreventionEffect | "Prevent the next N damage" |
-| ManaAbility | Abilities that produce mana (don't use stack) |
-
-## Source Files
-
-| File | Purpose |
-|------|---------|
-| `abilities/Ability.ts` | Union type and type guards |
-| `abilities/ActivatedAbility.ts` | Activated ability and cost types |
-| `triggers/Trigger.ts` | Trigger type and helper types |
-| `game/Game.ts` | Evaluation and execution logic |
+The following ability types are out of scope:
+- Static abilities (continuous effects while on battlefield)
+- Replacement effects ("If X would happen, instead Y")
+- Prevention effects ("Prevent the next N damage")
+- Mana abilities (abilities that produce mana and don't use the stack)

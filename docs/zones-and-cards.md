@@ -4,316 +4,78 @@ This document describes the zone system and card model in Echomancy.
 
 ## Zones
 
-Zones are areas where cards exist during the game. Each player has private zones, and some zones are shared.
+Zones are areas where cards exist during the game.
 
 ### Zone Types
 
-```typescript
-type ZoneName =
-  | "HAND"        // Player's hand (private)
-  | "BATTLEFIELD" // In play (public)
-  | "GRAVEYARD"   // Discard pile (public)
-  | "STACK"       // Spells/abilities waiting to resolve
-  | "LIBRARY"     // Draw pile (private, ordered)
-  | "EXILE"       // Removed from game
-```
+- **HAND:** Player's hand (private to owner)
+- **BATTLEFIELD:** In play (public, visible to all)
+- **GRAVEYARD:** Discard pile (public)
+- **STACK:** Spells and abilities waiting to resolve
+- **LIBRARY:** Draw pile (private, ordered)
+- **EXILE:** Removed from game zone
 
 ### Zone Constants
 
-Use `ZoneNames` to avoid magic strings:
+The ZoneNames object provides constants for all zone names. Use these instead of string literals for type safety.
 
-```typescript
-import { ZoneNames } from "@/echomancy/domainmodel/zones/Zone"
+### Player Zones
 
-ZoneNames.HAND        // "HAND"
-ZoneNames.BATTLEFIELD // "BATTLEFIELD"
-ZoneNames.GRAVEYARD   // "GRAVEYARD"
-ZoneNames.STACK       // "STACK"
-ZoneNames.LIBRARY     // "LIBRARY"
-ZoneNames.EXILE       // "EXILE"
-```
-
-### Zone Structure
-
-```typescript
-type Zone = {
-  cards: CardInstance[]
-}
-```
-
-### Player State
-
-Each player has their own zones:
-
-```typescript
-type PlayerState = {
-  hand: Zone
-  battlefield: Zone
-  graveyard: Zone
-}
-```
+Each player has their own hand, battlefield, and graveyard. The library and exile zones also exist but are less frequently manipulated in the MVP.
 
 ## Cards
 
-### CardDefinition
+### Card Definition vs Card Instance
 
-The template/blueprint for a card. Shared across all instances of that card.
+**CardDefinition** is the template or blueprint for a card. It's shared across all copies of that card and contains:
+- Unique identifier
+- Display name
+- Card types (creature, instant, etc.)
+- Optional spell effect
+- Optional activated ability
+- Optional triggered abilities array
 
-```typescript
-type CardDefinition = {
-  id: string                         // Unique card ID
-  name: string                       // Display name
-  types: CardType[]                  // Card types
-  effect?: Effect                    // Spell effect (for instants/sorceries)
-  activatedAbility?: ActivatedAbility // Activated ability
-  triggers?: Trigger[]               // Triggered abilities
-}
-```
+**CardInstance** is a specific instance of a card in the game. Each instance has:
+- Unique instance ID (different each game)
+- Reference to its CardDefinition
+- Owner ID (the player who owns this card)
 
-### CardType
+This separation allows multiple copies of the same card while each maintains its own identity for tracking zones, tapping, etc.
 
-```typescript
-type CardType =
-  | "CREATURE"
-  | "INSTANT"
-  | "SORCERY"
-  | "ARTIFACT"
-  | "ENCHANTMENT"
-  | "PLANESWALKER"
-  | "LAND"
-```
+### Card Types
 
-### CardInstance
+The supported card types are: CREATURE, INSTANT, SORCERY, ARTIFACT, ENCHANTMENT, PLANESWALKER, and LAND.
 
-A specific instance of a card in the game. Has a unique ID and tracks ownership.
-
-```typescript
-type CardInstance = {
-  instanceId: string      // Unique per-game instance
-  definition: CardDefinition
-  ownerId: string         // Player who owns this card
-}
-```
-
-## Creating Cards
-
-### Simple Creature
-
-```typescript
-const creature: CardInstance = {
-  instanceId: "creature-1",
-  definition: {
-    id: "grizzly-bears",
-    name: "Grizzly Bears",
-    types: ["CREATURE"]
-  },
-  ownerId: playerId
-}
-```
-
-### Instant Spell
-
-```typescript
-const instant: CardInstance = {
-  instanceId: "spell-1",
-  definition: {
-    id: "giant-growth",
-    name: "Giant Growth",
-    types: ["INSTANT"],
-    effect: new GrowthEffect(3, 3)  // hypothetical effect
-  },
-  ownerId: playerId
-}
-```
-
-### Creature with ETB Trigger
-
-```typescript
-const elvishVisionary: CardInstance = {
-  instanceId: "visionary-1",
-  definition: {
-    id: "elvish-visionary",
-    name: "Elvish Visionary",
-    types: ["CREATURE"],
-    triggers: [{
-      eventType: GameEventTypes.ZONE_CHANGED,
-      condition: (game, event, source) =>
-        event.card.instanceId === source.instanceId &&
-        event.toZone === ZoneNames.BATTLEFIELD,
-      effect: (game, context) =>
-        game.drawCards(context.controllerId, 1)
-    }]
-  },
-  ownerId: playerId
-}
-```
-
-### Creature with Activated Ability
-
-```typescript
-const tapper: CardInstance = {
-  instanceId: "tapper-1",
-  definition: {
-    id: "prodigal-sorcerer",
-    name: "Prodigal Sorcerer",
-    types: ["CREATURE"],
-    activatedAbility: {
-      cost: { type: "TAP" },
-      effect: new DealDamageEffect(1)  // hypothetical
-    }
-  },
-  ownerId: playerId
-}
-```
-
-### Land
-
-```typescript
-const land: CardInstance = {
-  instanceId: "land-1",
-  definition: {
-    id: "forest",
-    name: "Forest",
-    types: ["LAND"]
-  },
-  ownerId: playerId
-}
-```
+A card can have multiple types (e.g., Artifact Creature).
 
 ## Zone Transitions
 
 ### Playing a Land
 
-```
-HAND → BATTLEFIELD
-```
-
-```typescript
-game.apply({ type: "PLAY_LAND", playerId, cardId })
-```
+When a land is played, it moves from HAND directly to BATTLEFIELD. This is a special action that doesn't use the stack.
 
 ### Casting a Spell
 
-```
-HAND → STACK → BATTLEFIELD (permanent)
-                or
-HAND → STACK → GRAVEYARD (instant/sorcery)
-```
-
-```typescript
-// Goes to stack
-game.apply({ type: "CAST_SPELL", playerId, cardId, targets: [] })
-
-// After resolution, moves to final zone
-resolveStack(game, opponentId, playerId)
-```
+When a spell is cast, it moves from HAND to STACK. After resolution:
+- Instants and sorceries go to GRAVEYARD
+- Permanents (creatures, artifacts, enchantments, planeswalkers) go to BATTLEFIELD
 
 ### Enter the Battlefield
 
-Always use `game.enterBattlefield()`:
+When a permanent enters the battlefield, it must go through the `game.enterBattlefield()` method. This is critical because:
+- It properly initializes creature state (tapped status, attack history)
+- It emits the ZONE_CHANGED event
+- It triggers ETB (enter the battlefield) abilities
 
-```typescript
-// CORRECT
-game.enterBattlefield(card, controllerId)
-
-// WRONG - bypasses ETB triggers
-playerState.battlefield.cards.push(card)
-```
-
-## Querying Zones
-
-```typescript
-// Get player state
-const playerState = game.getPlayerState(playerId)
-
-// Query hand
-const cardsInHand = playerState.hand.cards
-
-// Query battlefield
-const permanents = playerState.battlefield.cards
-
-// Find specific card
-const creature = permanents.find(c => c.instanceId === creatureId)
-
-// Filter by type
-const creatures = permanents.filter(c =>
-  c.definition.types.includes("CREATURE")
-)
-
-// Check if card exists
-const hasCard = cardsInHand.some(c => c.instanceId === cardId)
-```
+Never push directly to the battlefield array - this bypasses the ETB system and will cause silent bugs.
 
 ## Zone Change Events
 
-When cards change zones, a `ZONE_CHANGED` event is emitted:
-
-```typescript
-type ZoneChangedEvent = {
-  type: "ZONE_CHANGED"
-  card: CardInstance
-  fromZone: ZoneName
-  toZone: ZoneName
-  controllerId: string
-}
-```
-
-This allows triggers like:
-
-- **ETB**: `toZone === "BATTLEFIELD"`
-- **Dies**: `fromZone === "BATTLEFIELD" && toZone === "GRAVEYARD"`
-- **Leaves battlefield**: `fromZone === "BATTLEFIELD"`
-
-## Test Helpers
-
-```typescript
-import {
-  createTestCreature,
-  createTestSpell,
-  addCreatureToBattlefield,
-  addSpellToHand,
-  createElvishVisionary
-} from "./__tests__/helpers"
-
-// Create and add creature to battlefield
-const creature = createTestCreature(playerId)
-addCreatureToBattlefield(game, playerId, creature)
-
-// Create and add spell to hand
-const spell = createTestSpell(playerId)
-addSpellToHand(game, playerId, spell)
-
-// Create themed creature
-const visionary = createElvishVisionary(playerId, () => {
-  console.log("ETB triggered!")
-})
-```
+When cards change zones, a ZONE_CHANGED event is emitted. This enables triggers like:
+- **ETB:** Fires when destination zone is BATTLEFIELD
+- **Dies:** Fires when moving from BATTLEFIELD to GRAVEYARD
+- **Leaves battlefield:** Fires when source zone is BATTLEFIELD
 
 ## Multiple Card Types
 
-A card can have multiple types:
-
-```typescript
-const artifactCreature: CardDefinition = {
-  id: "steel-golem",
-  name: "Steel Golem",
-  types: ["ARTIFACT", "CREATURE"]
-}
-```
-
-Check with:
-
-```typescript
-const isCreature = card.definition.types.includes("CREATURE")
-const isArtifact = card.definition.types.includes("ARTIFACT")
-const isArtifactCreature = isCreature && isArtifact
-```
-
-## Source Files
-
-| File | Purpose |
-|------|---------|
-| `zones/Zone.ts` | Zone types and constants |
-| `cards/CardDefinition.ts` | Card template type |
-| `cards/CardInstance.ts` | Runtime card instance |
-| `game/PlayerState.ts` | Player zone structure |
+A card can have multiple types. To check if a card is a creature, check if the types array includes "CREATURE". A card can be both an Artifact and a Creature simultaneously.

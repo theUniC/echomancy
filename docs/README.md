@@ -1,10 +1,6 @@
 # Echomancy Documentation
 
-Welcome to the Echomancy documentation. Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design principles in TypeScript.
-
-## Overview
-
-This documentation consolidates the design principles, architectural decisions, and implementation details that were previously scattered across code comments. Use this as your primary reference when working with the engine.
+Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design principles in TypeScript.
 
 ## Documentation Index
 
@@ -31,22 +27,6 @@ This documentation consolidates the design principles, architectural decisions, 
 |----------|-------------|
 | [Testing Guide](./testing-guide.md) | Test helpers, patterns, and best practices |
 
-## Quick Start
-
-```bash
-# Install dependencies
-bun install
-
-# Run development server
-bun dev
-
-# Run tests
-bun test
-
-# Lint & format
-bun run lint && bun run format
-```
-
 ## Project Status
 
 Echomancy is in MVP phase, focusing on fundamental game mechanics:
@@ -57,29 +37,17 @@ Echomancy is in MVP phase, focusing on fundamental game mechanics:
 - Triggered and activated abilities
 - Creature combat basics
 
-See [Architecture](./architecture.md) for current limitations and planned features.
-
-## Tech Stack
-
-- **Runtime**: Bun
-- **Framework**: Next.js 16 with App Router
-- **UI**: React 19 with React Compiler
-- **Language**: TypeScript (strict mode)
-- **Styling**: Tailwind CSS v4
-- **Testing**: Vitest
-- **Linting**: Biome
-
 ## Source Code Structure
 
 ```
 src/echomancy/domainmodel/
-├── abilities/       # Ability system (ActivatedAbility, type guards)
+├── abilities/       # Ability system
 ├── cards/           # Card definitions and instances
 ├── effects/         # Effect interface and implementations
 │   └── impl/        # Concrete effect classes
 ├── game/            # Core game engine
-│   └── __tests__/   # Comprehensive test suite
-├── targets/         # Targeting system (future)
+│   └── __tests__/   # Test suite
+├── targets/         # Targeting system
 ├── triggers/        # Trigger definitions
 └── zones/           # Game zones
 ```
