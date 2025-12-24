@@ -23,4 +23,16 @@ export type CardDefinition = {
   effect?: Effect
   activatedAbility?: ActivatedAbility
   triggers?: Trigger[]
+  /**
+   * Base power for creatures.
+   * Only applicable when types includes "CREATURE".
+   * Default: 0
+   */
+  power?: number
+  /**
+   * Base toughness for creatures.
+   * Only applicable when types includes "CREATURE".
+   * Default: 1 (minimum viable creature)
+   */
+  toughness?: number
 }

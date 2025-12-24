@@ -35,10 +35,38 @@ import { type GameSteps, Step } from "./Steps"
 // Re-export stack types for backward compatibility
 export type { AbilityOnStack, SpellOnStack, StackItem }
 
+/**
+ * Counter types supported by the game engine.
+ *
+ * MVP includes only +1/+1 counters.
+ * Future expansion: -1/-1, poison, charge, loyalty, etc.
+ *
+ * @see Power/Toughness + Counters MVP Contract
+ */
+export type CounterType = "PLUS_ONE_PLUS_ONE"
+
+/**
+ * Creature state including combat state and numeric stats.
+ *
+ * MVP supports:
+ * - Base power and toughness
+ * - +1/+1 counters
+ *
+ * Explicitly excluded from MVP:
+ * - Damage tracking (TODO: implement damage model)
+ * - Static ability modifiers (TODO: implement continuous effects)
+ * - Temporary "until end of turn" modifiers (TODO: implement duration tracking)
+ * - Layer system (TODO: implement 7-layer system)
+ *
+ * @see Power/Toughness + Counters MVP Contract
+ */
 export type CreatureState = {
   isTapped: boolean
   isAttacking: boolean
   hasAttackedThisTurn: boolean
+  basePower: number
+  baseToughness: number
+  counters: Map<CounterType, number>
 }
 
 /**
@@ -312,6 +340,149 @@ export class Game {
     return this.getCreatureStateOrThrow(creatureId)
   }
 
+  // ============================================================================
+  // CREATURE STATS API - Power/Toughness + Counters (MVP)
+  // ============================================================================
+
+  /**
+   * Get the base power of a creature.
+   *
+   * @param creatureId - The creature's instance ID
+   * @returns The base power value (before counters or modifiers)
+   */
+  getBasePower(creatureId: string): number {
+    const state = this.getCreatureStateOrThrow(creatureId)
+    return state.basePower
+  }
+
+  /**
+   * Get the base toughness of a creature.
+   *
+   * @param creatureId - The creature's instance ID
+   * @returns The base toughness value (before counters or modifiers)
+   */
+  getBaseToughness(creatureId: string): number {
+    const state = this.getCreatureStateOrThrow(creatureId)
+    return state.baseToughness
+  }
+
+  /**
+   * Get the number of counters of a specific type on a creature.
+   *
+   * @param creatureId - The creature's instance ID
+   * @param counterType - The type of counter to query
+   * @returns The number of counters (0 if none exist)
+   */
+  getCounters(creatureId: string, counterType: CounterType): number {
+    const state = this.getCreatureStateOrThrow(creatureId)
+    return state.counters.get(counterType) ?? 0
+  }
+
+  /**
+   * Add counters to a creature.
+   *
+   * @param creatureId - The creature's instance ID
+   * @param counterType - The type of counter to add
+   * @param amount - The number of counters to add (must be > 0)
+   * @throws Error if amount is not positive
+   */
+  addCounters(
+    creatureId: string,
+    counterType: CounterType,
+    amount: number,
+  ): void {
+    if (amount <= 0) {
+      throw new Error(`Amount must be positive, got ${amount}`)
+    }
+
+    const state = this.getCreatureStateOrThrow(creatureId)
+    const currentCount = state.counters.get(counterType) ?? 0
+    state.counters.set(counterType, currentCount + amount)
+  }
+
+  /**
+   * Remove counters from a creature.
+   *
+   * @param creatureId - The creature's instance ID
+   * @param counterType - The type of counter to remove
+   * @param amount - The number of counters to remove (must be > 0)
+   * @throws Error if amount is not positive
+   *
+   * Note: Counter count will not go below 0 (clamped).
+   */
+  removeCounters(
+    creatureId: string,
+    counterType: CounterType,
+    amount: number,
+  ): void {
+    if (amount <= 0) {
+      throw new Error(`Amount must be positive, got ${amount}`)
+    }
+
+    const state = this.getCreatureStateOrThrow(creatureId)
+    const currentCount = state.counters.get(counterType) ?? 0
+    const newCount = Math.max(0, currentCount - amount)
+
+    if (newCount === 0) {
+      state.counters.delete(counterType)
+    } else {
+      state.counters.set(counterType, newCount)
+    }
+  }
+
+  /**
+   * Calculate the current power of a creature.
+   *
+   * Current power = base power + +1/+1 counters
+   *
+   * MVP calculation only includes:
+   * - Base power
+   * - +1/+1 counters
+   *
+   * Explicitly excluded from MVP:
+   * - Static abilities (TODO: implement continuous effects)
+   * - Temporary modifiers (TODO: implement "until end of turn" effects)
+   * - Layer system (TODO: implement 7-layer system)
+   *
+   * @param creatureId - The creature's instance ID
+   * @returns The current power value
+   */
+  getCurrentPower(creatureId: string): number {
+    const state = this.getCreatureStateOrThrow(creatureId)
+    let power = state.basePower
+    power += state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0
+    return power
+  }
+
+  /**
+   * Calculate the current toughness of a creature.
+   *
+   * Current toughness = base toughness + +1/+1 counters
+   *
+   * MVP calculation only includes:
+   * - Base toughness
+   * - +1/+1 counters
+   *
+   * Explicitly excluded from MVP:
+   * - Damage tracking (TODO: implement damage model)
+   * - Static abilities (TODO: implement continuous effects)
+   * - Temporary modifiers (TODO: implement "until end of turn" effects)
+   * - Layer system (TODO: implement 7-layer system)
+   *
+   * @param creatureId - The creature's instance ID
+   * @returns The current toughness value
+   */
+  getCurrentToughness(creatureId: string): number {
+    const state = this.getCreatureStateOrThrow(creatureId)
+    let toughness = state.baseToughness
+    toughness += state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0
+    return toughness
+  }
+
+  // ============================================================================
+  // END CREATURE STATS API
+  // ============================================================================
+
   getManaPool(playerId: string): ManaPoolSnapshot {
     const pool = this.manaPools.get(playerId)
     if (!pool) {
@@ -365,6 +536,9 @@ export class Game {
         isTapped: false,
         isAttacking: false,
         hasAttackedThisTurn: false,
+        basePower: card.definition.power ?? 0,
+        baseToughness: card.definition.toughness ?? 1,
+        counters: new Map(),
       })
     }
   }

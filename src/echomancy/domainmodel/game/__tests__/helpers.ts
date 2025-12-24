@@ -94,6 +94,8 @@ export function castSpellInMainPhase(game: Game, playerId: string) {
 export function createTestCreature(
   ownerId: string,
   instanceId?: string,
+  power?: number,
+  toughness?: number,
 ): CardInstance {
   const id = instanceId || `test-creature-${Math.random()}`
   return {
@@ -102,6 +104,8 @@ export function createTestCreature(
       id: "test-creature-def",
       name: "Test Creature",
       types: ["CREATURE"],
+      power,
+      toughness,
     },
     ownerId,
   }
@@ -121,6 +125,8 @@ export function createCreatureWithETBTrigger(
   instanceId: string,
   ownerId: string,
   onETB: () => void,
+  power?: number,
+  toughness?: number,
 ): CardInstance {
   return {
     instanceId,
@@ -128,6 +134,8 @@ export function createCreatureWithETBTrigger(
       id: "creature-with-etb",
       name: "Creature With ETB",
       types: ["CREATURE"],
+      power,
+      toughness,
       triggers: [
         {
           eventType: GameEventTypes.ZONE_CHANGED,
@@ -277,6 +285,8 @@ export function createElvishVisionary(
       id: "elvish-visionary",
       name: "Elvish Visionary",
       types: ["CREATURE"],
+      power: 1,
+      toughness: 1,
       triggers: [
         {
           eventType: GameEventTypes.ZONE_CHANGED,
@@ -316,6 +326,8 @@ export function createLlanowarElves(ownerId: string): CardInstance {
       id: "llanowar-elves",
       name: "Llanowar Elves",
       types: ["CREATURE"],
+      power: 1,
+      toughness: 1,
       // TODO: Add activatedAbility now that mana pool is implemented
       // activatedAbility: {
       //   cost: { type: "TAP" },
@@ -344,6 +356,8 @@ export function createElvishWarrior(ownerId: string): CardInstance {
       id: "elvish-warrior",
       name: "Elvish Warrior",
       types: ["CREATURE"],
+      power: 2,
+      toughness: 3,
       // No triggers, no abilities - vanilla creature
     },
     ownerId,
@@ -374,6 +388,8 @@ export function createConditionalElf(
       id: "conditional-elf",
       name: "Conditional Elf",
       types: ["CREATURE"],
+      power: 1,
+      toughness: 1,
       triggers: [
         {
           eventType: GameEventTypes.ZONE_CHANGED,
@@ -434,6 +450,8 @@ export function createElfWithAttackTrigger(
       id: "attacking-elf",
       name: "Attacking Elf",
       types: ["CREATURE"],
+      power: 2,
+      toughness: 2,
       triggers: [
         {
           eventType: GameEventTypes.CREATURE_DECLARED_ATTACKER,
