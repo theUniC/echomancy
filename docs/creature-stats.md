@@ -51,11 +51,13 @@ Future expansion will include:
 - Amount must be positive (> 0)
 - Counters accumulate additively
 - Multiple additions stack
+- Throws `InvalidCounterAmountError` if amount is not positive
 
 **Removing Counters**:
 - Amount must be positive (> 0)
 - Counter count cannot go below 0 (clamped)
 - Removing more counters than exist is safe (results in 0)
+- Throws `InvalidCounterAmountError` if amount is not positive
 
 **Querying Counters**:
 - Returns the current count for a specific counter type
@@ -92,7 +94,9 @@ The Game class provides these methods for creature stats:
 - `addCounters(creatureId, counterType, amount)`: Add counters to a creature
 - `removeCounters(creatureId, counterType, amount)`: Remove counters from a creature
 
-All methods throw errors if the creature doesn't exist.
+**Error Handling**:
+- All methods throw `PermanentNotFoundError` if the creature doesn't exist
+- Counter manipulation throws `InvalidCounterAmountError` if amount ≤ 0
 
 ## Lifecycle
 

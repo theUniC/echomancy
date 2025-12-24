@@ -149,3 +149,13 @@ export class CannotPayCostsError extends GameError {
     super(`Cannot pay costs: ${reason}`)
   }
 }
+
+// ============================================================================
+// Creature Stats System Errors
+// ============================================================================
+
+export class InvalidCounterAmountError extends GameError {
+  constructor(amount: number) {
+    super(`Invalid counter amount: ${amount}. Amount must be greater than 0.`)
+  }
+}

@@ -13,6 +13,7 @@ import {
   CreatureAlreadyAttackedError,
   InsufficientManaError,
   InvalidCastSpellStepError,
+  InvalidCounterAmountError,
   InvalidEndTurnError,
   InvalidManaAmountError,
   InvalidPlayerActionError,
@@ -384,16 +385,14 @@ export class Game {
    * @param creatureId - The creature's instance ID
    * @param counterType - The type of counter to add
    * @param amount - The number of counters to add (must be > 0)
-   * @throws Error if amount is not positive
+   * @throws InvalidCounterAmountError if amount is not positive
    */
   addCounters(
     creatureId: string,
     counterType: CounterType,
     amount: number,
   ): void {
-    if (amount <= 0) {
-      throw new Error(`Amount must be positive, got ${amount}`)
-    }
+    this.assertValidCounterAmount(amount)
 
     const state = this.getCreatureStateOrThrow(creatureId)
     const currentCount = state.counters.get(counterType) ?? 0
@@ -406,7 +405,7 @@ export class Game {
    * @param creatureId - The creature's instance ID
    * @param counterType - The type of counter to remove
    * @param amount - The number of counters to remove (must be > 0)
-   * @throws Error if amount is not positive
+   * @throws InvalidCounterAmountError if amount is not positive
    *
    * Note: Counter count will not go below 0 (clamped).
    */
@@ -415,9 +414,7 @@ export class Game {
     counterType: CounterType,
     amount: number,
   ): void {
-    if (amount <= 0) {
-      throw new Error(`Amount must be positive, got ${amount}`)
-    }
+    this.assertValidCounterAmount(amount)
 
     const state = this.getCreatureStateOrThrow(creatureId)
     const currentCount = state.counters.get(counterType) ?? 0
@@ -1404,6 +1401,12 @@ export class Game {
       throw new PermanentNotFoundError(creatureId)
     }
     return state
+  }
+
+  private assertValidCounterAmount(amount: number): void {
+    if (amount <= 0) {
+      throw new InvalidCounterAmountError(amount)
+    }
   }
 
   private assertIsCurrentPlayer(playerId: string, action: string): void {

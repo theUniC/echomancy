@@ -1,4 +1,5 @@
 import { expect, test } from "vitest"
+import { InvalidCounterAmountError } from "../GameErrors"
 import {
   addCreatureToBattlefield,
   createStartedGame,
@@ -108,11 +109,11 @@ test("adding zero or negative counters throws error", () => {
 
   expect(() => {
     game.addCounters(creature.instanceId, "PLUS_ONE_PLUS_ONE", 0)
-  }).toThrow("Amount must be positive")
+  }).toThrow(InvalidCounterAmountError)
 
   expect(() => {
     game.addCounters(creature.instanceId, "PLUS_ONE_PLUS_ONE", -1)
-  }).toThrow("Amount must be positive")
+  }).toThrow(InvalidCounterAmountError)
 })
 
 // ============================================================================
@@ -169,11 +170,11 @@ test("removing zero or negative counters throws error", () => {
 
   expect(() => {
     game.removeCounters(creature.instanceId, "PLUS_ONE_PLUS_ONE", 0)
-  }).toThrow("Amount must be positive")
+  }).toThrow(InvalidCounterAmountError)
 
   expect(() => {
     game.removeCounters(creature.instanceId, "PLUS_ONE_PLUS_ONE", -1)
-  }).toThrow("Amount must be positive")
+  }).toThrow(InvalidCounterAmountError)
 })
 
 // ============================================================================
