@@ -7,7 +7,14 @@
  * @see docs/architecture.md
  */
 
+import type { CardInstance } from "../cards/CardInstance"
 import type { Game } from "../game/Game"
+import {
+  CannotPayCostsError,
+  PermanentNotControlledError,
+  PermanentNotFoundError,
+} from "../game/GameErrors"
+import type { PlayerState } from "../game/PlayerState"
 
 /**
  * CostContext - Context information for cost validation and payment
@@ -74,21 +81,132 @@ export function canPayAllCosts(
 /**
  * Pays all costs atomically
  *
- * MUST only be called after canPayAllCosts returns true
- * Pays costs in order
+ * Validates all costs before paying any to ensure atomicity.
+ * If any cost cannot be paid, throws CannotPayCostsError.
  *
  * @param costs - Array of costs to pay
  * @param game - Current game state (will be mutated)
  * @param context - Context for cost payment
+ * @throws CannotPayCostsError if any cost cannot be paid
  */
 export function payAllCosts(
   costs: readonly Cost[],
   game: Game,
   context: CostContext,
 ): void {
-  // All costs must be validated before calling this
-  // We pay them in order
+  // Validate all costs before paying any (ensures atomicity)
+  if (!canPayAllCosts(costs, game, context)) {
+    throw new CannotPayCostsError("One or more costs cannot be paid")
+  }
+
+  // Pay costs in order
   for (const cost of costs) {
     cost.pay(game, context)
+  }
+}
+
+// ============================================================================
+// HELPER FUNCTIONS FOR COST IMPLEMENTATIONS
+// ============================================================================
+
+/**
+ * Result of finding a permanent across all battlefields
+ */
+export type PermanentSearchResult = {
+  permanent: CardInstance
+  controllerState: PlayerState
+}
+
+/**
+ * Finds a permanent on the controller's battlefield
+ *
+ * Used by canPay() methods to check if a permanent exists and is controlled
+ *
+ * @param game - Current game state
+ * @param context - Cost context with player and source IDs
+ * @returns The permanent if found and controlled, undefined otherwise
+ */
+export function findControlledPermanent(
+  game: Game,
+  context: CostContext,
+): CardInstance | undefined {
+  const playerState = game.getPlayerState(context.playerId)
+  return playerState.battlefield.cards.find(
+    (card) => card.instanceId === context.sourceId,
+  )
+}
+
+/**
+ * Finds a permanent on ANY player's battlefield
+ *
+ * Used by pay() methods to locate and validate permanents before mutating state
+ *
+ * @param game - Current game state
+ * @param sourceId - The permanent's instance ID
+ * @returns Search result with permanent and controller state
+ * @throws PermanentNotFoundError if permanent not on any battlefield
+ */
+export function findPermanentOnAnyBattlefield(
+  game: Game,
+  sourceId: string,
+): PermanentSearchResult {
+  const playerIds = game.getPlayersInTurnOrder()
+
+  for (const playerId of playerIds) {
+    const playerState = game.getPlayerState(playerId)
+    const found = playerState.battlefield.cards.find(
+      (card) => card.instanceId === sourceId,
+    )
+    if (found) {
+      return { permanent: found, controllerState: playerState }
+    }
+  }
+
+  throw new PermanentNotFoundError(sourceId)
+}
+
+/**
+ * Validates that a player controls a specific permanent
+ *
+ * Control is determined by whether the permanent is present on the
+ * specified player's battlefield, not by its owner.
+ *
+ * @param game - Current game state
+ * @param playerId - The player who should control the permanent
+ * @param permanentId - The permanent's instance ID
+ * @throws PermanentNotFoundError if permanent doesn't exist on any battlefield
+ * @throws PermanentNotControlledError if player doesn't control the permanent
+ */
+export function assertPermanentControl(
+  game: Game,
+  playerId: string,
+  permanentId: string,
+): void {
+  // First check if permanent exists on any battlefield
+  const playerIds = game.getPlayersInTurnOrder()
+  let foundAnywhere = false
+
+  for (const id of playerIds) {
+    const state = game.getPlayerState(id)
+    if (
+      state.battlefield.cards.some((card) => card.instanceId === permanentId)
+    ) {
+      foundAnywhere = true
+      break
+    }
+  }
+
+  if (!foundAnywhere) {
+    throw new PermanentNotFoundError(permanentId)
+  }
+
+  // Then check if the specific player controls it
+  const playerState = game.getPlayerState(playerId)
+  const controlsPermanent = playerState.battlefield.cards.some(
+    (card) => card.instanceId === permanentId,
+  )
+
+  if (!controlsPermanent) {
+    throw new PermanentNotControlledError(permanentId, playerId)
   }
 }

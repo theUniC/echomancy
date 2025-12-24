@@ -20,7 +20,7 @@ export class ManaCost implements Cost {
 
     // Check if player has sufficient mana of each required color
     for (const [color, amount] of Object.entries(this.amounts)) {
-      if (amount === undefined || amount === 0) continue
+      if (amount === undefined || amount <= 0) continue
 
       const available = pool[color as ManaColor] ?? 0
       if (available < amount) {
@@ -34,7 +34,7 @@ export class ManaCost implements Cost {
   pay(game: Game, context: CostContext): void {
     // Spend mana for each color
     for (const [color, amount] of Object.entries(this.amounts)) {
-      if (amount === undefined || amount === 0) continue
+      if (amount === undefined || amount <= 0) continue
 
       game.spendMana(context.playerId, color as ManaColor, amount)
     }

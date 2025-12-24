@@ -14,8 +14,12 @@
  */
 
 import type { Game } from "../../game/Game"
-import type { Cost, CostContext } from "../Cost"
-import { assertPermanentControl, findControlledPermanent } from "./helpers"
+import {
+  assertPermanentControl,
+  type Cost,
+  type CostContext,
+  findControlledPermanent,
+} from "../Cost"
 
 export class SacrificeSelfCost implements Cost {
   canPay(game: Game, context: CostContext): boolean {
