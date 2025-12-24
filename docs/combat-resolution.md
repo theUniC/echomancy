@@ -31,7 +31,7 @@ During the DECLARE_BLOCKERS step, the defending player can assign blockers to at
 Restrictions:
 - Only untapped creatures can block
 - A creature can only block one attacker per combat
-- Multiple blockers can block the same attacker (MVP supports this)
+- **MVP Limitation:** Each attacker can only be blocked by one creature (1-to-1 blocking only)
 
 ### 3. Combat Damage
 

@@ -97,20 +97,20 @@ The core **does NOT aim to cover all of Magic**.
 
 ### Combat Resolution (MVP)
 - Declare attackers (validates untapped, not attacked this turn)
-- Declare blockers (one blocker per attacker in MVP)
+- Declare blockers (1-to-1 blocking: one blocker per attacker maximum)
 - Damage assignment (simultaneous)
 - Damage resolution during COMBAT_DAMAGE step
-- State-based actions for creature destruction
+- State-based actions for creature destruction (lethal damage + 0 toughness)
 - Damage to players from unblocked attackers
 - Damage cleanup at CLEANUP step
-- Comprehensive test coverage (14 tests)
+- Comprehensive test coverage (15 tests)
 - Known limitations:
   - No first strike / double strike (TODO: implement damage assignment order)
   - No trample (TODO: implement excess damage to player)
   - No deathtouch (TODO: implement any-amount-is-lethal rule)
   - No damage prevention (TODO: implement prevention effects)
   - No indestructible (TODO: implement in state-based actions)
-  - No multiple blockers damage assignment order (TODO: implement damage assignment)
+  - No multiple blockers per attacker (TODO: implement damage assignment order)
   - No combat damage triggers (TODO: implement triggers for combat damage events)
 
 ---

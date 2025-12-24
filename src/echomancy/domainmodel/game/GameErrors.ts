@@ -181,3 +181,11 @@ export class CannotBlockNonAttackingCreatureError extends GameError {
     super(`Creature '${attackerId}' is not attacking and cannot be blocked`)
   }
 }
+
+export class AttackerAlreadyBlockedError extends GameError {
+  constructor(attackerId: string) {
+    super(
+      `Creature '${attackerId}' is already blocked (MVP: only one blocker per attacker)`,
+    )
+  }
+}
