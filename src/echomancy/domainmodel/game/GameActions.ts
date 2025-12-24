@@ -20,6 +20,12 @@ export type ActivateAbility = {
   playerId: string
   permanentId: string
 }
+export type DeclareBlocker = {
+  type: "DECLARE_BLOCKER"
+  playerId: string
+  blockerId: string
+  attackerId: string
+}
 
 export type Actions =
   | AdvanceStep
@@ -28,6 +34,7 @@ export type Actions =
   | CastSpell
   | PassPriority
   | DeclareAttacker
+  | DeclareBlocker
   | ActivateAbility
 
 export type AllowedAction =
@@ -37,4 +44,5 @@ export type AllowedAction =
   | "CAST_SPELL"
   | "PASS_PRIORITY"
   | "DECLARE_ATTACKER"
+  | "DECLARE_BLOCKER"
   | "ACTIVATE_ABILITY"

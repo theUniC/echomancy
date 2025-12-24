@@ -6,11 +6,13 @@ import type { EffectContext } from "../effects/EffectContext"
 import { type ZoneName, ZoneNames } from "../zones/Zone"
 import type { Actions, AllowedAction } from "./GameActions"
 import {
+  CannotBlockNonAttackingCreatureError,
   CannotPayActivationCostError,
   CardIsNotLandError,
   CardIsNotSpellError,
   CardNotFoundInHandError,
   CreatureAlreadyAttackedError,
+  CreatureAlreadyBlockingError,
   InsufficientManaError,
   InvalidCastSpellStepError,
   InvalidCounterAmountError,
@@ -25,6 +27,7 @@ import {
   PermanentNotFoundError,
   PlayerNotFoundError,
   TappedCreatureCannotAttackError,
+  TappedCreatureCannotBlockError,
 } from "./GameErrors"
 import { type GameEvent, GameEventTypes } from "./GameEvents"
 import type { Player } from "./Player"
@@ -52,14 +55,21 @@ export type CounterType = "PLUS_ONE_PLUS_ONE"
  * MVP supports:
  * - Base power and toughness
  * - +1/+1 counters
+ * - Combat damage tracking
+ * - Blocking relationships
  *
  * Explicitly excluded from MVP:
- * - Damage tracking (TODO: implement damage model)
+ * - First strike / Double strike (TODO: implement damage assignment order)
+ * - Trample (TODO: implement excess damage to player/planeswalker)
+ * - Deathtouch (TODO: implement any-amount-is-lethal rule)
+ * - Damage prevention (TODO: implement prevention effects)
+ * - Indestructible (TODO: implement in state-based actions)
  * - Static ability modifiers (TODO: implement continuous effects)
  * - Temporary "until end of turn" modifiers (TODO: implement duration tracking)
  * - Layer system (TODO: implement 7-layer system)
  *
  * @see Power/Toughness + Counters MVP Contract
+ * @see Combat Resolution MVP Contract
  */
 export type CreatureState = {
   isTapped: boolean
@@ -68,6 +78,9 @@ export type CreatureState = {
   basePower: number
   baseToughness: number
   counters: Map<CounterType, number>
+  damageMarkedThisTurn: number
+  blockingCreatureId: string | null // Which attacker this creature is blocking (null if not blocking)
+  blockedBy: string[] // Which creatures are blocking this attacker (empty if unblocked)
 }
 
 /**
@@ -254,6 +267,15 @@ export class Game {
       .with(
         { type: "DECLARE_ATTACKER", playerId: P.string, creatureId: P.string },
         (action) => this.declareAttacker(action),
+      )
+      .with(
+        {
+          type: "DECLARE_BLOCKER",
+          playerId: P.string,
+          blockerId: P.string,
+          attackerId: P.string,
+        },
+        (action) => this.declareBlocker(action),
       )
       .with(
         { type: "ACTIVATE_ABILITY", playerId: P.string, permanentId: P.string },
@@ -536,6 +558,9 @@ export class Game {
         basePower: card.definition.power ?? 0,
         baseToughness: card.definition.toughness ?? 1,
         counters: new Map(),
+        damageMarkedThisTurn: 0,
+        blockingCreatureId: null,
+        blockedBy: [],
       })
     }
   }
@@ -906,6 +931,56 @@ export class Game {
     })
   }
 
+  private declareBlocker(action: DeclareBlocker): void {
+    // Verify it's DECLARE_BLOCKERS step
+    if (this.currentStep !== Step.DECLARE_BLOCKERS) {
+      throw new InvalidPlayerActionError(action.playerId, "DECLARE_BLOCKER")
+    }
+
+    // Find the blocker on the defending player's battlefield
+    const defenderState = this.getPlayerState(action.playerId)
+    const blocker = defenderState.battlefield.cards.find(
+      (card) => card.instanceId === action.blockerId,
+    )
+
+    if (!blocker) {
+      throw new PermanentNotFoundError(action.blockerId)
+    }
+
+    if (!this.isCreature(blocker)) {
+      throw new PermanentNotFoundError(action.blockerId)
+    }
+
+    const blockerState = this.getCreatureState(action.blockerId)
+
+    // Verify blocker is not tapped
+    if (blockerState.isTapped) {
+      throw new TappedCreatureCannotBlockError(action.blockerId)
+    }
+
+    // Verify blocker is not already blocking
+    if (blockerState.blockingCreatureId !== null) {
+      throw new CreatureAlreadyBlockingError(action.blockerId)
+    }
+
+    // Find the attacker and verify it's actually attacking
+    const attackerState = this.creatureStates.get(action.attackerId)
+    if (!attackerState) {
+      throw new PermanentNotFoundError(action.attackerId)
+    }
+
+    if (!attackerState.isAttacking) {
+      throw new CannotBlockNonAttackingCreatureError(action.attackerId)
+    }
+
+    // Establish blocking relationship
+    blockerState.blockingCreatureId = action.attackerId
+    attackerState.blockedBy.push(action.blockerId)
+
+    // TODO: Emit CREATURE_DECLARED_BLOCKER event when needed
+    // Currently no triggers depend on blocking, so this is deferred
+  }
+
   private activateAbility(action: ActivateAbility): void {
     this.assertHasPriority(action.playerId, "ACTIVATE_ABILITY")
 
@@ -1029,11 +1104,18 @@ export class Game {
       this.autoUntapForCurrentPlayer()
     }
 
+    // Combat damage resolution at COMBAT_DAMAGE step
+    if (step === Step.COMBAT_DAMAGE) {
+      this.resolveCombatDamage()
+      this.performStateBasedActions()
+    }
+
     // Clear mana pools when entering CLEANUP step (MVP behavior)
     // TODO: In real Magic, mana empties at the end of each step and phase.
     // TODO: For MVP we clear at CLEANUP only to keep behavior deterministic.
     if (step === Step.CLEANUP) {
       this.clearAllManaPools()
+      this.clearDamageOnAllCreatures()
     }
 
     // Emit step started event and evaluate triggers
@@ -1150,6 +1232,8 @@ export class Game {
   private clearAttackingState(): void {
     this.updateAllCreatureStates((state) => {
       state.isAttacking = false
+      state.blockingCreatureId = null
+      state.blockedBy = []
     })
   }
 
@@ -1157,6 +1241,8 @@ export class Game {
     this.updateAllCreatureStates((state) => {
       state.isAttacking = false
       state.hasAttackedThisTurn = false
+      state.blockingCreatureId = null
+      state.blockedBy = []
     })
   }
 
@@ -1166,6 +1252,129 @@ export class Game {
     for (const state of this.creatureStates.values()) {
       updateFn(state)
     }
+  }
+
+  /**
+   * Resolve combat damage during the COMBAT_DAMAGE step.
+   *
+   * This handles:
+   * 1. Damage assignment from attackers to blockers and vice versa
+   * 2. Damage from unblocked attackers to defending player
+   *
+   * Damage is simultaneous - all damage is assigned first, then applied.
+   *
+   * MVP Limitations (explicitly excluded):
+   * - First strike / Double strike (TODO: implement damage assignment order)
+   * - Trample (TODO: implement excess damage to player/planeswalker)
+   * - Deathtouch (TODO: implement any-amount-is-lethal rule)
+   * - Damage redirection (TODO: implement redirection to planeswalkers)
+   * - Damage prevention (TODO: implement prevention effects)
+   * - Multiple blockers per attacker (TODO: implement damage assignment order)
+   */
+  private resolveCombatDamage(): void {
+    const defendingPlayer = this.getOpponentOf(this.currentPlayerId)
+
+    // Process all attacking creatures
+    for (const [creatureId, creatureState] of this.creatureStates.entries()) {
+      if (!creatureState.isAttacking) continue
+
+      const attackingCreature = this.findCreatureOnBattlefield(creatureId)
+      if (!attackingCreature) continue
+
+      const attackerPower = this.getCurrentPower(creatureId)
+
+      if (creatureState.blockedBy.length === 0) {
+        // Unblocked attacker: deal damage to defending player
+        this.dealDamageToPlayer(defendingPlayer, attackerPower)
+      } else {
+        // Blocked attacker: deal damage to blockers
+        // MVP: Each blocker receives full damage from attacker
+        // TODO: Implement damage assignment order for multiple blockers
+        for (const blockerId of creatureState.blockedBy) {
+          this.markDamageOnCreature(blockerId, attackerPower)
+
+          // Blocker deals damage back to attacker
+          const blockerPower = this.getCurrentPower(blockerId)
+          this.markDamageOnCreature(creatureId, blockerPower)
+        }
+      }
+    }
+  }
+
+  /**
+   * Mark damage on a creature without destroying it yet.
+   * Damage accumulates in damageMarkedThisTurn.
+   */
+  private markDamageOnCreature(creatureId: string, damage: number): void {
+    const state = this.creatureStates.get(creatureId)
+    if (!state) return // Creature may have left battlefield
+
+    state.damageMarkedThisTurn += damage
+  }
+
+  /**
+   * Deal damage to a player by reducing their life total.
+   *
+   * MVP: No loss condition checking (player can go below 0).
+   * TODO: Implement state-based action for player losing at 0 life
+   */
+  private dealDamageToPlayer(playerId: string, damage: number): void {
+    const player = this.playersById.get(playerId)
+    if (!player) return
+
+    player.adjustLifeTotal(-damage)
+  }
+
+  /**
+   * Clear all damage marked on creatures.
+   * This happens at the CLEANUP step.
+   */
+  private clearDamageOnAllCreatures(): void {
+    this.updateAllCreatureStates((state) => {
+      state.damageMarkedThisTurn = 0
+    })
+  }
+
+  /**
+   * Perform state-based actions.
+   *
+   * Currently implements:
+   * - Destroy creatures with lethal damage
+   *
+   * MVP Limitations:
+   * - Indestructible not supported (TODO: implement indestructible check)
+   * - 0-toughness check not implemented (TODO: implement toughness-based destruction)
+   * - Player loss condition not checked (TODO: implement player loss at 0 life)
+   */
+  private performStateBasedActions(): void {
+    // Collect creatures to destroy (can't modify map while iterating)
+    const creaturesWithLethalDamage: string[] = []
+
+    for (const [creatureId, creatureState] of this.creatureStates.entries()) {
+      const currentToughness = this.getCurrentToughness(creatureId)
+      if (creatureState.damageMarkedThisTurn >= currentToughness) {
+        creaturesWithLethalDamage.push(creatureId)
+      }
+    }
+
+    // Destroy creatures with lethal damage
+    for (const creatureId of creaturesWithLethalDamage) {
+      this.movePermanentToGraveyard(creatureId, "state-based")
+    }
+  }
+
+  /**
+   * Find a creature on any player's battlefield by instance ID.
+   * Returns null if not found.
+   */
+  private findCreatureOnBattlefield(creatureId: string): CardInstance | null {
+    for (const playerState of this.playerStates.values()) {
+      const creature = playerState.battlefield.cards.find(
+        (card) => card.instanceId === creatureId,
+      )
+      if (creature) return creature
+    }
+    return null
   }
 
   /**
