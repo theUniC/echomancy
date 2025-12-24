@@ -73,17 +73,25 @@ export function findPermanentOnAnyBattlefield(
 /**
  * Validates that a player controls a specific permanent
  *
- * @param permanent - The permanent to check
- * @param playerId - The player who should control it
- * @param permanentId - The permanent's ID (for error messages)
+ * Control is determined by whether the permanent is present on the
+ * specified player's battlefield, not by its owner.
+ *
+ * @param game - Current game state
+ * @param playerId - The player who should control the permanent
+ * @param permanentId - The permanent's instance ID
  * @throws PermanentNotControlledError if player doesn't control the permanent
  */
 export function assertPermanentControl(
-  permanent: CardInstance,
+  game: Game,
   playerId: string,
   permanentId: string,
 ): void {
-  if (permanent.ownerId !== playerId) {
+  const playerState = game.getPlayerState(playerId)
+  const controlsPermanent = playerState.battlefield.cards.some(
+    (card) => card.instanceId === permanentId,
+  )
+
+  if (!controlsPermanent) {
     throw new PermanentNotControlledError(permanentId, playerId)
   }
 }
