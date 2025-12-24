@@ -6,6 +6,7 @@ import type { EffectContext } from "../effects/EffectContext"
 import { type ZoneName, ZoneNames } from "../zones/Zone"
 import type { Actions, AllowedAction } from "./GameActions"
 import {
+  AttackerAlreadyBlockedError,
   CannotBlockNonAttackingCreatureError,
   CannotPayActivationCostError,
   CardIsNotLandError,
@@ -80,7 +81,7 @@ export type CreatureState = {
   counters: Map<CounterType, number>
   damageMarkedThisTurn: number
   blockingCreatureId: string | null // Which attacker this creature is blocking (null if not blocking)
-  blockedBy: string[] // Which creatures are blocking this attacker (empty if unblocked)
+  blockedBy: string | null // Which creature is blocking this attacker (null if unblocked)
 }
 
 /**
@@ -560,7 +561,7 @@ export class Game {
         counters: new Map(),
         damageMarkedThisTurn: 0,
         blockingCreatureId: null,
-        blockedBy: [],
+        blockedBy: null,
       })
     }
   }
@@ -973,9 +974,14 @@ export class Game {
       throw new CannotBlockNonAttackingCreatureError(action.attackerId)
     }
 
-    // Establish blocking relationship
+    // MVP: Only one blocker per attacker allowed
+    if (attackerState.blockedBy !== null) {
+      throw new AttackerAlreadyBlockedError(action.attackerId)
+    }
+
+    // Establish blocking relationship (1-to-1 in MVP)
     blockerState.blockingCreatureId = action.attackerId
-    attackerState.blockedBy.push(action.blockerId)
+    attackerState.blockedBy = action.blockerId
 
     // TODO: Emit CREATURE_DECLARED_BLOCKER event when needed
     // Currently no triggers depend on blocking, so this is deferred
@@ -1233,7 +1239,7 @@ export class Game {
     this.updateAllCreatureStates((state) => {
       state.isAttacking = false
       state.blockingCreatureId = null
-      state.blockedBy = []
+      state.blockedBy = null
     })
   }
 
@@ -1242,7 +1248,7 @@ export class Game {
       state.isAttacking = false
       state.hasAttackedThisTurn = false
       state.blockingCreatureId = null
-      state.blockedBy = []
+      state.blockedBy = null
     })
   }
 
@@ -1269,34 +1275,28 @@ export class Game {
    * - Deathtouch (TODO: implement any-amount-is-lethal rule)
    * - Damage redirection (TODO: implement redirection to planeswalkers)
    * - Damage prevention (TODO: implement prevention effects)
-   * - Multiple blockers per attacker (TODO: implement damage assignment order)
+   * - Multiple blockers per attacker (TODO: implement after MVP)
    */
   private resolveCombatDamage(): void {
     const defendingPlayer = this.getOpponentOf(this.currentPlayerId)
 
     // Process all attacking creatures
-    for (const [creatureId, creatureState] of this.creatureStates.entries()) {
-      if (!creatureState.isAttacking) continue
+    for (const [attackerId, attackerState] of this.creatureStates.entries()) {
+      if (!attackerState.isAttacking) continue
 
-      const attackingCreature = this.findCreatureOnBattlefield(creatureId)
-      if (!attackingCreature) continue
+      const attackerPower = this.getCurrentPower(attackerId)
 
-      const attackerPower = this.getCurrentPower(creatureId)
-
-      if (creatureState.blockedBy.length === 0) {
+      if (attackerState.blockedBy === null) {
         // Unblocked attacker: deal damage to defending player
         this.dealDamageToPlayer(defendingPlayer, attackerPower)
       } else {
-        // Blocked attacker: deal damage to blockers
-        // MVP: Each blocker receives full damage from attacker
-        // TODO: Implement damage assignment order for multiple blockers
-        for (const blockerId of creatureState.blockedBy) {
-          this.markDamageOnCreature(blockerId, attackerPower)
+        // Blocked attacker: deal damage to single blocker (MVP: 1-to-1 only)
+        const blockerId = attackerState.blockedBy
+        this.markDamageOnCreature(blockerId, attackerPower)
 
-          // Blocker deals damage back to attacker
-          const blockerPower = this.getCurrentPower(blockerId)
-          this.markDamageOnCreature(creatureId, blockerPower)
-        }
+        // Blocker deals damage back to attacker
+        const blockerPower = this.getCurrentPower(blockerId)
+        this.markDamageOnCreature(attackerId, blockerPower)
       }
     }
   }
@@ -1340,41 +1340,36 @@ export class Game {
    *
    * Currently implements:
    * - Destroy creatures with lethal damage
+   * - Destroy creatures with 0 or less toughness
    *
    * MVP Limitations:
    * - Indestructible not supported (TODO: implement indestructible check)
-   * - 0-toughness check not implemented (TODO: implement toughness-based destruction)
    * - Player loss condition not checked (TODO: implement player loss at 0 life)
+   * - Legend rule not implemented (TODO: implement legendary uniqueness check)
    */
   private performStateBasedActions(): void {
     // Collect creatures to destroy (can't modify map while iterating)
-    const creaturesWithLethalDamage: string[] = []
+    const creaturesToDestroy: string[] = []
 
     for (const [creatureId, creatureState] of this.creatureStates.entries()) {
       const currentToughness = this.getCurrentToughness(creatureId)
+
+      // Check for lethal damage
       if (creatureState.damageMarkedThisTurn >= currentToughness) {
-        creaturesWithLethalDamage.push(creatureId)
+        creaturesToDestroy.push(creatureId)
+        continue
+      }
+
+      // Check for 0 or less toughness
+      if (currentToughness <= 0) {
+        creaturesToDestroy.push(creatureId)
       }
     }
 
-    // Destroy creatures with lethal damage
-    for (const creatureId of creaturesWithLethalDamage) {
+    // Destroy all creatures that failed state-based checks
+    for (const creatureId of creaturesToDestroy) {
       this.movePermanentToGraveyard(creatureId, "state-based")
     }
-  }
-
-  /**
-   * Find a creature on any player's battlefield by instance ID.
-   * Returns null if not found.
-   */
-  private findCreatureOnBattlefield(creatureId: string): CardInstance | null {
-    for (const playerState of this.playerStates.values()) {
-      const creature = playerState.battlefield.cards.find(
-        (card) => card.instanceId === creatureId,
-      )
-      if (creature) return creature
-    }
-    return null
   }
 
   /**

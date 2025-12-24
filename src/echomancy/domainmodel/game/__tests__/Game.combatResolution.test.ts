@@ -470,6 +470,46 @@ test("creature cannot block twice", () => {
   }).toThrow()
 })
 
+test("attacker cannot be blocked twice (MVP: one blocker per attacker)", () => {
+  const { game, player1, player2 } = createStartedGame()
+
+  const attacker = createTestCreature(player1.id, "attacker", 2, 2)
+  addCreatureToBattlefield(game, player1.id, attacker)
+
+  const blocker1 = createTestCreature(player2.id, "blocker1", 2, 2)
+  const blocker2 = createTestCreature(player2.id, "blocker2", 2, 2)
+  addCreatureToBattlefield(game, player2.id, blocker1)
+  addCreatureToBattlefield(game, player2.id, blocker2)
+
+  advanceToStep(game, Step.DECLARE_ATTACKERS)
+
+  game.apply({
+    type: "DECLARE_ATTACKER",
+    playerId: player1.id,
+    creatureId: attacker.instanceId,
+  })
+
+  game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
+
+  // First blocker blocks successfully
+  game.apply({
+    type: "DECLARE_BLOCKER",
+    playerId: player2.id,
+    blockerId: blocker1.instanceId,
+    attackerId: attacker.instanceId,
+  })
+
+  // Attempt to block same attacker with second blocker should fail
+  expect(() => {
+    game.apply({
+      type: "DECLARE_BLOCKER",
+      playerId: player2.id,
+      blockerId: blocker2.instanceId,
+      attackerId: attacker.instanceId,
+    })
+  }).toThrow()
+})
+
 test("dead creatures are removed before next step", () => {
   const { game, player1, player2 } = createStartedGame()
 
@@ -559,7 +599,7 @@ test("combat state resets at end of combat", () => {
 
   const blockerState = game.getCreatureState(blocker.instanceId)
   expect(blockerState.blockingCreatureId).toBe(attacker.instanceId)
-  expect(attackerState.blockedBy).toEqual([blocker.instanceId])
+  expect(attackerState.blockedBy).toBe(blocker.instanceId)
 
   // Advance past END_OF_COMBAT
   advanceToStep(game, Step.SECOND_MAIN)
@@ -569,6 +609,6 @@ test("combat state resets at end of combat", () => {
   const blockerStateAfter = game.getCreatureState(blocker.instanceId)
 
   expect(attackerStateAfter.isAttacking).toBe(false)
-  expect(attackerStateAfter.blockedBy).toEqual([])
+  expect(attackerStateAfter.blockedBy).toBe(null)
   expect(blockerStateAfter.blockingCreatureId).toBe(null)
 })
