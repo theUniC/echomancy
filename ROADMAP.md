@@ -83,29 +83,26 @@ The core **does NOT aim to cover all of Magic**.
 - Planeswalker placeholder state
 - Known limitations (no loyalty yet, no attachments)
 
+### Power / Toughness + Counters (MVP)
+- Base power and toughness for creatures
+- +1/+1 counter support
+- Counter addition and removal with validation
+- Current power/toughness calculation
+- Comprehensive test coverage (28 tests)
+- Known limitations:
+  - No damage tracking (TODO: implement damage model)
+  - No static abilities (TODO: implement continuous effects)
+  - No layer system (TODO: implement 7-layer system)
+  - No temporary modifiers (TODO: implement duration tracking)
+  - Only +1/+1 counters supported (TODO: -1/-1, poison, etc.)
+
 ---
 
 ## 🟡 Pending to Close the Core
 
 ---
 
-### 1️⃣ Power / Toughness + Counters
-**Goal**
-- Introduce combat-relevant numeric state
-
-**Scope**
-- Base power / toughness
-- +1/+1 counters
-- Counter application and removal
-- Lethal damage checks (no combat yet)
-
-**Accepted limitations**
-- No continuous effects yet
-- No layer system
-
----
-
-### 2️⃣ Combat — Resolution MVP
+### 1️⃣ Combat — Resolution MVP
 **Goal**
 - Make combat fully resolvable
 
@@ -123,7 +120,7 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 3️⃣ Static Abilities — MVP (Consultative Keywords)
+### 2️⃣ Static Abilities — MVP (Consultative Keywords)
 **Goal**
 - Support simple always-on rules modifiers
 
