@@ -3,9 +3,10 @@
 This document defines the scope of the **core rules engine** of Echomancy.
 It is a living document and will be updated as milestones are completed.
 
-The final goal of the core is:
-👉 to provide a stable, well-tested rules engine
-👉 so that a minimal UI can be built without reworking fundamentals
+Echomancy aims to be:
+👉 an open, transparent, and fair Magic rules engine  
+👉 focused on correctness, testability, and long-term maintainability  
+👉 not constrained by commercial shortcuts or opaque rule systems
 
 ---
 
@@ -14,9 +15,9 @@ The final goal of the core is:
 The **core is considered closed** when:
 
 - A full turn cycle works end to end without critical stubs
-- Basic Magic interactions are modeled correctly
+- Core Magic interactions are modeled correctly
 - Simple real decks (e.g. Elves) can be implemented and tested
-- No major engine refactor is required to start building a UI
+- No major engine refactor is required to start building a minimal UI
 
 The core **does NOT aim to cover all of Magic**.
 
@@ -60,45 +61,26 @@ The core **does NOT aim to cover all of Magic**.
 - Real tests (Elves)
 
 ### Mana Pool (MVP)
-- Mana pool per player (6 colors: W, U, B, R, G, C)
+- Mana pool per player (W, U, B, R, G, C)
 - Add and spend mana operations
 - Pool clearing at CLEANUP step (MVP behavior)
-- Error handling (insufficient mana, invalid amounts)
-- Complete test coverage
-- Known limitation: pools clear only at CLEANUP, not per-step (documented)
+- Error handling and complete test coverage
+- Known limitation: pools clear only at CLEANUP (documented)
 
 ### Costs (Beyond Mana)
-- Explicit cost model with validation and payment
-- Separation of cost from effect
-- Atomic cost payment (all or nothing)
-- Supported cost types: ManaCost, TapSelfCost, SacrificeSelfCost
-- Domain errors for cost validation
-- Complete test coverage
-- Costs are reusable by spells, activated abilities, and future planeswalker abilities
-- Known limitations:
-  - No alternative costs
-  - No cost reductions
-  - No X costs
-  - No hybrid/Phyrexian mana costs
-  - (Documented with TODOs for future expansion)
+- Explicit cost model
+- Separation of cost and effect
+- Atomic cost payment
+- Supported costs: ManaCost, TapSelfCost, SacrificeSelfCost
+- Reusable by spells and abilities
+- Known limitations documented with TODOs
 
 ### Permanent Types (MVP)
-- All core permanent types supported: Creature, Land, Artifact, Enchantment, Planeswalker
-- Correct battlefield presence for all permanent types
-- Zone transitions work correctly for all types
-- Type checking helpers available (isPlaneswalker, isArtifact, isEnchantment, isLand)
-- Multiple permanent types can coexist on battlefield
-- Cards can have multiple types (e.g., Artifact Creature)
-- Planeswalker placeholder state type added for future expansion
-- Test helpers for creating and adding all permanent types
-- Comprehensive test coverage (15 tests covering all scenarios)
-- Known limitations (intentional for MVP):
-  - Planeswalkers have no loyalty counters or loyalty abilities yet
-  - No Auras (attachment rules deferred)
-  - No Equipment (attachment rules deferred)
-  - No damage redirection to planeswalkers
-  - No planeswalker uniqueness rule
-  - (All documented with TODOs for future expansion)
+- Creature, Land, Artifact, Enchantment, Planeswalker
+- Correct battlefield behavior and zone transitions
+- Multiple types per card supported
+- Planeswalker placeholder state
+- Known limitations (no loyalty yet, no attachments)
 
 ---
 
@@ -106,9 +88,9 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 2️⃣ Power / Toughness + Counters
+### 1️⃣ Power / Toughness + Counters
 **Goal**
-- Model combat-relevant numeric state
+- Introduce combat-relevant numeric state
 
 **Scope**
 - Base power / toughness
@@ -122,9 +104,9 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 3️⃣ Combat — Resolution MVP
+### 2️⃣ Combat — Resolution MVP
 **Goal**
-- Make combat real and resolvable
+- Make combat fully resolvable
 
 **Scope**
 - Declare attackers
@@ -136,72 +118,114 @@ The core **does NOT aim to cover all of Magic**.
 
 **Notes**
 - Uses Power/Toughness
-- No advanced combat abilities yet (first strike, trample, etc.)
+- No advanced combat abilities yet
 
 ---
 
-### 4️⃣ Static Abilities — MVP
+### 3️⃣ Static Abilities — MVP (Consultative Keywords)
 **Goal**
-- Support always-on effects that modify game state
+- Support simple always-on rules modifiers
 
-**Examples**
-- "Other elves you control get +1/+1"
-- Simple global modifiers
+**Included keywords (MVP)**
+These keywords are **local, consultative, and non-invasive**:
+- Flying
+- Reach
+- Vigilance
+- (Optionally) simple First Strike / Trample
 
-**Scope**
-- Static effects evaluated dynamically
-- Limited to battlefield interactions
+**Why these are included**
+- They modify a single rule or validation
+- They do not affect targeting, costs, or stack behavior
+- They do not require replacement effects
+- They do not force irreversible engine decisions
 
 **Accepted limitations**
-- No full 7-layer system yet
-- No dependency resolution between static effects
-
-**Future**
-- 7-layer system planned, but explicitly out of Core MVP
+- No full 7-layer system
+- No dependency resolution
+- No dynamic ability loss/gain interactions
 
 ---
 
-## 🔴 Explicitly Out of Core (for now)
+## 🔵 Planned Post-Core Expansions (Explicitly Out of MVP)
 
-These features **do not block UI** and are intentionally excluded from the initial core:
+These features are **intentionally excluded from the Core MVP**, but are
+**explicitly planned** and will be addressed in later milestones.
 
-- Full 7-layer rules
-- Complex replacement effects
-- Spell copying
-- Advanced alternative costs
-- Full attachment rules (auras, equipment)
-- Fine-grained automatic priority passing
-- Automatic parsing of card text
-- Expert-system approaches (Arena / CLIPS / GRP)
+### Advanced Static Keywords
+These keywords affect multiple subsystems and require mature infrastructure:
+
+- Deathtouch (redefines lethal damage)
+- Lifelink (post-damage effects)
+- Infect / Poison counters
+- Double Strike
+- Indestructible
+- Menace
+
+**Reason**
+- Require a finalized damage model
+- Interact with counters, triggers, and replacement effects
+
+---
+
+### Targeting-Altering Keywords
+- Hexproof
+- Shroud
+- Protection
+- Ward
+
+**Reason**
+- Affect targeting rules globally
+- Require invalidation logic and timing guarantees
+- Depend on future replacement-effect systems
+
+---
+
+### Replacement Effects & Advanced Rules
+- Damage replacement/prevention
+- Redirection to planeswalkers
+- Regeneration
+- Full planeswalker uniqueness rule
+
+---
+
+### Full Static Ability Layer System
+- Official 7-layer rules
+- Dependency resolution
+- Timestamp ordering
+
+**Note**
+- The 7-layer system is acknowledged as necessary for full Magic support
+- Explicitly deferred to avoid premature engine lock-in
 
 ---
 
 ## 🧩 What Unlocks UI Work
 
 Once the following are completed:
-- ~~Mana Pool MVP~~ ✅
-- ~~Costs~~ ✅
-- ~~Permanent Types MVP~~ ✅
+- Mana Pool MVP ✅
+- Costs ✅
+- Permanent Types MVP ✅
 - Power/Toughness + Counters
 - Combat MVP
 
-We can safely start:
+We can safely build:
 - Zone UI
 - Stack UI
 - Priority UI
 - Combat UI
 - Target selection UI
 
-Without risk of reworking the engine.
+Without reworking engine fundamentals.
 
 ---
 
 ## 🛠️ How This Document Is Maintained
 
 - Each PR that closes a block:
-  - Marks it as 🟢
+  - Marks it as completed
   - References relevant tests
 - Known limitations are explicitly documented
+- Deferred features remain visible and intentional
 - Nothing is removed without discussion
 
-This document is the **single source of truth for the roadmap**.
+This document is the **single source of truth** for Echomancy’s engine roadmap.
