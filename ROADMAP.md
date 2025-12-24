@@ -4,9 +4,10 @@ This document defines the scope of the **core rules engine** of Echomancy.
 It is a living document and will be updated as milestones are completed.
 
 Echomancy aims to be:
-👉 an open, transparent, and fair Magic rules engine  
-👉 focused on correctness, testability, and long-term maintainability  
-👉 not constrained by commercial shortcuts or opaque rule systems
+
+* 👉 an open, transparent, and fair Magic rules engine  
+* 👉 focused on correctness, testability, and long-term maintainability  
+* 👉 not constrained by commercial shortcuts or opaque rule systems
 
 ---
 
