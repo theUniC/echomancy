@@ -82,31 +82,27 @@ The core **does NOT aim to cover all of Magic**.
   - No hybrid/Phyrexian mana costs
   - (Documented with TODOs for future expansion)
 
+### Permanent Types (MVP)
+- All core permanent types supported: Creature, Land, Artifact, Enchantment, Planeswalker
+- Correct battlefield presence for all permanent types
+- Zone transitions work correctly for all types
+- Type checking helpers available (isPlaneswalker, isArtifact, isEnchantment, isLand)
+- Multiple permanent types can coexist on battlefield
+- Cards can have multiple types (e.g., Artifact Creature)
+- Planeswalker placeholder state type added for future expansion
+- Test helpers for creating and adding all permanent types
+- Comprehensive test coverage (15 tests covering all scenarios)
+- Known limitations (intentional for MVP):
+  - Planeswalkers have no loyalty counters or loyalty abilities yet
+  - No Auras (attachment rules deferred)
+  - No Equipment (attachment rules deferred)
+  - No damage redirection to planeswalkers
+  - No planeswalker uniqueness rule
+  - (All documented with TODOs for future expansion)
+
 ---
 
 ## 🟡 Pending to Close the Core
-
-### 1️⃣ Permanent Types — MVP
-**Goal**
-- Support all core permanent types required for a minimal UI
-
-**Permanent Types**
-- Creature (already implemented)
-- Land (already implemented)
-- Artifact
-- Enchantment
-- Planeswalker
-
-**Scope**
-- Correct battlefield presence
-- Zone transitions
-- Minimal state per type
-- Targetable as permanents
-
-**Explicitly Out**
-- Auras (attachment rules deferred)
-- Equipment (attachment rules deferred)
-- Damage rules specific to planeswalkers (handled later with combat)
 
 ---
 
@@ -185,7 +181,7 @@ These features **do not block UI** and are intentionally excluded from the initi
 Once the following are completed:
 - ~~Mana Pool MVP~~ ✅
 - ~~Costs~~ ✅
-- Permanent Types MVP
+- ~~Permanent Types MVP~~ ✅
 - Power/Toughness + Counters
 - Combat MVP
 

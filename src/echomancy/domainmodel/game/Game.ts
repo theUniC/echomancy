@@ -41,6 +41,19 @@ export type CreatureState = {
   hasAttackedThisTurn: boolean
 }
 
+/**
+ * Planeswalker state (MVP - placeholder only)
+ *
+ * In the MVP, planeswalkers exist as permanents but do not have functional state.
+ * This is a placeholder type for future expansion.
+ *
+ * TODO: Implement loyalty counters
+ * TODO: Implement loyalty ability activation (once per turn limit)
+ * TODO: Implement damage redirection to planeswalkers
+ * TODO: Implement planeswalker uniqueness rule
+ */
+export type PlaneswalkerState = Record<string, never>
+
 // ============================================================================
 // MANA POOL TYPES
 // ============================================================================

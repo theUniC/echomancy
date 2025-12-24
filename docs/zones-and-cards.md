@@ -48,6 +48,15 @@ The supported card types are: CREATURE, INSTANT, SORCERY, ARTIFACT, ENCHANTMENT,
 
 A card can have multiple types (e.g., Artifact Creature).
 
+All permanent types (CREATURE, LAND, ARTIFACT, ENCHANTMENT, PLANESWALKER) are fully supported in the MVP. They can all:
+- Enter the battlefield
+- Have triggered and activated abilities
+- Be moved between zones (battlefield, graveyard, etc.)
+- Coexist on the battlefield
+- Be targeted and filtered by type
+
+Note: Planeswalkers currently have placeholder state only (no loyalty counters or loyalty abilities in MVP).
+
 ## Zone Transitions
 
 ### Playing a Land
