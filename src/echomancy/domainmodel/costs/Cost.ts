@@ -182,31 +182,13 @@ export function assertPermanentControl(
   playerId: string,
   permanentId: string,
 ): void {
-  // First check if permanent exists on any battlefield
-  const playerIds = game.getPlayersInTurnOrder()
-  let foundAnywhere = false
+  // Ensure the permanent exists and get its current controller
+  const { controllerState } = findPermanentOnAnyBattlefield(game, permanentId)
 
-  for (const id of playerIds) {
-    const state = game.getPlayerState(id)
-    if (
-      state.battlefield.cards.some((card) => card.instanceId === permanentId)
-    ) {
-      foundAnywhere = true
-      break
-    }
-  }
+  // Verify that the specified player controls the permanent
+  const expectedControllerState = game.getPlayerState(playerId)
 
-  if (!foundAnywhere) {
-    throw new PermanentNotFoundError(permanentId)
-  }
-
-  // Then check if the specific player controls it
-  const playerState = game.getPlayerState(playerId)
-  const controlsPermanent = playerState.battlefield.cards.some(
-    (card) => card.instanceId === permanentId,
-  )
-
-  if (!controlsPermanent) {
+  if (controllerState !== expectedControllerState) {
     throw new PermanentNotControlledError(permanentId, playerId)
   }
 }
