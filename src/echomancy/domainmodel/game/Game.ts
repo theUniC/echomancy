@@ -544,7 +544,12 @@ export class Game {
       }
     }
 
-    if (!permanent || !controllerState || !controllerId || permanentIndex === null) {
+    if (
+      !permanent ||
+      !controllerState ||
+      !controllerId ||
+      permanentIndex === null
+    ) {
       throw new PermanentNotFoundError(permanentId)
     }
 
