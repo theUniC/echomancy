@@ -528,28 +528,27 @@ export class Game {
     let permanent: CardInstance | null = null
     let controllerState: PlayerState | null = null
     let controllerId: string | null = null
+    let permanentIndex: number | null = null
 
     for (const playerId of playerIds) {
       const playerState = this.getPlayerState(playerId)
-      const found = playerState.battlefield.cards.find(
+      const index = playerState.battlefield.cards.findIndex(
         (card) => card.instanceId === permanentId,
       )
-      if (found) {
-        permanent = found
+      if (index !== -1) {
+        permanent = playerState.battlefield.cards[index]
         controllerState = playerState
         controllerId = playerId
+        permanentIndex = index
         break
       }
     }
 
-    if (!permanent || !controllerState || !controllerId) {
+    if (!permanent || !controllerState || !controllerId || permanentIndex === null) {
       throw new PermanentNotFoundError(permanentId)
     }
 
     // 2. Remove from controller's battlefield
-    const permanentIndex = controllerState.battlefield.cards.findIndex(
-      (card) => card.instanceId === permanentId,
-    )
     controllerState.battlefield.cards.splice(permanentIndex, 1)
 
     // 3. Add to owner's graveyard (cards always go to owner's graveyard in Magic)
