@@ -449,3 +449,151 @@ export function createElfWithAttackTrigger(
     ownerId,
   }
 }
+
+// ============================================================================
+// PERMANENT TYPE HELPERS (Artifacts, Enchantments, Planeswalkers)
+// ============================================================================
+
+/**
+ * Creates a basic artifact card instance
+ *
+ * @param ownerId - Player who owns the artifact
+ * @param instanceId - Optional unique ID for the artifact
+ * @returns CardInstance with ARTIFACT type
+ */
+export function createTestArtifact(
+  ownerId: string,
+  instanceId?: string,
+): CardInstance {
+  const id = instanceId || `test-artifact-${Math.random()}`
+  return {
+    instanceId: id,
+    definition: {
+      id: "test-artifact-def",
+      name: "Test Artifact",
+      types: ["ARTIFACT"],
+    },
+    ownerId,
+  }
+}
+
+/**
+ * Creates a basic enchantment card instance
+ *
+ * @param ownerId - Player who owns the enchantment
+ * @param instanceId - Optional unique ID for the enchantment
+ * @returns CardInstance with ENCHANTMENT type
+ */
+export function createTestEnchantment(
+  ownerId: string,
+  instanceId?: string,
+): CardInstance {
+  const id = instanceId || `test-enchantment-${Math.random()}`
+  return {
+    instanceId: id,
+    definition: {
+      id: "test-enchantment-def",
+      name: "Test Enchantment",
+      types: ["ENCHANTMENT"],
+    },
+    ownerId,
+  }
+}
+
+/**
+ * Creates a basic planeswalker card instance
+ *
+ * MVP Note: Planeswalkers exist as permanents but do not have loyalty
+ * counters or loyalty abilities in the MVP. This is a placeholder for
+ * future expansion.
+ *
+ * @param ownerId - Player who owns the planeswalker
+ * @param instanceId - Optional unique ID for the planeswalker
+ * @returns CardInstance with PLANESWALKER type
+ */
+export function createTestPlaneswalker(
+  ownerId: string,
+  instanceId?: string,
+): CardInstance {
+  const id = instanceId || `test-planeswalker-${Math.random()}`
+  return {
+    instanceId: id,
+    definition: {
+      id: "test-planeswalker-def",
+      name: "Test Planeswalker",
+      types: ["PLANESWALKER"],
+    },
+    ownerId,
+  }
+}
+
+/**
+ * Creates an artifact creature (multiple types on single card)
+ *
+ * @param ownerId - Player who owns the artifact creature
+ * @param instanceId - Optional unique ID for the artifact creature
+ * @returns CardInstance with both ARTIFACT and CREATURE types
+ */
+export function createTestArtifactCreature(
+  ownerId: string,
+  instanceId?: string,
+): CardInstance {
+  const id = instanceId || `test-artifact-creature-${Math.random()}`
+  return {
+    instanceId: id,
+    definition: {
+      id: "test-artifact-creature-def",
+      name: "Test Artifact Creature",
+      types: ["ARTIFACT", "CREATURE"],
+    },
+    ownerId,
+  }
+}
+
+/**
+ * Adds an artifact to the battlefield for the given player.
+ * Uses game.enterBattlefield() to ensure consistent ETB handling.
+ *
+ * @param game - The game instance
+ * @param playerId - The player who controls the artifact
+ * @param artifact - The artifact card instance
+ */
+export function addArtifactToBattlefield(
+  game: Game,
+  playerId: string,
+  artifact: CardInstance,
+): void {
+  game.enterBattlefield(artifact, playerId)
+}
+
+/**
+ * Adds an enchantment to the battlefield for the given player.
+ * Uses game.enterBattlefield() to ensure consistent ETB handling.
+ *
+ * @param game - The game instance
+ * @param playerId - The player who controls the enchantment
+ * @param enchantment - The enchantment card instance
+ */
+export function addEnchantmentToBattlefield(
+  game: Game,
+  playerId: string,
+  enchantment: CardInstance,
+): void {
+  game.enterBattlefield(enchantment, playerId)
+}
+
+/**
+ * Adds a planeswalker to the battlefield for the given player.
+ * Uses game.enterBattlefield() to ensure consistent ETB handling.
+ *
+ * @param game - The game instance
+ * @param playerId - The player who controls the planeswalker
+ * @param planeswalker - The planeswalker card instance
+ */
+export function addPlaneswalkerToBattlefield(
+  game: Game,
+  playerId: string,
+  planeswalker: CardInstance,
+): void {
+  game.enterBattlefield(planeswalker, playerId)
+}
