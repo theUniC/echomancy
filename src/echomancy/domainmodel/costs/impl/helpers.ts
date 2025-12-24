@@ -19,7 +19,7 @@ import type { CostContext } from "../Cost"
  */
 type PermanentSearchResult = {
   permanent: CardInstance
-  ownerState: PlayerState
+  controllerState: PlayerState
 }
 
 /**
@@ -48,7 +48,7 @@ export function findControlledPermanent(
  *
  * @param game - Current game state
  * @param sourceId - The permanent's instance ID
- * @returns Search result with permanent and owner state
+ * @returns Search result with permanent and controller state
  * @throws PermanentNotFoundError if permanent not on any battlefield
  */
 export function findPermanentOnAnyBattlefield(
@@ -63,7 +63,7 @@ export function findPermanentOnAnyBattlefield(
       (card) => card.instanceId === sourceId,
     )
     if (found) {
-      return { permanent: found, ownerState: playerState }
+      return { permanent: found, controllerState: playerState }
     }
   }
 
