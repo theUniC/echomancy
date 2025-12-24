@@ -526,7 +526,8 @@ export class Game {
     // 1. Find the permanent on any battlefield
     const playerIds = this.getPlayersInTurnOrder()
     let permanent: CardInstance | null = null
-    let ownerState: PlayerState | null = null
+    let controllerState: PlayerState | null = null
+    let controllerId: string | null = null
 
     for (const playerId of playerIds) {
       const playerState = this.getPlayerState(playerId)
@@ -535,24 +536,29 @@ export class Game {
       )
       if (found) {
         permanent = found
-        ownerState = playerState
+        controllerState = playerState
+        controllerId = playerId
         break
       }
     }
 
-    if (!permanent || !ownerState) {
+    if (!permanent || !controllerState || !controllerId) {
       throw new PermanentNotFoundError(permanentId)
     }
 
-    const controllerId = permanent.ownerId
-
-    // 2. Remove from battlefield
-    const permanentIndex = ownerState.battlefield.cards.findIndex(
+    // 2. Remove from controller's battlefield
+    const permanentIndex = controllerState.battlefield.cards.findIndex(
       (card) => card.instanceId === permanentId,
     )
-    ownerState.battlefield.cards.splice(permanentIndex, 1)
 
-    // 3. Add to graveyard
+    if (permanentIndex === -1) {
+      throw new PermanentNotFoundError(permanentId)
+    }
+
+    controllerState.battlefield.cards.splice(permanentIndex, 1)
+
+    // 3. Add to owner's graveyard (cards always go to owner's graveyard in Magic)
+    const ownerState = this.getPlayerState(permanent.ownerId)
     ownerState.graveyard.cards.push(permanent)
 
     // 4. Clean up creature state if needed
