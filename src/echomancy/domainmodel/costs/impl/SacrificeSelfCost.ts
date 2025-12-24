@@ -15,11 +15,7 @@
 
 import type { Game } from "../../game/Game"
 import type { Cost, CostContext } from "../Cost"
-import {
-  assertPermanentControl,
-  findControlledPermanent,
-  findPermanentOnAnyBattlefield,
-} from "./helpers"
+import { assertPermanentControl, findControlledPermanent } from "./helpers"
 
 export class SacrificeSelfCost implements Cost {
   canPay(game: Game, context: CostContext): boolean {
@@ -28,11 +24,9 @@ export class SacrificeSelfCost implements Cost {
   }
 
   pay(game: Game, context: CostContext): void {
-    // Verify the permanent exists and is controlled by the player
+    // Verify the player controls the permanent
     // Note: We need to check control here because movePermanentToGraveyard
     // doesn't validate control (it can move any permanent to graveyard)
-    findPermanentOnAnyBattlefield(game, context.sourceId)
-
     assertPermanentControl(game, context.playerId, context.sourceId)
 
     // Use Game's method to handle complete zone transition with events
