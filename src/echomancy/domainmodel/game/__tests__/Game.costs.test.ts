@@ -344,7 +344,9 @@ describe("Game - Cost System", () => {
       })
 
       // Verify creature state is cleaned up
-      expect(() => game.getCreatureState(creature.instanceId)).toThrow()
+      expect(() => game.getCreatureState(creature.instanceId)).toThrow(
+        PermanentNotFoundError,
+      )
     })
 
     it("pay throws PermanentNotFoundError when permanent does not exist", () => {

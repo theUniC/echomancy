@@ -12,12 +12,13 @@
 
 import type { Game } from "../../game/Game"
 import { PermanentAlreadyTappedError } from "../../game/GameErrors"
-import type { Cost, CostContext } from "../Cost"
 import {
   assertPermanentControl,
+  type Cost,
+  type CostContext,
   findControlledPermanent,
   findPermanentOnAnyBattlefield,
-} from "./helpers"
+} from "../Cost"
 
 export class TapSelfCost implements Cost {
   canPay(game: Game, context: CostContext): boolean {

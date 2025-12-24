@@ -550,11 +550,6 @@ export class Game {
     const permanentIndex = controllerState.battlefield.cards.findIndex(
       (card) => card.instanceId === permanentId,
     )
-
-    if (permanentIndex === -1) {
-      throw new PermanentNotFoundError(permanentId)
-    }
-
     controllerState.battlefield.cards.splice(permanentIndex, 1)
 
     // 3. Add to owner's graveyard (cards always go to owner's graveyard in Magic)
