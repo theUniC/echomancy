@@ -31,9 +31,9 @@ export class SacrificeSelfCost implements Cost {
     // Verify the permanent exists and is controlled by the player
     // Note: We need to check control here because movePermanentToGraveyard
     // doesn't validate control (it can move any permanent to graveyard)
-    const { permanent } = findPermanentOnAnyBattlefield(game, context.sourceId)
+    findPermanentOnAnyBattlefield(game, context.sourceId)
 
-    assertPermanentControl(permanent, context.playerId, context.sourceId)
+    assertPermanentControl(game, context.playerId, context.sourceId)
 
     // Use Game's method to handle complete zone transition with events
     // This will:
