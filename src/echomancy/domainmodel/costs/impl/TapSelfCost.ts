@@ -43,7 +43,7 @@ export class TapSelfCost implements Cost {
   pay(game: Game, context: CostContext): void {
     const { permanent } = findPermanentOnAnyBattlefield(game, context.sourceId)
 
-    assertPermanentControl(permanent, context.playerId, context.sourceId)
+    assertPermanentControl(game, context.playerId, context.sourceId)
 
     // Check if permanent is a creature (MVP: only creatures have tap state)
     const isCreature = permanent.definition.types.includes("CREATURE")
