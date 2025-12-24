@@ -1,4 +1,9 @@
 import { expect, test } from "vitest"
+import {
+  AttackerAlreadyBlockedError,
+  CreatureAlreadyBlockingError,
+  TappedCreatureCannotBlockError,
+} from "../GameErrors"
 import { Step } from "../Steps"
 import {
   addCreatureToBattlefield,
@@ -421,7 +426,7 @@ test("tapped creature cannot block", () => {
       blockerId: blocker.instanceId,
       attackerId: attacker.instanceId,
     })
-  }).toThrow()
+  }).toThrow(TappedCreatureCannotBlockError)
 })
 
 test("creature cannot block twice", () => {
@@ -467,7 +472,7 @@ test("creature cannot block twice", () => {
       blockerId: blocker.instanceId,
       attackerId: attacker2.instanceId,
     })
-  }).toThrow()
+  }).toThrow(CreatureAlreadyBlockingError)
 })
 
 test("attacker cannot be blocked twice (MVP: one blocker per attacker)", () => {
@@ -507,7 +512,7 @@ test("attacker cannot be blocked twice (MVP: one blocker per attacker)", () => {
       blockerId: blocker2.instanceId,
       attackerId: attacker.instanceId,
     })
-  }).toThrow()
+  }).toThrow(AttackerAlreadyBlockedError)
 })
 
 test("dead creatures are removed before next step", () => {
