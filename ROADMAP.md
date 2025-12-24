@@ -90,11 +90,28 @@ The core **does NOT aim to cover all of Magic**.
 - Current power/toughness calculation
 - Comprehensive test coverage (28 tests)
 - Known limitations:
-  - No damage tracking (TODO: implement damage model)
   - No static abilities (TODO: implement continuous effects)
   - No layer system (TODO: implement 7-layer system)
   - No temporary modifiers (TODO: implement duration tracking)
   - Only +1/+1 counters supported (TODO: -1/-1, poison, etc.)
+
+### Combat Resolution (MVP)
+- Declare attackers (validates untapped, not attacked this turn)
+- Declare blockers (one blocker per attacker in MVP)
+- Damage assignment (simultaneous)
+- Damage resolution during COMBAT_DAMAGE step
+- State-based actions for creature destruction
+- Damage to players from unblocked attackers
+- Damage cleanup at CLEANUP step
+- Comprehensive test coverage (14 tests)
+- Known limitations:
+  - No first strike / double strike (TODO: implement damage assignment order)
+  - No trample (TODO: implement excess damage to player)
+  - No deathtouch (TODO: implement any-amount-is-lethal rule)
+  - No damage prevention (TODO: implement prevention effects)
+  - No indestructible (TODO: implement in state-based actions)
+  - No multiple blockers damage assignment order (TODO: implement damage assignment)
+  - No combat damage triggers (TODO: implement triggers for combat damage events)
 
 ---
 
@@ -102,25 +119,7 @@ The core **does NOT aim to cover all of Magic**.
 
 ---
 
-### 1️⃣ Combat — Resolution MVP
-**Goal**
-- Make combat fully resolvable
-
-**Scope**
-- Declare attackers
-- Declare blockers
-- Damage assignment
-- Damage resolution
-- Creature destruction
-- Damage to players
-
-**Notes**
-- Uses Power/Toughness
-- No advanced combat abilities yet
-
----
-
-### 2️⃣ Static Abilities — MVP (Consultative Keywords)
+### 1️⃣ Static Abilities — MVP (Consultative Keywords)
 **Goal**
 - Support simple always-on rules modifiers
 

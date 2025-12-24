@@ -159,3 +159,25 @@ export class InvalidCounterAmountError extends GameError {
     super(`Invalid counter amount: ${amount}. Amount must be greater than 0.`)
   }
 }
+
+// ============================================================================
+// Combat System Errors
+// ============================================================================
+
+export class TappedCreatureCannotBlockError extends GameError {
+  constructor(creatureId: string) {
+    super(`Creature '${creatureId}' is tapped and cannot block`)
+  }
+}
+
+export class CreatureAlreadyBlockingError extends GameError {
+  constructor(creatureId: string) {
+    super(`Creature '${creatureId}' is already blocking another creature`)
+  }
+}
+
+export class CannotBlockNonAttackingCreatureError extends GameError {
+  constructor(attackerId: string) {
+    super(`Creature '${attackerId}' is not attacking and cannot be blocked`)
+  }
+}
