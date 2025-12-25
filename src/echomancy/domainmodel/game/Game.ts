@@ -938,6 +938,13 @@ export class Game {
       throw new InvalidPlayerActionError(action.playerId, "DECLARE_BLOCKER")
     }
 
+    // Verify the acting player is the defending player (not the active player)
+    // MVP: In a 2-player game, the defending player is the opponent of the active player
+    const defendingPlayer = this.getOpponentOf(this.currentPlayerId)
+    if (action.playerId !== defendingPlayer) {
+      throw new InvalidPlayerActionError(action.playerId, "DECLARE_BLOCKER")
+    }
+
     // Find the blocker on the defending player's battlefield
     const defenderState = this.getPlayerState(action.playerId)
     const blocker = defenderState.battlefield.cards.find(
@@ -1267,7 +1274,17 @@ export class Game {
    * 1. Damage assignment from attackers to blockers and vice versa
    * 2. Damage from unblocked attackers to defending player
    *
-   * Damage is simultaneous - all damage is assigned first, then applied.
+   * Implementation follows the "store then apply" pattern:
+   * - First pass: collect all damage assignments
+   * - Second pass: apply all damage simultaneously
+   *
+   * This ensures true simultaneity and robustness if creatures disappear
+   * before damage resolution (e.g., via instant-speed removal).
+   *
+   * MVP Assumptions:
+   * - Two-player game
+   * - All attackers target the defending player (no planeswalker targeting)
+   * - Defending player is the opponent of the active player
    *
    * MVP Limitations (explicitly excluded):
    * - First strike / Double strike (TODO: implement damage assignment order)
@@ -1280,25 +1297,100 @@ export class Game {
   private resolveCombatDamage(): void {
     const defendingPlayer = this.getOpponentOf(this.currentPlayerId)
 
-    // Process all attacking creatures
+    // PHASE 1: Collect all damage assignments
+    const damageAssignments: Array<{
+      targetId: string
+      amount: number
+      isPlayer: boolean
+    }> = []
+
     for (const [attackerId, attackerState] of this.creatureStates.entries()) {
       if (!attackerState.isAttacking) continue
 
-      const attackerPower = this.getCurrentPower(attackerId)
+      // Check if attacker still exists (may have been removed by instant/ability)
+      const attackerPower = this.getCreaturePowerSafe(attackerId)
+      if (attackerPower === null) continue // Attacker no longer exists, skip
 
       if (attackerState.blockedBy === null) {
-        // Unblocked attacker: deal damage to defending player
-        this.dealDamageToPlayer(defendingPlayer, attackerPower)
+        // Unblocked attacker: damage to defending player
+        damageAssignments.push({
+          targetId: defendingPlayer,
+          amount: attackerPower,
+          isPlayer: true,
+        })
       } else {
-        // Blocked attacker: deal damage to single blocker (MVP: 1-to-1 only)
+        // Blocked attacker: damage to blocker
         const blockerId = attackerState.blockedBy
-        this.markDamageOnCreature(blockerId, attackerPower)
 
-        // Blocker deals damage back to attacker
-        const blockerPower = this.getCurrentPower(blockerId)
-        this.markDamageOnCreature(attackerId, blockerPower)
+        // Check if blocker still exists
+        const blockerPower = this.getCreaturePowerSafe(blockerId)
+        if (blockerPower === null) {
+          // Blocker disappeared - attacker deals no damage (combat trick scenario)
+          // This is deterministic: if your blocker is removed, the attacker doesn't
+          // suddenly deal damage to the player (MVP: no trample)
+          continue
+        }
+
+        // Attacker damages blocker
+        damageAssignments.push({
+          targetId: blockerId,
+          amount: attackerPower,
+          isPlayer: false,
+        })
+
+        // Blocker damages attacker
+        damageAssignments.push({
+          targetId: attackerId,
+          amount: blockerPower,
+          isPlayer: false,
+        })
       }
     }
+
+    // PHASE 2: Apply all damage simultaneously
+    for (const assignment of damageAssignments) {
+      if (assignment.isPlayer) {
+        this.dealDamageToPlayer(assignment.targetId, assignment.amount)
+      } else {
+        this.markDamageOnCreature(assignment.targetId, assignment.amount)
+      }
+    }
+  }
+
+  /**
+   * Safely get a creature's power, returning null if the creature no longer exists.
+   *
+   * This handles the case where a creature was removed before combat damage resolution
+   * (e.g., via instant-speed removal or ability activation).
+   *
+   * @param creatureId - The instance ID of the creature
+   * @returns The creature's current power, or null if it no longer exists
+   */
+  private getCreaturePowerSafe(creatureId: string): number | null {
+    const state = this.creatureStates.get(creatureId)
+    if (!state) return null
+
+    // Verify the creature is actually on the battlefield
+    const stillExists = this.findCreatureOnAnyBattlefield(creatureId)
+    if (!stillExists) return null
+
+    return this.getCurrentPower(creatureId)
+  }
+
+  /**
+   * Check if a creature exists on any player's battlefield.
+   *
+   * @param creatureId - The instance ID of the creature
+   * @returns true if the creature exists on a battlefield, false otherwise
+   */
+  private findCreatureOnAnyBattlefield(creatureId: string): boolean {
+    for (const playerState of this.playerStates.values()) {
+      const found = playerState.battlefield.cards.some(
+        (card) => card.instanceId === creatureId,
+      )
+      if (found) return true
+    }
+    return false
   }
 
   /**
