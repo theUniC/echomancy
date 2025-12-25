@@ -46,6 +46,22 @@ import { type GameSteps, Step } from "./Steps"
 export type { AbilityOnStack, SpellOnStack, StackItem }
 
 /**
+ * Game configuration constants
+ */
+const MIN_PLAYERS = 2
+const DEFAULT_CREATURE_POWER = 0
+const DEFAULT_CREATURE_TOUGHNESS = 1
+
+/**
+ * Reason for a permanent being moved to the graveyard
+ */
+export enum GraveyardReason {
+  SACRIFICE = "sacrifice",
+  DESTROY = "destroy",
+  STATE_BASED = "state-based",
+}
+
+/**
  * Counter types supported by the game engine.
  *
  * MVP includes only +1/+1 counters.
@@ -238,7 +254,7 @@ export class Game {
   }
 
   private static assertMoreThanOnePlayer(players: Player[]) {
-    if (players.length < 2) {
+    if (players.length < MIN_PLAYERS) {
       throw new InvalidPlayerCountError(players.length)
     }
   }
@@ -561,8 +577,8 @@ export class Game {
         isTapped: false,
         isAttacking: false,
         hasAttackedThisTurn: false,
-        basePower: card.definition.power ?? 0,
-        baseToughness: card.definition.toughness ?? 1,
+        basePower: card.definition.power ?? DEFAULT_CREATURE_POWER,
+        baseToughness: card.definition.toughness ?? DEFAULT_CREATURE_TOUGHNESS,
         counters: new Map(),
         damageMarkedThisTurn: 0,
         blockingCreatureId: null,
@@ -736,7 +752,7 @@ export class Game {
    */
   movePermanentToGraveyard(
     permanentId: string,
-    _reason: "sacrifice" | "destroy" | "state-based",
+    _reason: GraveyardReason,
   ): void {
     // 1. Find the permanent on any battlefield
     const playerIds = this.getPlayersInTurnOrder()
@@ -1497,7 +1513,7 @@ export class Game {
 
     // Destroy all creatures that failed state-based checks
     for (const creatureId of creaturesToDestroy) {
-      this.movePermanentToGraveyard(creatureId, "state-based")
+      this.movePermanentToGraveyard(creatureId, GraveyardReason.STATE_BASED)
     }
   }
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import { ZoneNames } from "../../zones/Zone"
+import { GraveyardReason } from "../Game"
 import {
   addCreatureToBattlefield,
   addSpellToHand,
@@ -547,7 +548,7 @@ describe("Permanent Types — MVP", () => {
       expect(battlefield).toHaveLength(1)
 
       // Move to graveyard
-      game.movePermanentToGraveyard("artifact-1", "sacrifice")
+      game.movePermanentToGraveyard("artifact-1", GraveyardReason.SACRIFICE)
 
       // Verify it's in graveyard
       const graveyard = game.getGraveyard(player1.id)
@@ -575,7 +576,7 @@ describe("Permanent Types — MVP", () => {
       game.enterBattlefield(enchantment, player1.id)
 
       // Move to graveyard
-      game.movePermanentToGraveyard("enchantment-1", "destroy")
+      game.movePermanentToGraveyard("enchantment-1", GraveyardReason.DESTROY)
 
       // Verify zone transition
       const graveyard = game.getGraveyard(player1.id)
@@ -599,7 +600,10 @@ describe("Permanent Types — MVP", () => {
       game.enterBattlefield(planeswalker, player1.id)
 
       // Move to graveyard
-      game.movePermanentToGraveyard("planeswalker-1", "state-based")
+      game.movePermanentToGraveyard(
+        "planeswalker-1",
+        GraveyardReason.STATE_BASED,
+      )
 
       // Verify zone transition
       const graveyard = game.getGraveyard(player1.id)

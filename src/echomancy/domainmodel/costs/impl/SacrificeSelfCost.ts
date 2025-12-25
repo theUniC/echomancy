@@ -13,7 +13,7 @@
  * TODO: Support sacrificing permanents with specific properties (e.g., "sacrifice a creature")
  */
 
-import type { Game } from "../../game/Game"
+import { type Game, GraveyardReason } from "../../game/Game"
 import {
   assertPermanentControl,
   type Cost,
@@ -40,6 +40,6 @@ export class SacrificeSelfCost implements Cost {
     // - Clean up state
     // - Emit ZONE_CHANGED event
     // - Evaluate "dies" triggers
-    game.movePermanentToGraveyard(context.sourceId, "sacrifice")
+    game.movePermanentToGraveyard(context.sourceId, GraveyardReason.SACRIFICE)
   }
 }
