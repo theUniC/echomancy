@@ -823,7 +823,7 @@ export class Game {
       throw new InvalidEndTurnError()
     }
 
-    while ((this.currentStep as GameSteps) !== Step.CLEANUP) {
+    while (this.currentStep !== Step.CLEANUP) {
       this.performStepAdvance()
     }
 

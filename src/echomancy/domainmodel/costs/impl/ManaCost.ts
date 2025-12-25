@@ -12,6 +12,14 @@
 import type { Game, ManaColor } from "../../game/Game"
 import type { Cost, CostContext } from "../Cost"
 
+/**
+ * Type guard to verify a string is a valid ManaColor.
+ * Safe because amounts can only contain ManaColor keys.
+ */
+function isManaColor(key: string): key is ManaColor {
+  return ["W", "U", "B", "R", "G", "C"].includes(key)
+}
+
 export class ManaCost implements Cost {
   constructor(private readonly amounts: Partial<Record<ManaColor, number>>) {}
 
@@ -22,7 +30,10 @@ export class ManaCost implements Cost {
     for (const [color, amount] of Object.entries(this.amounts)) {
       if (amount === undefined || amount <= 0) continue
 
-      const available = pool[color as ManaColor] ?? 0
+      // Type guard ensures color is ManaColor
+      if (!isManaColor(color)) continue
+
+      const available = pool[color] ?? 0
       if (available < amount) {
         return false
       }
@@ -36,7 +47,10 @@ export class ManaCost implements Cost {
     for (const [color, amount] of Object.entries(this.amounts)) {
       if (amount === undefined || amount <= 0) continue
 
-      game.spendMana(context.playerId, color as ManaColor, amount)
+      // Type guard ensures color is ManaColor
+      if (!isManaColor(color)) continue
+
+      game.spendMana(context.playerId, color, amount)
     }
   }
 }
