@@ -92,8 +92,7 @@ The core **does NOT aim to cover all of Magic**.
 - Current power/toughness calculation
 - Comprehensive test coverage
 - Known limitations:
-  - No static abilities applied yet
-  - No layer system
+  - No layer system for stat modifications
   - No temporary modifiers
   - Only +1/+1 counters supported
 
@@ -116,32 +115,31 @@ The core **does NOT aim to cover all of Magic**.
   - ❌ No damage prevention
   - ❌ No combat-damage triggers
 
+### Static Abilities (MVP)
+- Flying: Can only be blocked by creatures with Flying or Reach
+- Reach: Can block creatures with Flying
+- Vigilance: Does not tap when attacking
+- Consultative keywords (affect rule checks only)
+- No stack interaction
+- Clean code implementation with constants (no magic strings)
+- Comprehensive test coverage (8 tests)
+- Known limitations:
+  - No full 7-layer system
+  - No dependency resolution
+  - No ability gain/loss ("creature gains flying")
+  - No continuous effects / lords
+  - No advanced keywords (first strike, trample, deathtouch, etc.)
+
 ---
 
 ## 🟡 Pending to Close the Core
 
----
+The core is now complete! All pending blocks have been implemented and validated.
 
-### 1️⃣ Static Abilities — MVP (Consultative Keywords)
-**Goal**
-- Support simple always-on rule modifiers
-
-**Included keywords (MVP)**
-These keywords are **local, consultative, and non-invasive**:
-- Flying
-- Reach
-- Vigilance
-
-**Why these are included**
-- Modify a single validation rule
-- Do not affect targeting, costs, or stack behavior
-- Do not require replacement effects
-- Do not introduce irreversible engine coupling
-
-**Accepted limitations**
-- No full 7-layer system
-- No dependency resolution
-- No ability gain/loss interactions
+**Next Steps:**
+- Begin UI development
+- Add advanced combat features (multiple blockers, first strike, etc.)
+- Implement advanced static keywords
 
 ---
 
@@ -226,8 +224,9 @@ Once the following are completed:
 - Mana Pool MVP ✅
 - Costs ✅
 - Permanent Types MVP ✅
-- Power/Toughness + Counters
-- Combat MVP
+- Power/Toughness + Counters ✅
+- Combat MVP ✅
+- Static Abilities MVP ✅
 
 We can safely build:
 - Zone UI
