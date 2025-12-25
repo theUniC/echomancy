@@ -997,7 +997,8 @@ export class Game {
     }
 
     // Find the attacker card instance to check for flying
-    // We need to search both players' battlefields since the attacker is controlled by the active player
+    // MVP assumption: In 2-player games, attackers are always controlled by the active player (currentPlayerId)
+    // We search only the active player's battlefield
     const activePlayer = this.getPlayerState(this.currentPlayerId)
     const attacker = activePlayer.battlefield.cards.find(
       (card) => card.instanceId === action.attackerId,
