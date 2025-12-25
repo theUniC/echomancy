@@ -54,12 +54,12 @@ export const StaticAbilities = {
 } satisfies Record<string, StaticAbility>
 
 export type CardDefinition = {
-  id: string
-  name: string
-  types: CardType[]
-  effect?: Effect
-  activatedAbility?: ActivatedAbility
-  triggers?: Trigger[]
+  readonly id: string
+  readonly name: string
+  readonly types: readonly CardType[]
+  readonly effect?: Effect
+  readonly activatedAbility?: ActivatedAbility
+  readonly triggers?: readonly Trigger[]
   /**
    * Static ability keywords.
    * Only applicable to permanents (primarily creatures).
@@ -67,17 +67,17 @@ export type CardDefinition = {
    *
    * @see StaticAbility for supported keywords
    */
-  staticAbilities?: StaticAbility[]
+  readonly staticAbilities?: readonly StaticAbility[]
   /**
    * Base power for creatures.
    * Only applicable when types includes "CREATURE".
    * Default: 0
    */
-  power?: number
+  readonly power?: number
   /**
    * Base toughness for creatures.
    * Only applicable when types includes "CREATURE".
    * Default: 1 (minimum viable creature)
    */
-  toughness?: number
+  readonly toughness?: number
 }

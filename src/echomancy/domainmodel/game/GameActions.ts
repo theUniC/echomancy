@@ -37,12 +37,4 @@ export type Actions =
   | DeclareBlocker
   | ActivateAbility
 
-export type AllowedAction =
-  | "ADVANCE_STEP"
-  | "END_TURN"
-  | "PLAY_LAND"
-  | "CAST_SPELL"
-  | "PASS_PRIORITY"
-  | "DECLARE_ATTACKER"
-  | "DECLARE_BLOCKER"
-  | "ACTIVATE_ABILITY"
+export type AllowedAction = Actions["type"]
