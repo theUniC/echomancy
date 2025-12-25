@@ -24,6 +24,7 @@ Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design 
 | [Game Events](./game-events.md) | Event types and trigger evaluation |
 | [Mana System](./mana-system.md) | Mana pool, mana production and consumption |
 | [Stack and Priority](./stack-and-priority.md) | Stack resolution and priority system |
+| [Static Abilities](./static-abilities.md) | Consultative keywords (Flying, Reach, Vigilance) |
 
 ### Development
 
@@ -43,6 +44,7 @@ Echomancy is in MVP phase, focusing on fundamental game mechanics:
 - Creature stats (power, toughness, +1/+1 counters)
 - Mana pool (basic operations: add, spend, clear)
 - Cost system (mana, tap, sacrifice costs with atomic payment)
+- Static abilities (Flying, Reach, Vigilance)
 
 ## Source Code Structure
 

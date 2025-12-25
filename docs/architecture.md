@@ -82,10 +82,18 @@ Domain-specific errors extend a base GameError class. Each error type correspond
 The following are explicitly out of scope for the MVP:
 
 **Ability Types Not Supported:**
-- Static abilities (continuous effects)
+- Continuous effects / lords (static abilities that affect other permanents)
 - Replacement effects
 - Prevention effects
 - Mana abilities
+
+**Static Abilities (Partial Support):**
+- ✅ Consultative keywords implemented (Flying, Reach, Vigilance)
+- ❌ Full 7-layer system (deferred)
+- ❌ Ability gain/loss ("creature gains flying until end of turn")
+- ❌ Continuous effects ("other creatures get +1/+1")
+
+See `docs/static-abilities.md` for the consultative keywords implementation.
 
 **Features Not Supported:**
 - Mana costs (mana pool exists but cost evaluation not implemented)
@@ -106,7 +114,8 @@ To expand the engine while preserving these principles:
 3. Implement APNAP ordering
 4. Add more cost types (mana, sacrifice, etc.)
 5. Implement duration tracking
-6. Add static abilities (requires continuous effect layer system)
+6. Implement full 7-layer system for static abilities
+7. Add continuous effects and lords
 
 The key invariants to preserve:
 - Game as single source of truth
