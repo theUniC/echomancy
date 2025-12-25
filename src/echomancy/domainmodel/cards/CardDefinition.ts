@@ -43,6 +43,16 @@ export type CardType =
  */
 export type StaticAbility = "FLYING" | "REACH" | "VIGILANCE"
 
+/**
+ * Static ability keyword constants.
+ * Use these constants instead of string literals to avoid magic strings.
+ */
+export const StaticAbilities = {
+  FLYING: "FLYING" as const,
+  REACH: "REACH" as const,
+  VIGILANCE: "VIGILANCE" as const,
+} satisfies Record<string, StaticAbility>
+
 export type CardDefinition = {
   id: string
   name: string

@@ -1,4 +1,5 @@
 import { expect, test } from "vitest"
+import { StaticAbilities, type StaticAbility } from "../../cards/CardDefinition"
 import type { CardInstance } from "../../cards/CardInstance"
 import { CannotBlockFlyingCreatureError } from "../GameErrors"
 import { Step } from "../Steps"
@@ -46,7 +47,7 @@ import {
 function createCreatureWithAbilities(
   ownerId: string,
   instanceId: string,
-  abilities: ("FLYING" | "REACH" | "VIGILANCE")[],
+  abilities: StaticAbility[],
   power?: number,
   toughness?: number,
 ): CardInstance {
@@ -75,7 +76,7 @@ test("Vigilance: creature with Vigilance does not tap when attacking", () => {
   const vigilantCreature = createCreatureWithAbilities(
     player1.id,
     "vigilant-creature",
-    ["VIGILANCE"],
+    [StaticAbilities.VIGILANCE],
     2,
     2,
   )
@@ -139,7 +140,7 @@ test("Flying: creature without Flying or Reach cannot block Flying creature", ()
   const flyingAttacker = createCreatureWithAbilities(
     player1.id,
     "flying-attacker",
-    ["FLYING"],
+    [StaticAbilities.FLYING],
     2,
     2,
   )
@@ -181,7 +182,7 @@ test("Flying: creature with Flying can block Flying creature", () => {
   const flyingAttacker = createCreatureWithAbilities(
     player1.id,
     "flying-attacker",
-    ["FLYING"],
+    [StaticAbilities.FLYING],
     2,
     2,
   )
@@ -191,7 +192,7 @@ test("Flying: creature with Flying can block Flying creature", () => {
   const flyingBlocker = createCreatureWithAbilities(
     player2.id,
     "flying-blocker",
-    ["FLYING"],
+    [StaticAbilities.FLYING],
     2,
     2,
   )
@@ -279,7 +280,7 @@ test("Reach: creature with Reach can block Flying creature", () => {
   const flyingAttacker = createCreatureWithAbilities(
     player1.id,
     "flying-attacker",
-    ["FLYING"],
+    [StaticAbilities.FLYING],
     2,
     2,
   )
@@ -289,7 +290,7 @@ test("Reach: creature with Reach can block Flying creature", () => {
   const reachBlocker = createCreatureWithAbilities(
     player2.id,
     "reach-blocker",
-    ["REACH"],
+    [StaticAbilities.REACH],
     2,
     3,
   )
@@ -332,7 +333,7 @@ test("Reach: creature with both Flying and Reach can block Flying creature", () 
   const flyingAttacker = createCreatureWithAbilities(
     player1.id,
     "flying-attacker",
-    ["FLYING"],
+    [StaticAbilities.FLYING],
     2,
     2,
   )
@@ -342,7 +343,7 @@ test("Reach: creature with both Flying and Reach can block Flying creature", () 
   const flyingReachBlocker = createCreatureWithAbilities(
     player2.id,
     "flying-reach-blocker",
-    ["FLYING", "REACH"],
+    [StaticAbilities.FLYING, StaticAbilities.REACH],
     2,
     3,
   )
@@ -389,7 +390,7 @@ test("Combined: Vigilant Flying creature can attack and block on same turn", () 
   const vigilantFlyer = createCreatureWithAbilities(
     player1.id,
     "vigilant-flyer",
-    ["VIGILANCE", "FLYING"],
+    [StaticAbilities.VIGILANCE, StaticAbilities.FLYING],
     2,
     2,
   )

@@ -1,6 +1,10 @@
 import { match, P } from "ts-pattern"
 import type { ActivationCost } from "../abilities/ActivatedAbility"
-import type { CardDefinition, StaticAbility } from "../cards/CardDefinition"
+import {
+  type CardDefinition,
+  StaticAbilities,
+  type StaticAbility,
+} from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { EffectContext } from "../effects/EffectContext"
 import { type ZoneName, ZoneNames } from "../zones/Zone"
@@ -926,7 +930,7 @@ export class Game {
 
     // Tap the creature unless it has Vigilance
     // MVP static abilities: consultative keywords that modify rule checks only
-    if (!this.hasStaticAbility(creature, "VIGILANCE")) {
+    if (!this.hasStaticAbility(creature, StaticAbilities.VIGILANCE)) {
       creatureState.isTapped = true
     }
 
@@ -1005,10 +1009,10 @@ export class Game {
 
     // MVP static abilities: Flying/Reach blocking restriction
     // A creature with Flying can only be blocked by creatures with Flying or Reach
-    if (this.hasStaticAbility(attacker, "FLYING")) {
+    if (this.hasStaticAbility(attacker, StaticAbilities.FLYING)) {
       const blockerHasFlyingOrReach =
-        this.hasStaticAbility(blocker, "FLYING") ||
-        this.hasStaticAbility(blocker, "REACH")
+        this.hasStaticAbility(blocker, StaticAbilities.FLYING) ||
+        this.hasStaticAbility(blocker, StaticAbilities.REACH)
 
       if (!blockerHasFlyingOrReach) {
         throw new CannotBlockFlyingCreatureError(
