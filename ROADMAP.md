@@ -81,37 +81,40 @@ The core **does NOT aim to cover all of Magic**.
 - Correct battlefield behavior and zone transitions
 - Multiple types per card supported
 - Planeswalker placeholder state
-- Known limitations (no loyalty yet, no attachments)
+- Known limitations:
+  - No loyalty yet
+  - No attachments (Auras / Equipment deferred)
 
 ### Power / Toughness + Counters (MVP)
 - Base power and toughness for creatures
 - +1/+1 counter support
 - Counter addition and removal with validation
 - Current power/toughness calculation
-- Comprehensive test coverage (28 tests)
+- Comprehensive test coverage
 - Known limitations:
-  - No static abilities (TODO: implement continuous effects)
-  - No layer system (TODO: implement 7-layer system)
-  - No temporary modifiers (TODO: implement duration tracking)
-  - Only +1/+1 counters supported (TODO: -1/-1, poison, etc.)
+  - No static abilities applied yet
+  - No layer system
+  - No temporary modifiers
+  - Only +1/+1 counters supported
 
 ### Combat Resolution (MVP)
 - Declare attackers (validates untapped, not attacked this turn)
-- Declare blockers (1-to-1 blocking: one blocker per attacker maximum)
+- Declare blockers (**1-to-1 blocking only**)
 - Damage assignment (simultaneous)
 - Damage resolution during COMBAT_DAMAGE step
-- State-based actions for creature destruction (lethal damage + 0 toughness)
+- State-based actions for creature destruction
 - Damage to players from unblocked attackers
 - Damage cleanup at CLEANUP step
-- Comprehensive test coverage (15 tests)
+- Comprehensive test coverage
 - Known limitations:
-  - No first strike / double strike (TODO: implement damage assignment order)
-  - No trample (TODO: implement excess damage to player)
-  - No deathtouch (TODO: implement any-amount-is-lethal rule)
-  - No damage prevention (TODO: implement prevention effects)
-  - No indestructible (TODO: implement in state-based actions)
-  - No multiple blockers per attacker (TODO: implement damage assignment order)
-  - No combat damage triggers (TODO: implement triggers for combat damage events)
+  - ❌ No multiple blockers per attacker
+  - ❌ No damage assignment ordering
+  - ❌ No first strike / double strike
+  - ❌ No trample
+  - ❌ No deathtouch
+  - ❌ No indestructible
+  - ❌ No damage prevention
+  - ❌ No combat-damage triggers
 
 ---
 
@@ -121,46 +124,68 @@ The core **does NOT aim to cover all of Magic**.
 
 ### 1️⃣ Static Abilities — MVP (Consultative Keywords)
 **Goal**
-- Support simple always-on rules modifiers
+- Support simple always-on rule modifiers
 
 **Included keywords (MVP)**
 These keywords are **local, consultative, and non-invasive**:
 - Flying
 - Reach
 - Vigilance
-- (Optionally) simple First Strike / Trample
 
 **Why these are included**
-- They modify a single rule or validation
-- They do not affect targeting, costs, or stack behavior
-- They do not require replacement effects
-- They do not force irreversible engine decisions
+- Modify a single validation rule
+- Do not affect targeting, costs, or stack behavior
+- Do not require replacement effects
+- Do not introduce irreversible engine coupling
 
 **Accepted limitations**
 - No full 7-layer system
 - No dependency resolution
-- No dynamic ability loss/gain interactions
+- No ability gain/loss interactions
 
 ---
 
 ## 🔵 Planned Post-Core Expansions (Explicitly Out of MVP)
 
 These features are **intentionally excluded from the Core MVP**, but are
-**explicitly planned** and will be addressed in later milestones.
+**explicitly planned** and tracked to avoid blind spots.
+
+---
+
+### Combat Extensions (Post-MVP)
+
+#### Multiple Blockers per Attacker
+- Support multiple creatures blocking a single attacker
+- Introduce blocker ordering
+- Implement attacker-controlled damage assignment order
+
+**Required groundwork**
+- Ordered damage assignment
+- Partial damage tracking
+- Future interaction with trample and deathtouch
+
+---
+
+#### Advanced Combat Keywords
+- First Strike / Double Strike
+- Trample
+- Deathtouch
+- Indestructible
+- Damage prevention
+
+**Reason**
+- Depend on ordered damage assignment
+- Interact with state-based actions and replacement effects
+
+---
 
 ### Advanced Static Keywords
-These keywords affect multiple subsystems and require mature infrastructure:
-
-- Deathtouch (redefines lethal damage)
-- Lifelink (post-damage effects)
+- Lifelink
 - Infect / Poison counters
-- Double Strike
-- Indestructible
 - Menace
 
 **Reason**
-- Require a finalized damage model
-- Interact with counters, triggers, and replacement effects
+- Interact with damage model, counters, and triggers
 
 ---
 
@@ -171,17 +196,16 @@ These keywords affect multiple subsystems and require mature infrastructure:
 - Ward
 
 **Reason**
-- Affect targeting rules globally
-- Require invalidation logic and timing guarantees
-- Depend on future replacement-effect systems
+- Affect targeting globally
+- Require timing guarantees and invalidation rules
 
 ---
 
 ### Replacement Effects & Advanced Rules
-- Damage replacement/prevention
-- Redirection to planeswalkers
+- Damage replacement / redirection
+- Damage to planeswalkers
 - Regeneration
-- Full planeswalker uniqueness rule
+- Planeswalker uniqueness rule
 
 ---
 
@@ -191,7 +215,7 @@ These keywords affect multiple subsystems and require mature infrastructure:
 - Timestamp ordering
 
 **Note**
-- The 7-layer system is acknowledged as necessary for full Magic support
+- Acknowledged as required for full Magic fidelity
 - Explicitly deferred to avoid premature engine lock-in
 
 ---
