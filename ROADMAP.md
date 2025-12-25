@@ -1,42 +1,56 @@
-# Echomancy — Core Rules Roadmap (Living Document)
+# Echomancy — Engine & UI Roadmap (Living Document)
 
-This document defines the scope of the **core rules engine** of Echomancy.
-It is a living document and will be updated as milestones are completed.
+This document defines the roadmap for **Echomancy as a whole**:
+- the Core Rules Engine
+- the Engine ↔ UI boundary
+- the minimal playable UI
+- and planned post-MVP expansions
+
+This is a **single source of truth** document.
 
 Echomancy aims to be:
 
 * 👉 an open, transparent, and fair Magic rules engine  
 * 👉 focused on correctness, testability, and long-term maintainability  
-* 👉 not constrained by commercial shortcuts or opaque rule systems
+* 👉 not constrained by commercial shortcuts or opaque rule systems  
 
 ---
 
-## 🎯 Definition of "Core Closed"
+## 🎯 Definition of “Project MVP Complete”
 
-The **core is considered closed** when:
+Echomancy is considered **MVP-complete** when:
 
-- A full turn cycle works end to end without critical stubs
-- Core Magic interactions are modeled correctly
-- Simple real decks (e.g. Elves) can be implemented and tested
-- No major engine refactor is required to start building a minimal UI
-
-The core **does NOT aim to cover all of Magic**.
+- The core engine models real Magic rules correctly
+- A full turn cycle works end to end
+- A minimal UI allows two players to play a real game
+- No major refactor is required to extend either engine or UI
 
 ---
 
-## 🟢 Current State (Implemented & Validated)
+# 🧩 PART I — Core Rules Engine
+
+## 🟢 Core Engine Status: **CLOSED**
+
+The Core Rules Engine is complete and validated.
+
+---
 
 ### Turns and Phases
 - Full turn structure
-- Normal phases and extra phases
-- Correct resume of normal flow after extra phases
-- Tests covering real scenarios
+- Extra phases supported
+- Correct resume of normal flow
+- Test coverage for real scenarios
+
+---
 
 ### Priority and Stack
 - Priority alternation
 - Stack resolution
 - Spells and abilities on the stack
-- CI green with passing tests
+- Deterministic resolution
+- CI green
+
+---
 
 ### Cards and Zones
 - Hand / Battlefield / Graveyard
@@ -44,208 +58,235 @@ The core **does NOT aim to cover all of Magic**.
 - Cast spell (uses stack)
 - Correct zone transitions
 
+---
+
 ### ETB (Enter the Battlefield)
-- ETB triggered when permanents resolve from the stack
-- Known limitation: ETB targeting is simplified (documented)
+- ETB triggers when permanents resolve
+- Known limitation: simplified targeting
+
+---
 
 ### Creatures (MVP)
-- State tracking: tapped / attacking / attacked-this-turn
+- Tapped / attacking / attacked-this-turn state
 - Declare attackers
-- Basic attack restrictions
-- Correct reset on phase and turn changes
-- Extensive tests (including extra combat phases)
+- Attack restrictions
+- Correct reset on phase and turn change
+
+---
 
 ### Abilities
 - Activated abilities
 - Triggered abilities
-- Integrated with the stack
-- Real tests (Elves)
+- Stack integration
+- Real card tests (Elves)
+
+---
 
 ### Mana Pool (MVP)
-- Mana pool per player (W, U, B, R, G, C)
-- Add and spend mana operations
-- Pool clearing at CLEANUP step (MVP behavior)
-- Error handling and complete test coverage
-- Known limitation: pools clear only at CLEANUP (documented)
+- Per-player mana pool (W, U, B, R, G, C)
+- Add / spend mana
+- Pool clears at CLEANUP
+- Error handling and tests
+
+---
 
 ### Costs (Beyond Mana)
 - Explicit cost model
-- Separation of cost and effect
+- Cost / effect separation
 - Atomic cost payment
-- Supported costs: ManaCost, TapSelfCost, SacrificeSelfCost
+- Supported:
+  - ManaCost
+  - TapSelfCost
+  - SacrificeSelfCost
 - Reusable by spells and abilities
-- Known limitations documented with TODOs
+
+---
 
 ### Permanent Types (MVP)
-- Creature, Land, Artifact, Enchantment, Planeswalker
-- Correct battlefield behavior and zone transitions
-- Multiple types per card supported
-- Planeswalker placeholder state
-- Known limitations:
-  - No loyalty yet
-  - No attachments (Auras / Equipment deferred)
+- Creature
+- Land
+- Artifact
+- Enchantment
+- Planeswalker (placeholder)
+
+Known limitations:
+- No loyalty yet
+- No attachments (auras / equipment)
+
+---
 
 ### Power / Toughness + Counters (MVP)
-- Base power and toughness for creatures
-- +1/+1 counter support
-- Counter addition and removal with validation
-- Current power/toughness calculation
-- Comprehensive test coverage
-- Known limitations:
-  - No layer system for stat modifications
-  - No temporary modifiers
-  - Only +1/+1 counters supported
+- Base power / toughness
+- +1/+1 counters
+- Current P/T calculation
+
+Explicitly deferred:
+- -1/-1 counters
+- Poison counters
+- Charge counters
+- Loyalty counters
+
+---
 
 ### Combat Resolution (MVP)
-- Declare attackers (validates untapped, not attacked this turn)
-- Declare blockers (**1-to-1 blocking only**)
-- Damage assignment (simultaneous)
-- Damage resolution during COMBAT_DAMAGE step
-- State-based actions for creature destruction
-- Damage to players from unblocked attackers
-- Damage cleanup at CLEANUP step
-- Comprehensive test coverage
-- Known limitations:
-  - ❌ No multiple blockers per attacker
-  - ❌ No damage assignment ordering
-  - ❌ No first strike / double strike
-  - ❌ No trample
-  - ❌ No deathtouch
-  - ❌ No indestructible
-  - ❌ No damage prevention
-  - ❌ No combat-damage triggers
+- Declare attackers
+- Declare blockers (1-to-1 only)
+- Simultaneous damage
+- Creature destruction
+- Damage to players
+- Cleanup
 
-### Static Abilities (MVP)
-- Flying: Can only be blocked by creatures with Flying or Reach
-- Reach: Can block creatures with Flying
-- Vigilance: Does not tap when attacking
-- Consultative keywords (affect rule checks only)
+Known limitations:
+- No multiple blockers
+- No first strike / trample / deathtouch
+- No combat damage triggers
+
+---
+
+### Static Abilities (MVP — Consultative)
+- Flying
+- Reach
+- Vigilance
+
+Rules-only, consultative keywords:
 - No stack interaction
-- Clean code implementation with constants (no magic strings)
-- Comprehensive test coverage (8 tests)
-- Known limitations:
-  - No full 7-layer system
-  - No dependency resolution
-  - No ability gain/loss ("creature gains flying")
-  - No continuous effects / lords
-  - No advanced keywords (first strike, trample, deathtouch, etc.)
+- No layers
+- No gain/loss
 
 ---
 
-## 🟡 Pending to Close the Core
+# 🔒 Core Boundary: Engine ↔ UI
 
-The core is now complete! All pending blocks have been implemented and validated.
+This boundary is **intentional and enforced**.
 
-**Next Steps:**
-- Begin UI development
-- Add advanced combat features (multiple blockers, first strike, etc.)
-- Implement advanced static keywords
+## Engine Responsibilities
+- Own all game rules
+- Own validation
+- Own state transitions
+- Be UI-agnostic
+
+## UI Responsibilities
+- Never infer rules
+- Never mutate game state directly
+- Only reflect engine output
 
 ---
 
-## 🔵 Planned Post-Core Expansions (Explicitly Out of MVP)
+## Game State Export
+- Engine exposes a **pure, serializable state**
+- No UI concepts inside the core
 
-These features are **intentionally excluded from the Core MVP**, but are
-**explicitly planned** and tracked to avoid blind spots.
+## GameSnapshot (UI Layer)
+- Built outside the engine
+- Player-relative visibility
+- Hidden information filtering
+- Read-only representation
 
 ---
 
-### Combat Extensions (Post-MVP)
+# 🎮 PART II — UI MVP (REQUIRED)
 
-#### Multiple Blockers per Attacker
-- Support multiple creatures blocking a single attacker
-- Introduce blocker ordering
-- Implement attacker-controlled damage assignment order
+The UI is part of the MVP.  
+Without it, Echomancy is **not playable**.
 
-**Required groundwork**
+---
+
+## 🟢 UI MVP Scope
+
+### 1️⃣ Zone UI
+- Hand (current player)
+- Battlefield (both players)
+- Graveyard (both players)
+
+---
+
+### 2️⃣ Stack UI
+- Visible stack
+- Order of spells and abilities
+- Source and controller
+
+---
+
+### 3️⃣ Priority UI
+- Active player indicator
+- Pass priority action
+- Visual priority ownership
+
+---
+
+### 4️⃣ Turn & Phase UI
+- Current turn owner
+- Current phase / step
+- Visual step transitions
+
+---
+
+### 5️⃣ Combat UI (MVP)
+- Attacker selection
+- Blocker selection (1-to-1)
+- Damage resolution visualization
+- Life total updates
+
+---
+
+### 6️⃣ Target Selection UI
+- Valid target highlighting
+- Target confirmation
+- Cancel / invalid target feedback
+
+---
+
+### 7️⃣ Action UI
+- Play land
+- Cast spell
+- Activate ability
+- Declare attacker / blocker
+- End turn
+
+---
+
+## ❌ Explicitly NOT in UI MVP
+- Deck builder
+- Matchmaking
+- Replays
+- Animations
+- Sound
+- Spectator mode
+
+---
+
+# 🔵 PART III — Post-MVP Expansions (Tracked)
+
+These features are **planned, visible, and intentional**.
+
+---
+
+## Engine Extensions
+- Multiple blockers
 - Ordered damage assignment
-- Partial damage tracking
-- Future interaction with trample and deathtouch
+- Advanced combat keywords
+- Full counter system
+- Planeswalker loyalty
+- Replacement effects
+- 7-layer system
 
 ---
 
-#### Advanced Combat Keywords
-- First Strike / Double Strike
-- Trample
-- Deathtouch
-- Indestructible
-- Damage prevention
-
-**Reason**
-- Depend on ordered damage assignment
-- Interact with state-based actions and replacement effects
+## UI Extensions
+- Animations
+- Advanced tooltips
+- Stack inspection
+- Combat replay
+- Deck builder
+- Rules inspector / debug mode
 
 ---
 
-### Advanced Static Keywords
-- Lifelink
-- Infect / Poison counters
-- Menace
+## 🛠️ Maintenance Rules
 
-**Reason**
-- Interact with damage model, counters, and triggers
+- No hidden scope
+- Deferred ≠ forgotten
+- All limitations documented
+- One roadmap, one truth
 
----
-
-### Targeting-Altering Keywords
-- Hexproof
-- Shroud
-- Protection
-- Ward
-
-**Reason**
-- Affect targeting globally
-- Require timing guarantees and invalidation rules
-
----
-
-### Replacement Effects & Advanced Rules
-- Damage replacement / redirection
-- Damage to planeswalkers
-- Regeneration
-- Planeswalker uniqueness rule
-
----
-
-### Full Static Ability Layer System
-- Official 7-layer rules
-- Dependency resolution
-- Timestamp ordering
-
-**Note**
-- Acknowledged as required for full Magic fidelity
-- Explicitly deferred to avoid premature engine lock-in
-
----
-
-## 🧩 What Unlocks UI Work
-
-Once the following are completed:
-- Mana Pool MVP ✅
-- Costs ✅
-- Permanent Types MVP ✅
-- Power/Toughness + Counters ✅
-- Combat MVP ✅
-- Static Abilities MVP ✅
-
-We can safely build:
-- Zone UI
-- Stack UI
-- Priority UI
-- Combat UI
-- Target selection UI
-
-Without reworking engine fundamentals.
-
----
-
-## 🛠️ How This Document Is Maintained
-
-- Each PR that closes a block:
-  - Marks it as completed
-  - References relevant tests
-- Known limitations are explicitly documented
-- Deferred features remain visible and intentional
-- Nothing is removed without discussion
-
-This document is the **single source of truth** for Echomancy’s engine roadmap.
+This document defines **what Echomancy is** and **what it will become**.
