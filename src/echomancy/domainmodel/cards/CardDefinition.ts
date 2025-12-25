@@ -16,6 +16,33 @@ export type CardType =
   | "PLANESWALKER"
   | "LAND"
 
+/**
+ * Static ability keywords supported by the game engine.
+ *
+ * MVP includes only Flying, Reach, and Vigilance.
+ * These are consultative keywords that affect rule checks only.
+ *
+ * Static abilities are:
+ * - Always-on (do not go on the stack)
+ * - Consultative (only affect validations and rule checks)
+ * - Local (no global expert system)
+ *
+ * TODO: Future expansion:
+ * - First strike / Double strike
+ * - Trample
+ * - Deathtouch
+ * - Lifelink
+ * - Menace
+ * - Hexproof / Shroud
+ * - Protection
+ * - Ward
+ * - Continuous effects / lords ("other elves get +1/+1")
+ * - 7-layer system for complex dependencies
+ * - Ability gain/loss ("creature gains flying until end of turn")
+ * - Replacement effects
+ */
+export type StaticAbility = "FLYING" | "REACH" | "VIGILANCE"
+
 export type CardDefinition = {
   id: string
   name: string
@@ -23,6 +50,14 @@ export type CardDefinition = {
   effect?: Effect
   activatedAbility?: ActivatedAbility
   triggers?: Trigger[]
+  /**
+   * Static ability keywords.
+   * Only applicable to permanents (primarily creatures).
+   * Default: empty (no static abilities)
+   *
+   * @see StaticAbility for supported keywords
+   */
+  staticAbilities?: StaticAbility[]
   /**
    * Base power for creatures.
    * Only applicable when types includes "CREATURE".
