@@ -170,7 +170,7 @@ export class Game {
   constructor(
     public readonly id: string,
     private readonly playersById: Map<string, Player>,
-    private readonly turnOrder: string[],
+    private readonly turnOrder: readonly string[],
     public currentPlayerId: string,
     public currentStep: GameSteps,
     playerStates: Map<string, PlayerState>,
