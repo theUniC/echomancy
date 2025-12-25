@@ -2,6 +2,7 @@ import { expect, test } from "vitest"
 import {
   AttackerAlreadyBlockedError,
   CreatureAlreadyBlockingError,
+  InvalidPlayerActionError,
   TappedCreatureCannotBlockError,
 } from "../GameErrors"
 import { Step } from "../Steps"
@@ -397,6 +398,49 @@ test("damage does not persist across turns", () => {
 // ============================================================================
 // Edge Cases
 // ============================================================================
+
+test("only defending player can declare blockers", () => {
+  const { game, player1, player2 } = createStartedGame()
+
+  const attacker = createTestCreature(player1.id, "attacker", 2, 2)
+  addCreatureToBattlefield(game, player1.id, attacker)
+
+  const blocker = createTestCreature(player2.id, "blocker", 2, 2)
+  addCreatureToBattlefield(game, player2.id, blocker)
+
+  advanceToStep(game, Step.DECLARE_ATTACKERS)
+
+  game.apply({
+    type: "DECLARE_ATTACKER",
+    playerId: player1.id,
+    creatureId: attacker.instanceId,
+  })
+
+  game.apply({ type: "ADVANCE_STEP", playerId: player1.id })
+  expect(game.currentStep).toBe(Step.DECLARE_BLOCKERS)
+
+  // Active player (player1) attempts to declare blocker - should fail
+  expect(() => {
+    game.apply({
+      type: "DECLARE_BLOCKER",
+      playerId: player1.id, // Active player trying to block
+      blockerId: blocker.instanceId,
+      attackerId: attacker.instanceId,
+    })
+  }).toThrow(InvalidPlayerActionError)
+
+  // Defending player (player2) can declare blocker - should succeed
+  game.apply({
+    type: "DECLARE_BLOCKER",
+    playerId: player2.id, // Defending player
+    blockerId: blocker.instanceId,
+    attackerId: attacker.instanceId,
+  })
+
+  // Verify blocking was successful
+  const blockerState = game.getCreatureState(blocker.instanceId)
+  expect(blockerState.blockingCreatureId).toBe(attacker.instanceId)
+})
 
 test("tapped creature cannot block", () => {
   const { game, player1, player2 } = createStartedGame()
