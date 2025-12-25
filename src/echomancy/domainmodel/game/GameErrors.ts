@@ -189,3 +189,11 @@ export class AttackerAlreadyBlockedError extends GameError {
     )
   }
 }
+
+export class CannotBlockFlyingCreatureError extends GameError {
+  constructor(blockerId: string, attackerId: string) {
+    super(
+      `Creature '${blockerId}' cannot block flying creature '${attackerId}' (blocker must have Flying or Reach)`,
+    )
+  }
+}

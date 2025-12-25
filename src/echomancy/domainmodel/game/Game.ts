@@ -1,12 +1,13 @@
 import { match, P } from "ts-pattern"
 import type { ActivationCost } from "../abilities/ActivatedAbility"
-import type { CardDefinition } from "../cards/CardDefinition"
+import type { CardDefinition, StaticAbility } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { EffectContext } from "../effects/EffectContext"
 import { type ZoneName, ZoneNames } from "../zones/Zone"
 import type { Actions, AllowedAction } from "./GameActions"
 import {
   AttackerAlreadyBlockedError,
+  CannotBlockFlyingCreatureError,
   CannotBlockNonAttackingCreatureError,
   CannotPayActivationCostError,
   CardIsNotLandError,
@@ -919,10 +920,15 @@ export class Game {
       throw new CreatureAlreadyAttackedError(action.creatureId)
     }
 
-    // Mark creature as attacking and tapped
+    // Mark creature as attacking
     creatureState.isAttacking = true
-    creatureState.isTapped = true
     creatureState.hasAttackedThisTurn = true
+
+    // Tap the creature unless it has Vigilance
+    // MVP static abilities: consultative keywords that modify rule checks only
+    if (!this.hasStaticAbility(creature, "VIGILANCE")) {
+      creatureState.isTapped = true
+    }
 
     // Emit creature declared attacker event and evaluate triggers
     this.evaluateTriggers({
@@ -984,6 +990,32 @@ export class Game {
     // MVP: Only one blocker per attacker allowed
     if (attackerState.blockedBy !== null) {
       throw new AttackerAlreadyBlockedError(action.attackerId)
+    }
+
+    // Find the attacker card instance to check for flying
+    // We need to search both players' battlefields since the attacker is controlled by the active player
+    const activePlayer = this.getPlayerState(this.currentPlayerId)
+    const attacker = activePlayer.battlefield.cards.find(
+      (card) => card.instanceId === action.attackerId,
+    )
+
+    if (!attacker) {
+      throw new PermanentNotFoundError(action.attackerId)
+    }
+
+    // MVP static abilities: Flying/Reach blocking restriction
+    // A creature with Flying can only be blocked by creatures with Flying or Reach
+    if (this.hasStaticAbility(attacker, "FLYING")) {
+      const blockerHasFlyingOrReach =
+        this.hasStaticAbility(blocker, "FLYING") ||
+        this.hasStaticAbility(blocker, "REACH")
+
+      if (!blockerHasFlyingOrReach) {
+        throw new CannotBlockFlyingCreatureError(
+          action.blockerId,
+          action.attackerId,
+        )
+      }
     }
 
     // Establish blocking relationship (1-to-1 in MVP)
@@ -1685,6 +1717,23 @@ export class Game {
 
   private isCreature(card: CardInstance): boolean {
     return card.definition.types.includes("CREATURE")
+  }
+
+  /**
+   * Checks if a permanent has a specific static ability keyword.
+   *
+   * MVP static abilities are consultative; no layers yet.
+   * These keywords only affect rule checks and validations.
+   *
+   * @param card - The card instance to check
+   * @param ability - The static ability to check for
+   * @returns true if the card has the static ability, false otherwise
+   */
+  private hasStaticAbility(
+    card: CardInstance,
+    ability: StaticAbility,
+  ): boolean {
+    return card.definition.staticAbilities?.includes(ability) ?? false
   }
 
   // ============================================================================
