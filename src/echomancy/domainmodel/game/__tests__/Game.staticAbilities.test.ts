@@ -383,7 +383,7 @@ test("Reach: creature with both Flying and Reach can block Flying creature", () 
 // Combined Tests
 // ============================================================================
 
-test("Combined: Vigilant Flying creature can attack and block on same turn", () => {
+test("Combined: Vigilance prevents tapping even with Flying", () => {
   const { game, player1 } = createStartedGame()
 
   // Player 1 has a creature with Vigilance and Flying
@@ -409,10 +409,8 @@ test("Combined: Vigilant Flying creature can attack and block on same turn", () 
   const creatureState = game.getCreatureState(vigilantFlyer.instanceId)
 
   // Creature should be attacking but NOT tapped (due to Vigilance)
+  // This works regardless of other abilities like Flying
   expect(creatureState.isAttacking).toBe(true)
   expect(creatureState.hasAttackedThisTurn).toBe(true)
   expect(creatureState.isTapped).toBe(false)
-
-  // Note: The creature could theoretically block next turn if it survives
-  // and doesn't attack again, since it's not tapped
 })
