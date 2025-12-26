@@ -4,9 +4,11 @@ import { ZoneNames } from "../../zones/Zone"
 import { GraveyardReason } from "../Game"
 import {
   addCreatureToBattlefield,
+  addLandToHand,
   addSpellToHand,
   createGameInMainPhase,
   createTestCreature,
+  createTestLand,
   resolveStack,
 } from "./helpers"
 
@@ -288,13 +290,15 @@ describe("Permanent Types — MVP", () => {
 
   describe("Land permanents (existing behavior)", () => {
     test("land behavior still works unchanged", () => {
-      const { game, player1, dummyLandInstanceId } = createGameInMainPhase()
+      const { game, player1 } = createGameInMainPhase()
+      const land = createTestLand(player1.id)
+      addLandToHand(game, player1.id, land)
 
-      // Play the dummy land
+      // Play the land
       game.apply({
         type: "PLAY_LAND",
         playerId: player1.id,
-        cardId: dummyLandInstanceId,
+        cardId: land.instanceId,
       })
 
       // Verify land is on battlefield
@@ -310,11 +314,11 @@ describe("Permanent Types — MVP", () => {
 
   describe("Multiple permanent types coexisting", () => {
     test("battlefield can contain multiple different permanent types simultaneously", () => {
-      const { game, player1, player2, dummyLandInstanceId } =
-        createGameInMainPhase()
+      const { game, player1, player2 } = createGameInMainPhase()
 
       // Create one of each permanent type
       const creature = createTestCreature(player1.id, "creature-1")
+      const land = createTestLand(player1.id)
 
       const artifact: CardInstance = {
         instanceId: "artifact-1",
@@ -350,10 +354,11 @@ describe("Permanent Types — MVP", () => {
       addCreatureToBattlefield(game, player1.id, creature)
 
       // Play land
+      addLandToHand(game, player1.id, land)
       game.apply({
         type: "PLAY_LAND",
         playerId: player1.id,
-        cardId: dummyLandInstanceId,
+        cardId: land.instanceId,
       })
 
       // Cast artifact

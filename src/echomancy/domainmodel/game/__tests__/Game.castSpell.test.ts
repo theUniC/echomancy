@@ -7,10 +7,12 @@ import {
 } from "../GameErrors"
 import { Step } from "../Steps"
 import {
+  addLandToHand,
   addSpellToHand,
   advanceToStep,
   assertSpellAt,
   createStartedGame,
+  createTestLand,
   createTestSpell,
 } from "./helpers"
 
@@ -31,7 +33,7 @@ test("it moves a spell card from hand to stack when casting a spell", () => {
   const stateAfter = game.getPlayerState(player1.id)
   const stack = game.getStack()
 
-  expect(stateAfter.hand.cards).toHaveLength(1) // Only the dummy land remains
+  expect(stateAfter.hand.cards).toHaveLength(0) // Spell moved to stack
   expect(stack).toHaveLength(1)
   expect(stateAfter.battlefield.cards).toHaveLength(0)
 })
@@ -106,14 +108,16 @@ test("it throws error when trying to cast a card that is not in hand", () => {
 })
 
 test("it throws error when trying to cast a non-spell card", () => {
-  const { game, player1, dummyLandInstanceId } = createStartedGame()
+  const { game, player1 } = createStartedGame()
+  const land = createTestLand(player1.id)
+  addLandToHand(game, player1.id, land)
   advanceToStep(game, Step.FIRST_MAIN)
 
   expect(() => {
     game.apply({
       type: "CAST_SPELL",
       playerId: player1.id,
-      cardId: dummyLandInstanceId,
+      cardId: land.instanceId,
       targets: [],
     })
   }).toThrow(CardIsNotSpellError)
