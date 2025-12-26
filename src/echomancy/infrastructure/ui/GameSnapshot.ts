@@ -45,8 +45,17 @@ import type { GameSteps } from "../domainmodel/game/Steps"
 export type CombatStateSnapshot = {
   isAttacking: boolean
   isBlocking: boolean
-  blockedBy: string[] // Instance IDs of blockers
+  blockedBy: readonly string[] // Instance IDs of blockers
   blocking: string | null // Instance ID of creature being blocked
+}
+
+/**
+ * Combat summary showing current combat statistics.
+ * Null if not in combat.
+ */
+export type CombatSummary = {
+  attackerCount: number
+  blockerCount: number
 }
 
 /**
@@ -91,10 +100,7 @@ export type PublicGameState = {
   currentPhase: string // Derived from currentStep
   currentStep: GameSteps
 
-  combatSummary: {
-    attackerCount: number
-    blockerCount: number
-  } | null
+  combatSummary: CombatSummary | null
 
   stackSize: number
 }
@@ -221,14 +227,17 @@ export function createGameSnapshot(
   }
 
   // Build card snapshots with full visibility for viewer's zones
-  const viewerHand = viewerState.zones.hand.cards.map((card) =>
-    createCardSnapshot(card, cardRegistry),
+  const viewerHand = mapZoneToSnapshots(
+    viewerState.zones.hand.cards,
+    cardRegistry,
   )
-  const viewerBattlefield = viewerState.zones.battlefield.cards.map((card) =>
-    createCardSnapshot(card, cardRegistry),
+  const viewerBattlefield = mapZoneToSnapshots(
+    viewerState.zones.battlefield.cards,
+    cardRegistry,
   )
-  const viewerGraveyard = viewerState.zones.graveyard.cards.map((card) =>
-    createCardSnapshot(card, cardRegistry),
+  const viewerGraveyard = mapZoneToSnapshots(
+    viewerState.zones.graveyard.cards,
+    cardRegistry,
   )
 
   // Build opponent states with hidden information
@@ -243,11 +252,13 @@ export function createGameSnapshot(
       manaPool: playerState.manaPool, // Could be hidden in future
 
       handSize: playerState.zones.hand.cards.length,
-      battlefield: playerState.zones.battlefield.cards.map((card) =>
-        createCardSnapshot(card, cardRegistry),
+      battlefield: mapZoneToSnapshots(
+        playerState.zones.battlefield.cards,
+        cardRegistry,
       ),
-      graveyard: playerState.zones.graveyard.cards.map((card) =>
-        createCardSnapshot(card, cardRegistry),
+      graveyard: mapZoneToSnapshots(
+        playerState.zones.graveyard.cards,
+        cardRegistry,
       ),
       exile: [], // MVP: not yet implemented
     })
@@ -301,6 +312,21 @@ export function createGameSnapshot(
     visibleStack,
     uiHints,
   }
+}
+
+/**
+ * Maps a zone's cards to card snapshots.
+ * Helper to reduce duplication when processing zones.
+ *
+ * @param cards - Array of exported card instances
+ * @param cardRegistry - Registry to resolve card names
+ * @returns Array of card snapshots
+ */
+function mapZoneToSnapshots(
+  cards: readonly CardInstanceExport[],
+  cardRegistry: CardRegistry,
+): readonly CardSnapshot[] {
+  return cards.map((card) => createCardSnapshot(card, cardRegistry))
 }
 
 /**
@@ -474,7 +500,7 @@ function derivePhaseFromStep(step: GameSteps): string {
  */
 function createCombatSummary(
   exportedState: GameStateExport,
-): { attackerCount: number; blockerCount: number } | null {
+): CombatSummary | null {
   const combatSteps: GameSteps[] = [
     "BEGINNING_OF_COMBAT",
     "DECLARE_ATTACKERS",

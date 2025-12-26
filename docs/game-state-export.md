@@ -88,7 +88,8 @@ Creature-specific state:
 
 Stack item representation:
 - `kind`: "SPELL" | "ACTIVATED_ABILITY" | "TRIGGERED_ABILITY"
-- `sourceCardInstanceId`: Card that created this stack item
+- `sourceCardInstanceId`: Card instance ID that created this stack item
+- `sourceCardDefinitionId`: Card definition ID (for UI name resolution)
 - `controllerId`: Player who controls this
 - `targets`: Array of target instance IDs
 
