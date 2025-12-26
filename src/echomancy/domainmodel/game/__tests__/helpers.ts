@@ -47,6 +47,18 @@ export function createGameInMainPhase() {
   return setup
 }
 
+/**
+ * Creates a game in FIRST_MAIN phase with a land in player1's hand.
+ * This is a common test setup pattern to reduce boilerplate.
+ *
+ * @returns Game setup with land included
+ */
+export function createGameInMainPhaseWithLand() {
+  const setup = createGameInMainPhase()
+  const land = addTestLandToHand(setup.game, setup.player1.id)
+  return { ...setup, land }
+}
+
 export function advanceToStep(game: Game, targetStep: GameSteps): void {
   while (game.currentStep !== targetStep) {
     game.apply({ type: "ADVANCE_STEP", playerId: game.currentPlayerId })
