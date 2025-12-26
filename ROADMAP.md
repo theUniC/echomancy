@@ -33,6 +33,18 @@ Echomancy is considered **MVP-complete** when:
 
 The Core Rules Engine is complete and validated.
 
+### What “CLOSED” Means
+
+“CLOSED” means:
+- The engine is sufficient to play real Magic games via a UI
+- All implemented rules are considered stable
+- Future work extends the engine but does not invalidate the UI contract
+
+“CLOSED” does **NOT** mean:
+- All Magic rules are implemented
+- Full rules fidelity has been reached
+- No further engine work will ever be required
+
 ---
 
 ### Turns and Phases
@@ -174,78 +186,52 @@ This boundary is **intentional and enforced**.
 
 ## Game State Export ✅ IMPLEMENTED
 - Engine exposes a **pure, serializable state** via `Game.exportState()`
-- Complete export including all hidden information (hands, libraries)
-- No UI concepts inside the core
-- Neutral, deterministic, unfiltered data structure
-- Supports:
-  - Full game state (turn number, phase, priority)
-  - Player states (life, mana, zones, land plays)
-  - Card instances with complete state
-  - Creature stats (power/toughness, counters, combat state)
-  - Stack and scheduled steps
+- Complete export including all hidden information
+- Neutral, deterministic data structure
 
 ## GameSnapshot (UI Layer) — TODO
 - Built outside the engine
 - Player-relative visibility
 - Hidden information filtering
 - Read-only representation
-- Consumes `GameStateExport` and applies visibility rules
 
 ---
 
 # 🎮 PART II — UI MVP (REQUIRED)
 
-The UI is part of the MVP.  
-Without it, Echomancy is **not playable**.
+The UI is part of the MVP.
 
 ---
 
 ## 🟢 UI MVP Scope
 
-### 1️⃣ Zone UI
-- Hand (current player)
-- Battlefield (both players)
-- Graveyard (both players)
+### Zone UI
+- Hand
+- Battlefield
+- Graveyard
 
----
-
-### 2️⃣ Stack UI
+### Stack UI
 - Visible stack
-- Order of spells and abilities
-- Source and controller
+- Order, source, controller
 
----
-
-### 3️⃣ Priority UI
+### Priority UI
 - Active player indicator
-- Pass priority action
-- Visual priority ownership
+- Pass priority
 
----
+### Turn & Phase UI
+- Turn owner
+- Phase / step display
 
-### 4️⃣ Turn & Phase UI
-- Current turn owner
-- Current phase / step
-- Visual step transitions
-
----
-
-### 5️⃣ Combat UI (MVP)
+### Combat UI
 - Attacker selection
 - Blocker selection (1-to-1)
-- Damage resolution visualization
-- Life total updates
+- Damage visualization
 
----
-
-### 6️⃣ Target Selection UI
+### Target Selection UI
 - Valid target highlighting
-- Target confirmation
-- Cancel / invalid target feedback
+- Confirmation / cancellation
 
----
-
-### 7️⃣ Action UI
+### Action UI
 - Play land
 - Cast spell
 - Activate ability
@@ -260,34 +246,73 @@ Without it, Echomancy is **not playable**.
 - Replays
 - Animations
 - Sound
-- Spectator mode
 
 ---
 
-# 🔵 PART III — Post-MVP Expansions (Tracked)
+# ⏭️ PART III — NEXT: Remaining Magic Features (Exhaustive Reference)
 
-These features are **planned, visible, and intentional**.
+This section lists **all known Magic features not yet implemented**.
 
----
-
-## Engine Extensions
-- Multiple blockers
-- Ordered damage assignment
-- Advanced combat keywords
-- Full counter system
-- Planeswalker loyalty
-- Replacement effects
-- 7-layer system
+Legend:
+- **[UI-REQ]** Required for specific UI features
+- **[CORE-EXT]** Engine extension (does not break UI)
+- **[COMPAT]** Required for full Magic rules compatibility
 
 ---
 
-## UI Extensions
-- Animations
-- Advanced tooltips
-- Stack inspection
-- Combat replay
-- Deck builder
-- Rules inspector / debug mode
+## Zones
+- Exile zone [UI-REQ]
+- Command zone [COMPAT]
+
+## Counters
+- -1/-1 counters [COMPAT]
+- Poison counters [COMPAT]
+- Charge counters [COMPAT]
+- Loyalty counters [CORE-EXT]
+
+## Combat Extensions
+- Multiple blockers per attacker [CORE-EXT]
+- Ordered damage assignment [CORE-EXT]
+
+## Keywords
+- Haste [CORE-EXT]
+- First Strike / Double Strike [CORE-EXT]
+- Trample [CORE-EXT]
+- Deathtouch [CORE-EXT]
+- Indestructible [CORE-EXT]
+
+## Targeting & Protection
+- Hexproof [COMPAT]
+- Shroud [COMPAT]
+- Protection [COMPAT]
+- Ward [COMPAT]
+
+## Replacement & State Rules
+- Replacement effects [COMPAT]
+- Damage prevention [COMPAT]
+- Damage redirection [COMPAT]
+- State-based actions (full) [COMPAT]
+
+## Continuous Effects
+- Lords and global modifiers [CORE-EXT]
+- Ability gain/loss [CORE-EXT]
+- Full 7-layer system [COMPAT]
+
+---
+
+## Design Philosophy
+
+Echomancy prioritizes:
+1. Rules correctness over shortcuts
+2. Explicit modeling over inference
+3. Engine determinism over UI convenience
+4. Transparency over opaque expert systems
+
+Echomancy explicitly avoids:
+- Arena-style hidden logic
+- UI-driven rule decisions
+- Heuristic card-text parsing
+- Premature expert-system approaches
 
 ---
 
