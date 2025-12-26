@@ -12,6 +12,7 @@ Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design 
 | [Turn Structure](./turn-structure.md) | Game phases, steps, and turn progression |
 | [Zones and Cards](./zones-and-cards.md) | Game zones, card definitions, and instances |
 | [Game State Export](./game-state-export.md) | Complete state export for UI and external consumers |
+| [Game Snapshot](./game-snapshot.md) | UI-facing game state with visibility filtering and player perspective |
 
 ### Systems
 
@@ -47,20 +48,25 @@ Echomancy is in MVP phase, focusing on fundamental game mechanics:
 - Cost system (mana, tap, sacrifice costs with atomic payment)
 - Static abilities (Flying, Reach, Vigilance)
 - Game state export (complete, neutral export for UI and external systems)
+- Game snapshot (player-relative UI views with visibility filtering)
 
 ## Source Code Structure
 
 ```
-src/echomancy/domainmodel/
-├── abilities/       # Ability system
-├── cards/           # Card definitions and instances
-├── costs/           # Cost system
-│   └── impl/        # Concrete cost types (ManaCost, TapSelfCost, etc.)
-├── effects/         # Effect interface and implementations
-│   └── impl/        # Concrete effect classes
-├── game/            # Core game engine
-│   └── __tests__/   # Test suite
-├── targets/         # Targeting system
-├── triggers/        # Trigger definitions
-└── zones/           # Game zones
+src/echomancy/
+├── domainmodel/     # Core game engine (closed, stable)
+│   ├── abilities/       # Ability system
+│   ├── cards/           # Card definitions and instances
+│   ├── costs/           # Cost system
+│   │   └── impl/        # Concrete cost types (ManaCost, TapSelfCost, etc.)
+│   ├── effects/         # Effect interface and implementations
+│   │   └── impl/        # Concrete effect classes
+│   ├── game/            # Core game engine
+│   │   └── __tests__/   # Test suite
+│   ├── targets/         # Targeting system
+│   ├── triggers/        # Trigger definitions
+│   └── zones/           # Game zones
+└── infrastructure/  # UI-facing infrastructure
+    └── ui/              # Game snapshot and UI contracts
+        └── __tests__/   # Snapshot tests
 ```
