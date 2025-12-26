@@ -116,6 +116,7 @@ export type ZoneExport = {
 export type StackItemExport = {
   kind: "SPELL" | "ACTIVATED_ABILITY" | "TRIGGERED_ABILITY"
   sourceCardInstanceId: string
+  sourceCardDefinitionId: string // Added for UI layer to resolve card names
   controllerId: string
   targets: readonly string[] // Target instance IDs
 }
