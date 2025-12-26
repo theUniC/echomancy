@@ -19,6 +19,7 @@ const mockCardRegistry: CardRegistry = {
   getCardName(cardDefinitionId: string): string {
     const nameMap: Record<string, string> = {
       "test-spell": "Test Spell",
+      "test-spell-2": "Test Spell 2",
       "test-creature": "Test Creature",
       "test-creature-def": "Test Creature",
       "test-land": "Test Land",
@@ -475,7 +476,9 @@ describe("GameSnapshot", () => {
       const blockerSnapshot = snapshot.privatePlayerState.battlefield[0]
 
       expect(blockerSnapshot.combatState?.isBlocking).toBe(true)
-      expect(blockerSnapshot.combatState?.blocking).toBe(attacker.instanceId)
+      expect(blockerSnapshot.combatState?.blocking).toEqual([
+        attacker.instanceId,
+      ])
     })
 
     it("should include static keywords", () => {
@@ -573,6 +576,53 @@ describe("GameSnapshot", () => {
       expect(snapshot.visibleStack.items[0].sourceCardName).toBe("Test Spell")
       expect(snapshot.visibleStack.items[0].targetDescriptions).toEqual([])
     })
+
+    it("should order stack items with index 0 as TOP of stack", () => {
+      const { game, player1, player2 } = createGameInMainPhase()
+
+      // Cast first spell (will be at bottom of stack)
+      const spell1 = createTestSpell(player1.id, "spell-1")
+      addSpellToHand(game, player1.id, spell1)
+      game.apply({
+        type: "CAST_SPELL",
+        playerId: player1.id,
+        cardId: spell1.instanceId,
+        targets: [],
+      })
+
+      // Opponent passes priority back to current player
+      game.apply({
+        type: "PASS_PRIORITY",
+        playerId: player2.id,
+      })
+
+      // Cast second spell (will be at top of stack)
+      const spell2 = createTestSpell(player1.id, "spell-2")
+      spell2.definition.id = "test-spell-2" // Different ID for different name
+      addSpellToHand(game, player1.id, spell2)
+      game.apply({
+        type: "CAST_SPELL",
+        playerId: player1.id,
+        cardId: spell2.instanceId,
+        targets: [],
+      })
+
+      const exported = game.exportState()
+      const snapshot = createGameSnapshot(
+        exported,
+        player1.id,
+        mockCardRegistry,
+      )
+
+      // Stack should have 2 items
+      expect(snapshot.visibleStack.items).toHaveLength(2)
+
+      // Index 0 should be the TOP of stack (most recent spell)
+      expect(snapshot.visibleStack.items[0].sourceCardName).toBe("Test Spell 2")
+
+      // Index 1 should be the BOTTOM of stack (first spell)
+      expect(snapshot.visibleStack.items[1].sourceCardName).toBe("Test Spell")
+    })
   })
 
   describe("UI Hints", () => {
@@ -596,39 +646,6 @@ describe("GameSnapshot", () => {
       )
 
       expect(snapshot2.uiHints?.canPassPriority).toBe(false)
-    })
-
-    it("should indicate if viewer can play land", () => {
-      const { game, player1 } = createGameInMainPhase()
-
-      const exported = game.exportState()
-      const snapshot = createGameSnapshot(
-        exported,
-        player1.id,
-        mockCardRegistry,
-      )
-
-      // In main phase, no lands played yet
-      expect(snapshot.uiHints?.canPlayLand).toBe(true)
-    })
-
-    it("should indicate can't play land after one land played", () => {
-      const { game, player1, dummyLandInstanceId } = createGameInMainPhase()
-
-      game.apply({
-        type: "PLAY_LAND",
-        playerId: player1.id,
-        cardId: dummyLandInstanceId,
-      })
-
-      const exported = game.exportState()
-      const snapshot = createGameSnapshot(
-        exported,
-        player1.id,
-        mockCardRegistry,
-      )
-
-      expect(snapshot.uiHints?.canPlayLand).toBe(false)
     })
 
     it("should highlight attacking creatures", () => {
@@ -899,7 +916,9 @@ describe("GameSnapshot", () => {
 
       const blockerSnapshot = opponentCreatures[0]
       expect(blockerSnapshot.combatState?.isBlocking).toBe(true)
-      expect(blockerSnapshot.combatState?.blocking).toBe(attacker1.instanceId)
+      expect(blockerSnapshot.combatState?.blocking).toEqual([
+        attacker1.instanceId,
+      ])
     })
   })
 })

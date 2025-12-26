@@ -135,11 +135,12 @@ Stack items ordered top to bottom (index 0 = top of stack):
 Optional convenience flags derived from engine output:
 
 - Can pass priority
-- Can play land
-- Highlighted attackers
-- Highlighted blockers
+- Highlighted attackers (instance IDs)
+- Highlighted blockers (instance IDs)
 
-**IMPORTANT**: UIHints must NOT encode rules logic. They are purely convenience flags.
+**IMPORTANT**: UIHints must NOT encode rules logic. They are purely convenience flags derived directly from exported state without interpretation.
+
+**Note**: `canPlayLand` was removed because determining land legality requires rules logic (checking turn, step, lands played). The UI must ask the engine for "allowed actions" instead of inferring legality.
 
 ## Usage
 
