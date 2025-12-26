@@ -200,8 +200,8 @@ If the change feels risky, write tests first to lock current behavior.
 ```bash
 bun run dev      # Dev server at localhost:3000
 bun run build    # Production build
-bun test         # Run all tests
-bun test <name>  # Run tests matching name
+bun run test         # Run all tests
+bun run test <name>  # Run tests matching name
 bun run lint     # Check code style
 bun run format   # Auto-format code
 ```
