@@ -174,39 +174,25 @@ type TriggeredAbility = {
 }
 
 export class Game {
-  private lifecycleState: GameLifecycleState
-  private currentTurnNumber: number
-  private playedLands: number
-  private playerStates: Map<string, PlayerState>
-  private manaPools: Map<string, ManaPool>
-  private stack: Stack
-  private priorityPlayerId: string | null
-  private playersWhoPassedPriority: Set<string>
-  private scheduledSteps: GameSteps[]
-  private resumeStepAfterScheduled?: GameSteps
-  private creatureStates: Map<string, CreatureState>
+  public readonly id: string
+  private readonly playersById: Map<string, Player> = new Map()
+  private turnOrder: string[] = []
+  public currentPlayerId: string = ""
+  public currentStep: GameSteps = Step.UNTAP
+  private lifecycleState: GameLifecycleState = GameLifecycleState.CREATED
+  private currentTurnNumber: number = 1
+  private playedLands: number = 0
+  private playerStates: Map<string, PlayerState> = new Map()
+  private manaPools: Map<string, ManaPool> = new Map()
+  private stack: Stack = { items: [] }
+  private priorityPlayerId: string | null = null
+  private playersWhoPassedPriority: Set<string> = new Set()
+  private scheduledSteps: GameSteps[] = []
+  private resumeStepAfterScheduled?: GameSteps = undefined
+  private creatureStates: Map<string, CreatureState> = new Map()
 
-  constructor(
-    public readonly id: string,
-    private readonly playersById: Map<string, Player>,
-    private readonly turnOrder: readonly string[],
-    public currentPlayerId: string,
-    public currentStep: GameSteps,
-    playerStates: Map<string, PlayerState>,
-    manaPools: Map<string, ManaPool>,
-    lifecycleState: GameLifecycleState = GameLifecycleState.CREATED,
-  ) {
-    this.lifecycleState = lifecycleState
-    this.currentTurnNumber = 1
-    this.playedLands = 0
-    this.playerStates = playerStates
-    this.manaPools = manaPools
-    this.stack = { items: [] }
-    this.priorityPlayerId = null
-    this.playersWhoPassedPriority = new Set()
-    this.scheduledSteps = []
-    this.resumeStepAfterScheduled = undefined
-    this.creatureStates = new Map()
+  constructor(id: string) {
+    this.id = id
   }
 
   // ============================================================================
@@ -229,16 +215,7 @@ export class Game {
    * @returns A new Game instance in CREATED state
    */
   static create(id: string): Game {
-    return new Game(
-      id,
-      new Map(), // Empty players map
-      [], // Empty turn order
-      "", // No current player yet
-      Step.UNTAP, // Default step (will be set properly when game starts)
-      new Map(), // Empty player states
-      new Map(), // Empty mana pools
-      GameLifecycleState.CREATED,
-    )
+    return new Game(id)
   }
 
   /**
@@ -266,9 +243,7 @@ export class Game {
     this.playersById.set(player.id, player)
 
     // Add player to turn order
-    // SAFETY: turnOrder is readonly, but we need to modify it during setup
-    // This is safe because we're in CREATED state
-    ;(this.turnOrder as string[]).push(player.id)
+    this.turnOrder.push(player.id)
 
     // Initialize player state with empty zones
     this.playerStates.set(player.id, {
