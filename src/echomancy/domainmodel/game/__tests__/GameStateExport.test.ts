@@ -3,11 +3,13 @@ import type { CardInstance } from "../../cards/CardInstance"
 import { Step } from "../Steps"
 import {
   addCreatureToBattlefield,
+  addLandToHand,
   addSpellToHand,
   advanceToStep,
   createGameInMainPhase,
   createStartedGame,
   createTestCreature,
+  createTestLand,
   createTestSpell,
   resolveStack,
 } from "./helpers"
@@ -140,14 +142,15 @@ describe("GameStateExport", () => {
     })
 
     it("should track played lands this turn for current player only", () => {
-      const { game, player1, player2, dummyLandInstanceId } =
-        createGameInMainPhase()
+      const { game, player1, player2 } = createGameInMainPhase()
+      const land = createTestLand(player1.id)
+      addLandToHand(game, player1.id, land)
 
       // Player1 plays a land
       game.apply({
         type: "PLAY_LAND",
         playerId: player1.id,
-        cardId: dummyLandInstanceId,
+        cardId: land.instanceId,
       })
 
       const exported = game.exportState()
@@ -157,14 +160,15 @@ describe("GameStateExport", () => {
     })
 
     it("should reset played lands when turn changes", () => {
-      const { game, player1, player2, dummyLandInstanceId } =
-        createGameInMainPhase()
+      const { game, player1, player2 } = createGameInMainPhase()
+      const land = createTestLand(player1.id)
+      addLandToHand(game, player1.id, land)
 
       // Player1 plays a land
       game.apply({
         type: "PLAY_LAND",
         playerId: player1.id,
-        cardId: dummyLandInstanceId,
+        cardId: land.instanceId,
       })
 
       // End turn
@@ -187,8 +191,8 @@ describe("GameStateExport", () => {
 
       const exported = game.exportState()
 
-      // Hand should contain dummy land + added spell
-      expect(exported.players[player1.id].zones.hand.cards).toHaveLength(2)
+      // Hand should contain added spell
+      expect(exported.players[player1.id].zones.hand.cards).toHaveLength(1)
       expect(
         exported.players[player1.id].zones.hand.cards.some(
           (c) => c.instanceId === spell.instanceId,

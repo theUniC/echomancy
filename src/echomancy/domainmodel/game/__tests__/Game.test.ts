@@ -60,21 +60,20 @@ test("it can be instantiated", () => {
   expect(game.currentStep).toBe("UNTAP")
 })
 
-test("it accepts an id parameter when using start factory", () => {
+test("it accepts an id parameter when using create factory", () => {
   const player1 = new Player("p1")
   const player2 = new Player("p2")
   const gameId = uuidv4()
-  const game = Game.start({
-    id: gameId,
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const game = Game.create(gameId)
+  game.addPlayer(player1)
+  game.addPlayer(player2)
+  game.start(player1.id)
 
   expect(game.id).toBe(gameId)
   expect(isValidUUID(game.id)).toBe(true)
 })
 
-test("it starts at UNTAP step when using start factory", () => {
+test("it starts at UNTAP step after start is called", () => {
   const { game } = createStartedGame()
 
   expect(game.currentStep).toBe("UNTAP")
@@ -83,11 +82,10 @@ test("it starts at UNTAP step when using start factory", () => {
 test("it sets the starting player correctly", () => {
   const player1 = new Player("p1")
   const player2 = new Player("p2")
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player2.id,
-  })
+  const game = Game.create(uuidv4())
+  game.addPlayer(player1)
+  game.addPlayer(player2)
+  game.start(player2.id)
 
   expect(game.currentPlayerId).toBe(player2.id)
 })
@@ -128,25 +126,22 @@ test("it advances to next player when completing a turn", () => {
 test("it validates starting player is in player list", () => {
   const player1 = new Player("p1")
   const player2 = new Player("p2")
+  const game = Game.create(uuidv4())
+  game.addPlayer(player1)
+  game.addPlayer(player2)
 
   expect(() => {
-    Game.start({
-      id: uuidv4(),
-      players: [player1, player2],
-      startingPlayerId: "invalid-id",
-    })
+    game.start("invalid-id")
   }).toThrow(InvalidStartingPlayerError)
 })
 
 test("it requires at least 2 players", () => {
   const player1 = new Player("p1")
+  const game = Game.create(uuidv4())
+  game.addPlayer(player1)
 
   expect(() => {
-    Game.start({
-      id: uuidv4(),
-      players: [player1],
-      startingPlayerId: player1.id,
-    })
+    game.start(player1.id)
   }).toThrow(InvalidPlayerCountError)
 })
 

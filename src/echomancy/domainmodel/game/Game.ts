@@ -1,10 +1,6 @@
 import { match, P } from "ts-pattern"
 import type { ActivationCost } from "../abilities/ActivatedAbility"
-import {
-  type CardDefinition,
-  StaticAbilities,
-  type StaticAbility,
-} from "../cards/CardDefinition"
+import { StaticAbilities, type StaticAbility } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { EffectContext } from "../effects/EffectContext"
 import { type Zone, type ZoneName, ZoneNames } from "../zones/Zone"
@@ -33,7 +29,6 @@ import {
   InvalidPlayLandStepError,
   InvalidStartingPlayerError,
   LandLimitExceededError,
-  MaxPlayerCountExceededError,
   PermanentHasNoActivatedAbilityError,
   PermanentNotFoundError,
   PlayerNotFoundError,
@@ -178,12 +173,6 @@ type TriggeredAbility = {
   source: CardInstance
 }
 
-type GameParams = {
-  id: string
-  players: Player[]
-  startingPlayerId: string
-}
-
 export class Game {
   private lifecycleState: GameLifecycleState
   private currentTurnNumber: number
@@ -256,12 +245,11 @@ export class Game {
    * Add a player to the game.
    *
    * Can only be called while the game is in CREATED state.
-   * Initializes player state with zones and mana pool.
+   * Initializes player state with empty zones and mana pool.
    *
    * @param player - The player to add
    * @throws CannotAddPlayerAfterStartError if game has already started
    * @throws DuplicatePlayerError if player is already in the game
-   * @throws MaxPlayerCountExceededError if maximum players exceeded
    */
   addPlayer(player: Player): void {
     // Validate lifecycle state
@@ -274,12 +262,6 @@ export class Game {
       throw new DuplicatePlayerError(player.id)
     }
 
-    // MVP: Support up to 4 players (extensible for future multiplayer)
-    const MAX_PLAYERS = 4
-    if (this.playersById.size >= MAX_PLAYERS) {
-      throw new MaxPlayerCountExceededError(MAX_PLAYERS)
-    }
-
     // Add player to players map
     this.playersById.set(player.id, player)
 
@@ -288,22 +270,9 @@ export class Game {
     // This is safe because we're in CREATED state
     ;(this.turnOrder as string[]).push(player.id)
 
-    // Create dummy land card for MVP
-    const dummyLandDefinition: CardDefinition = {
-      id: "dummy-land",
-      name: "Dummy Land",
-      types: ["LAND"],
-    }
-
-    const dummyLandInstance: CardInstance = {
-      instanceId: `${player.id}-dummy-land-instance`,
-      definition: dummyLandDefinition,
-      ownerId: player.id,
-    }
-
-    // Initialize player state with one land in hand
+    // Initialize player state with empty zones
     this.playerStates.set(player.id, {
-      hand: { cards: [dummyLandInstance] },
+      hand: { cards: [] },
       battlefield: { cards: [] },
       graveyard: { cards: [] },
     })
@@ -350,83 +319,6 @@ export class Game {
 
     // Transition to STARTED state
     this.lifecycleState = GameLifecycleState.STARTED
-  }
-
-  /**
-   * DEPRECATED: Use Game.create() + addPlayer() + start() instead.
-   *
-   * This method will be removed in a future version.
-   * It combines creation, player registration, and starting into one call.
-   *
-   * @deprecated
-   */
-  static start({ id, players, startingPlayerId }: GameParams): Game {
-    Game.assertMoreThanOnePlayer(players)
-    Game.assertStartingPlayerExists(players, startingPlayerId)
-
-    const playersById = new Map(players.map((p) => [p.id, p]))
-    const turnOrder = players.map((p) => p.id)
-
-    // Create dummy land card for MVP
-    const dummyLandDefinition: CardDefinition = {
-      id: "dummy-land",
-      name: "Dummy Land",
-      types: ["LAND"],
-    }
-
-    // Initialize player states with one land in hand
-    const playerStates = new Map(
-      players.map((player) => {
-        const dummyLandInstance: CardInstance = {
-          instanceId: `${player.id}-dummy-land-instance`,
-          definition: dummyLandDefinition,
-          ownerId: player.id,
-        }
-
-        return [
-          player.id,
-          {
-            hand: { cards: [dummyLandInstance] },
-            battlefield: { cards: [] },
-            graveyard: { cards: [] },
-          },
-        ]
-      }),
-    )
-
-    // Initialize mana pools (all colors start at 0)
-    const manaPools = new Map(
-      players.map((player) => [player.id, Game.createEmptyManaPool()]),
-    )
-
-    const game = new Game(
-      id,
-      playersById,
-      turnOrder,
-      startingPlayerId,
-      Step.UNTAP,
-      playerStates,
-      manaPools,
-      GameLifecycleState.STARTED, // Start in STARTED state for backward compatibility
-    )
-    game.priorityPlayerId = startingPlayerId
-    return game
-  }
-
-  private static assertStartingPlayerExists(
-    players: Player[],
-    startingPlayerId: string,
-  ) {
-    const exists = players.some((p) => p.id === startingPlayerId)
-    if (!exists) {
-      throw new InvalidStartingPlayerError(startingPlayerId)
-    }
-  }
-
-  private static assertMoreThanOnePlayer(players: Player[]) {
-    if (players.length < MIN_PLAYERS) {
-      throw new InvalidPlayerCountError(players.length)
-    }
   }
 
   private static createEmptyManaPool(): ManaPool {

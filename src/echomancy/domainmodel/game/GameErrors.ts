@@ -225,9 +225,3 @@ export class DuplicatePlayerError extends GameError {
     super(`Player with id '${playerId}' has already been added to the game`)
   }
 }
-
-export class MaxPlayerCountExceededError extends GameError {
-  constructor(maxPlayers: number) {
-    super(`Cannot add more than ${maxPlayers} players to the game`)
-  }
-}

@@ -2,10 +2,17 @@ import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import { CardIsNotLandError, CardNotFoundInHandError } from "../GameErrors"
 import { Step } from "../Steps"
-import { advanceToStep, createStartedGame } from "./helpers"
+import {
+  addLandToHand,
+  advanceToStep,
+  createStartedGame,
+  createTestLand,
+} from "./helpers"
 
 test("it moves a land card from hand to battlefield when playing a land", () => {
-  const { game, player1, dummyLandInstanceId } = createStartedGame()
+  const { game, player1 } = createStartedGame()
+  const land = createTestLand(player1.id)
+  addLandToHand(game, player1.id, land)
   advanceToStep(game, Step.FIRST_MAIN)
 
   const stateBefore = game.getPlayerState(player1.id)
@@ -13,19 +20,19 @@ test("it moves a land card from hand to battlefield when playing a land", () => 
 
   expect(stateBefore.hand.cards).toHaveLength(1)
   expect(stateBefore.battlefield.cards).toHaveLength(0)
-  expect(playedCard.instanceId).toBe(dummyLandInstanceId)
+  expect(playedCard.instanceId).toBe(land.instanceId)
 
   game.apply({
     type: "PLAY_LAND",
     playerId: player1.id,
-    cardId: dummyLandInstanceId,
+    cardId: land.instanceId,
   })
 
   const stateAfter = game.getPlayerState(player1.id)
 
   expect(stateAfter.hand.cards).toHaveLength(0)
   expect(stateAfter.battlefield.cards).toHaveLength(1)
-  expect(stateAfter.battlefield.cards[0].instanceId).toBe(dummyLandInstanceId)
+  expect(stateAfter.battlefield.cards[0].instanceId).toBe(land.instanceId)
 })
 
 test("it throws error when trying to play a land that is not in hand", () => {
@@ -68,7 +75,9 @@ test("it throws error when trying to play a non-land card", () => {
 })
 
 test("it moves the same card instance to the battlefield", () => {
-  const { game, player1, dummyLandInstanceId } = createStartedGame()
+  const { game, player1 } = createStartedGame()
+  const land = createTestLand(player1.id)
+  addLandToHand(game, player1.id, land)
   advanceToStep(game, Step.FIRST_MAIN)
 
   const stateBefore = game.getPlayerState(player1.id)
@@ -77,7 +86,7 @@ test("it moves the same card instance to the battlefield", () => {
   game.apply({
     type: "PLAY_LAND",
     playerId: player1.id,
-    cardId: dummyLandInstanceId,
+    cardId: land.instanceId,
   })
 
   const stateAfter = game.getPlayerState(player1.id)

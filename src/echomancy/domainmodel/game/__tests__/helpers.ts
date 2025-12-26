@@ -26,10 +26,7 @@ export function createStartedGame() {
   game.addPlayer(player2)
   game.start(player1.id)
 
-  // The instanceId of the dummy land card in player1's hand
-  const dummyLandInstanceId = `${player1.id}-dummy-land-instance`
-
-  return { game, player1, player2, dummyLandInstanceId }
+  return { game, player1, player2 }
 }
 
 export function createGameInMainPhase() {
@@ -74,6 +71,31 @@ export function createSpell(
     },
     ownerId,
   }
+}
+
+export function createTestLand(
+  ownerId: string,
+  instanceId?: string,
+): CardInstance {
+  const id = instanceId || `test-land-${Math.random()}`
+  return {
+    instanceId: id,
+    definition: {
+      id: "test-land-def",
+      name: "Test Land",
+      types: ["LAND"],
+    },
+    ownerId,
+  }
+}
+
+export function addLandToHand(
+  game: Game,
+  playerId: string,
+  land: CardInstance,
+): void {
+  const playerState = game.getPlayerState(playerId)
+  playerState.hand.cards.push(land)
 }
 
 export function addSpellToHand(
