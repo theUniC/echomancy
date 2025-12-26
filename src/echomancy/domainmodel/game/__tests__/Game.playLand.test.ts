@@ -64,10 +64,8 @@ test("it throws error when non-current player tries to play a land", () => {
 })
 
 test("it does not allow playing more than one land per turn", () => {
-  const { game, player1 } = createStartedGame()
-  const land1 = addTestLandToHand(game, player1.id, "land-1")
+  const { game, player1, land: land1 } = createGameInMainPhaseWithLand()
   const land2 = addTestLandToHand(game, player1.id, "land-2")
-  advanceToStep(game, Step.FIRST_MAIN)
 
   game.apply({
     type: "PLAY_LAND",
@@ -101,10 +99,8 @@ test("it removes PLAY_LAND from allowed actions after playing a land", () => {
 })
 
 test("it allows playing a land again on the next turn", () => {
-  const { game, player1 } = createStartedGame()
-  const land1 = addTestLandToHand(game, player1.id, "land-1")
+  const { game, player1, land: land1 } = createGameInMainPhaseWithLand()
   const _land2 = addTestLandToHand(game, player1.id, "land-2")
-  advanceToStep(game, Step.FIRST_MAIN)
 
   game.apply({
     type: "PLAY_LAND",

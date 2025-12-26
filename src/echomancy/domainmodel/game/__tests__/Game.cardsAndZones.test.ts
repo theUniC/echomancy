@@ -2,12 +2,14 @@ import { expect, test } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import { CardIsNotLandError, CardNotFoundInHandError } from "../GameErrors"
 import { Step } from "../Steps"
-import { addTestLandToHand, advanceToStep, createStartedGame } from "./helpers"
+import {
+  advanceToStep,
+  createGameInMainPhaseWithLand,
+  createStartedGame,
+} from "./helpers"
 
 test("it moves a land card from hand to battlefield when playing a land", () => {
-  const { game, player1 } = createStartedGame()
-  const land = addTestLandToHand(game, player1.id)
-  advanceToStep(game, Step.FIRST_MAIN)
+  const { game, player1, land } = createGameInMainPhaseWithLand()
 
   const stateBefore = game.getPlayerState(player1.id)
   const playedCard = stateBefore.hand.cards[0]
@@ -69,9 +71,7 @@ test("it throws error when trying to play a non-land card", () => {
 })
 
 test("it moves the same card instance to the battlefield", () => {
-  const { game, player1 } = createStartedGame()
-  const land = addTestLandToHand(game, player1.id)
-  advanceToStep(game, Step.FIRST_MAIN)
+  const { game, player1, land } = createGameInMainPhaseWithLand()
 
   const stateBefore = game.getPlayerState(player1.id)
   const originalCard = stateBefore.hand.cards[0]

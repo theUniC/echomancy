@@ -8,9 +8,9 @@ import {
 import { Step } from "../Steps"
 import {
   addSpellToHand,
-  addTestLandToHand,
   advanceToStep,
   assertSpellAt,
+  createGameInMainPhaseWithLand,
   createStartedGame,
   createTestSpell,
 } from "./helpers"
@@ -107,9 +107,7 @@ test("it throws error when trying to cast a card that is not in hand", () => {
 })
 
 test("it throws error when trying to cast a non-spell card", () => {
-  const { game, player1 } = createStartedGame()
-  const land = addTestLandToHand(game, player1.id)
-  advanceToStep(game, Step.FIRST_MAIN)
+  const { game, player1, land } = createGameInMainPhaseWithLand()
 
   expect(() => {
     game.apply({
