@@ -257,42 +257,50 @@ export class Game {
   }
 
   /**
-   * Start the game and transition to STARTED state.
+   * Start the game and transition from CREATED → STARTED state.
    *
-   * Can only be called while the game is in CREATED state.
-   * Validates minimum player count and starting player.
-   * Initializes game rules state (turn order, priority, phase).
+   * LIFECYCLE TRANSITION: This is the critical transition that activates
+   * all Magic rules. After this method completes:
+   * - All game actions become available via apply()
+   * - Magic rules are enforced
+   * - Turn order is established
+   * - Priority is assigned
+   * - Phases and steps begin
+   *
+   * Can only be called while the game is in CREATED state (after create()
+   * and addPlayer() have been called).
    *
    * @param startingPlayerId - The ID of the player who goes first
    * @throws GameAlreadyStartedError if game has already started
-   * @throws InvalidPlayerCountError if insufficient players
+   * @throws InvalidPlayerCountError if insufficient players (minimum 2)
    * @throws InvalidStartingPlayerError if starting player not in game
    */
   start(startingPlayerId: string): void {
-    // Validate lifecycle state
+    // Enforce lifecycle invariant: must be in CREATED state
     if (this.lifecycleState !== GameLifecycleState.CREATED) {
       throw new GameAlreadyStartedError()
     }
 
-    // Validate player count
+    // Validate minimum player count (domain rule)
     const playerCount = this.playersById.size
     if (playerCount < MIN_PLAYERS) {
       throw new InvalidPlayerCountError(playerCount)
     }
 
-    // Validate starting player exists
+    // Validate starting player exists in the game
     if (!this.playersById.has(startingPlayerId)) {
       throw new InvalidStartingPlayerError(startingPlayerId)
     }
 
-    // Initialize game state
+    // Initialize Magic rules state
     this.currentPlayerId = startingPlayerId
     this.currentStep = Step.UNTAP
     this.priorityPlayerId = startingPlayerId
     this.currentTurnNumber = 1
     this.playedLands = 0
 
-    // Transition to STARTED state
+    // LIFECYCLE TRANSITION: CREATED → STARTED
+    // From this point forward, all Magic rules are active
     this.lifecycleState = GameLifecycleState.STARTED
   }
 
@@ -304,8 +312,22 @@ export class Game {
   // PUBLIC API - HIGH LEVEL (Commands & Primary Queries)
   // ============================================================================
 
+  /**
+   * Apply a game action (play land, cast spell, advance step, etc.).
+   *
+   * LIFECYCLE INVARIANT: This method can only be called when the game is in
+   * STARTED state. All Magic rules and game actions require an active game.
+   *
+   * Before calling apply():
+   * 1. Game must be created with Game.create()
+   * 2. Players must be added with game.addPlayer()
+   * 3. Game must be started with game.start()
+   *
+   * @param action - The game action to execute
+   * @throws GameNotStartedError if game is not in STARTED state
+   */
   apply(action: Actions): void {
-    // Validate that game has been started
+    // Enforce lifecycle invariant: game must be STARTED
     if (this.lifecycleState !== GameLifecycleState.STARTED) {
       throw new GameNotStartedError()
     }
