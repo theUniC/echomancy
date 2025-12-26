@@ -38,6 +38,7 @@ import {
 import { type GameEvent, GameEventTypes } from "./GameEvents"
 import type {
   CardInstanceExport,
+  CounterTypeExport,
   CreatureStateExport,
   GameStateExport,
   ManaPoolExport,

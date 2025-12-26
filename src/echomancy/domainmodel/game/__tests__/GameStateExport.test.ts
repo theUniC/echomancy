@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test"
+import { describe, expect, it } from "vitest"
 import type { CardInstance } from "../../cards/CardInstance"
 import { Step } from "../Steps"
 import {
