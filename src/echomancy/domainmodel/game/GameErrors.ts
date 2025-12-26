@@ -197,3 +197,37 @@ export class CannotBlockFlyingCreatureError extends GameError {
     )
   }
 }
+
+// ============================================================================
+// Game Lifecycle Errors
+// ============================================================================
+
+export class GameNotStartedError extends GameError {
+  constructor() {
+    super("Cannot perform actions on a game that has not been started")
+  }
+}
+
+export class GameAlreadyStartedError extends GameError {
+  constructor() {
+    super("Game has already been started")
+  }
+}
+
+export class CannotAddPlayerAfterStartError extends GameError {
+  constructor() {
+    super("Cannot add players after the game has started")
+  }
+}
+
+export class DuplicatePlayerError extends GameError {
+  constructor(playerId: string) {
+    super(`Player with id '${playerId}' has already been added to the game`)
+  }
+}
+
+export class MaxPlayerCountExceededError extends GameError {
+  constructor(maxPlayers: number) {
+    super(`Cannot add more than ${maxPlayers} players to the game`)
+  }
+}
