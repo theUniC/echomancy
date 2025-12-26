@@ -1,6 +1,6 @@
 import { validate as isValidUUID, v4 as uuidv4 } from "uuid"
 import { expect, test } from "vitest"
-import { Game, GameLifecycleState } from "../Game"
+import { Game } from "../Game"
 import {
   InvalidEndTurnError,
   InvalidPlayerActionError,
@@ -9,48 +9,14 @@ import {
 } from "../GameErrors"
 import { advanceToStep, createStartedGame, createTestPlayer } from "./helpers"
 
-test("it can be instantiated", () => {
+test("it can be instantiated with lifecycle API", () => {
   const player1 = createTestPlayer("Player 1")
   const player2 = createTestPlayer("Player 2")
-  const playersById = new Map([
-    [player1.id, player1],
-    [player2.id, player2],
-  ])
-  const turnOrder = [player1.id, player2.id]
-  const playerStates = new Map([
-    [
-      player1.id,
-      {
-        hand: { cards: [] },
-        battlefield: { cards: [] },
-        graveyard: { cards: [] },
-      },
-    ],
-    [
-      player2.id,
-      {
-        hand: { cards: [] },
-        battlefield: { cards: [] },
-        graveyard: { cards: [] },
-      },
-    ],
-  ])
 
-  const manaPools = new Map([
-    [player1.id, { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }],
-    [player2.id, { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }],
-  ])
-
-  const game = new Game(
-    "game-id",
-    playersById,
-    turnOrder,
-    player1.id,
-    "UNTAP",
-    playerStates,
-    manaPools,
-    GameLifecycleState.STARTED, // Explicitly start in STARTED state for this test
-  )
+  const game = Game.create("game-id")
+  game.addPlayer(player1)
+  game.addPlayer(player2)
+  game.start(player1.id)
 
   expect(game).toBeInstanceOf(Game)
   expect(game.id).toBe("game-id")
