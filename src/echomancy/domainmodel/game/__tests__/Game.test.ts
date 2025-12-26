@@ -1,6 +1,6 @@
 import { validate as isValidUUID, v4 as uuidv4 } from "uuid"
 import { expect, test } from "vitest"
-import { Game } from "../Game"
+import { Game, GameLifecycleState } from "../Game"
 import {
   InvalidEndTurnError,
   InvalidPlayerActionError,
@@ -37,6 +37,11 @@ test("it can be instantiated", () => {
     ],
   ])
 
+  const manaPools = new Map([
+    [player1.id, { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }],
+    [player2.id, { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }],
+  ])
+
   const game = new Game(
     "game-id",
     playersById,
@@ -44,6 +49,8 @@ test("it can be instantiated", () => {
     player1.id,
     "UNTAP",
     playerStates,
+    manaPools,
+    GameLifecycleState.STARTED, // Explicitly start in STARTED state for this test
   )
 
   expect(game).toBeInstanceOf(Game)

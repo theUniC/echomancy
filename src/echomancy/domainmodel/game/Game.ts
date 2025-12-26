@@ -11,6 +11,7 @@ import { type Zone, type ZoneName, ZoneNames } from "../zones/Zone"
 import type { Actions, AllowedAction } from "./GameActions"
 import {
   AttackerAlreadyBlockedError,
+  CannotAddPlayerAfterStartError,
   CannotBlockFlyingCreatureError,
   CannotBlockNonAttackingCreatureError,
   CannotPayActivationCostError,
@@ -19,6 +20,9 @@ import {
   CardNotFoundInHandError,
   CreatureAlreadyAttackedError,
   CreatureAlreadyBlockingError,
+  DuplicatePlayerError,
+  GameAlreadyStartedError,
+  GameNotStartedError,
   InsufficientManaError,
   InvalidCastSpellStepError,
   InvalidCounterAmountError,
@@ -29,6 +33,7 @@ import {
   InvalidPlayLandStepError,
   InvalidStartingPlayerError,
   LandLimitExceededError,
+  MaxPlayerCountExceededError,
   PermanentHasNoActivatedAbilityError,
   PermanentNotFoundError,
   PlayerNotFoundError,
@@ -61,6 +66,19 @@ export type { AbilityOnStack, SpellOnStack, StackItem }
 const MIN_PLAYERS = 2
 const DEFAULT_CREATURE_POWER = 0
 const DEFAULT_CREATURE_TOUGHNESS = 1
+
+/**
+ * Game lifecycle states
+ *
+ * CREATED: Game instance exists, but rules engine not active yet
+ * STARTED: Rules engine active, game in progress
+ * FINISHED: Game concluded (future use)
+ */
+export enum GameLifecycleState {
+  CREATED = "CREATED",
+  STARTED = "STARTED",
+  FINISHED = "FINISHED",
+}
 
 /**
  * Reason for a permanent being moved to the graveyard
@@ -167,6 +185,7 @@ type GameParams = {
 }
 
 export class Game {
+  private lifecycleState: GameLifecycleState
   private currentTurnNumber: number
   private playedLands: number
   private playerStates: Map<string, PlayerState>
@@ -186,7 +205,9 @@ export class Game {
     public currentStep: GameSteps,
     playerStates: Map<string, PlayerState>,
     manaPools: Map<string, ManaPool>,
+    lifecycleState: GameLifecycleState = GameLifecycleState.CREATED,
   ) {
+    this.lifecycleState = lifecycleState
     this.currentTurnNumber = 1
     this.playedLands = 0
     this.playerStates = playerStates
@@ -203,6 +224,142 @@ export class Game {
   // STATIC FACTORY & VALIDATORS
   // ============================================================================
 
+  /**
+   * Create a new Game instance in CREATED state.
+   *
+   * This is the entry point for the game lifecycle. After creation:
+   * 1. Add players using game.addPlayer()
+   * 2. Start the game using game.start()
+   *
+   * At this point:
+   * - No players have joined
+   * - No Magic rules are active
+   * - No actions can be taken
+   *
+   * @param id - Unique identifier for the game
+   * @returns A new Game instance in CREATED state
+   */
+  static create(id: string): Game {
+    return new Game(
+      id,
+      new Map(), // Empty players map
+      [], // Empty turn order
+      "", // No current player yet
+      Step.UNTAP, // Default step (will be set properly when game starts)
+      new Map(), // Empty player states
+      new Map(), // Empty mana pools
+      GameLifecycleState.CREATED,
+    )
+  }
+
+  /**
+   * Add a player to the game.
+   *
+   * Can only be called while the game is in CREATED state.
+   * Initializes player state with zones and mana pool.
+   *
+   * @param player - The player to add
+   * @throws CannotAddPlayerAfterStartError if game has already started
+   * @throws DuplicatePlayerError if player is already in the game
+   * @throws MaxPlayerCountExceededError if maximum players exceeded
+   */
+  addPlayer(player: Player): void {
+    // Validate lifecycle state
+    if (this.lifecycleState !== GameLifecycleState.CREATED) {
+      throw new CannotAddPlayerAfterStartError()
+    }
+
+    // Check for duplicate player
+    if (this.playersById.has(player.id)) {
+      throw new DuplicatePlayerError(player.id)
+    }
+
+    // MVP: Support up to 4 players (extensible for future multiplayer)
+    const MAX_PLAYERS = 4
+    if (this.playersById.size >= MAX_PLAYERS) {
+      throw new MaxPlayerCountExceededError(MAX_PLAYERS)
+    }
+
+    // Add player to players map
+    this.playersById.set(player.id, player)
+
+    // Add player to turn order
+    // SAFETY: turnOrder is readonly, but we need to modify it during setup
+    // This is safe because we're in CREATED state
+    ;(this.turnOrder as string[]).push(player.id)
+
+    // Create dummy land card for MVP
+    const dummyLandDefinition: CardDefinition = {
+      id: "dummy-land",
+      name: "Dummy Land",
+      types: ["LAND"],
+    }
+
+    const dummyLandInstance: CardInstance = {
+      instanceId: `${player.id}-dummy-land-instance`,
+      definition: dummyLandDefinition,
+      ownerId: player.id,
+    }
+
+    // Initialize player state with one land in hand
+    this.playerStates.set(player.id, {
+      hand: { cards: [dummyLandInstance] },
+      battlefield: { cards: [] },
+      graveyard: { cards: [] },
+    })
+
+    // Initialize mana pool
+    this.manaPools.set(player.id, Game.createEmptyManaPool())
+  }
+
+  /**
+   * Start the game and transition to STARTED state.
+   *
+   * Can only be called while the game is in CREATED state.
+   * Validates minimum player count and starting player.
+   * Initializes game rules state (turn order, priority, phase).
+   *
+   * @param startingPlayerId - The ID of the player who goes first
+   * @throws GameAlreadyStartedError if game has already started
+   * @throws InvalidPlayerCountError if insufficient players
+   * @throws InvalidStartingPlayerError if starting player not in game
+   */
+  start(startingPlayerId: string): void {
+    // Validate lifecycle state
+    if (this.lifecycleState !== GameLifecycleState.CREATED) {
+      throw new GameAlreadyStartedError()
+    }
+
+    // Validate player count
+    const playerCount = this.playersById.size
+    if (playerCount < MIN_PLAYERS) {
+      throw new InvalidPlayerCountError(playerCount)
+    }
+
+    // Validate starting player exists
+    if (!this.playersById.has(startingPlayerId)) {
+      throw new InvalidStartingPlayerError(startingPlayerId)
+    }
+
+    // Initialize game state
+    this.currentPlayerId = startingPlayerId
+    this.currentStep = Step.UNTAP
+    this.priorityPlayerId = startingPlayerId
+    this.currentTurnNumber = 1
+    this.playedLands = 0
+
+    // Transition to STARTED state
+    this.lifecycleState = GameLifecycleState.STARTED
+  }
+
+  /**
+   * DEPRECATED: Use Game.create() + addPlayer() + start() instead.
+   *
+   * This method will be removed in a future version.
+   * It combines creation, player registration, and starting into one call.
+   *
+   * @deprecated
+   */
   static start({ id, players, startingPlayerId }: GameParams): Game {
     Game.assertMoreThanOnePlayer(players)
     Game.assertStartingPlayerExists(players, startingPlayerId)
@@ -250,6 +407,7 @@ export class Game {
       Step.UNTAP,
       playerStates,
       manaPools,
+      GameLifecycleState.STARTED, // Start in STARTED state for backward compatibility
     )
     game.priorityPlayerId = startingPlayerId
     return game
@@ -280,6 +438,11 @@ export class Game {
   // ============================================================================
 
   apply(action: Actions): void {
+    // Validate that game has been started
+    if (this.lifecycleState !== GameLifecycleState.STARTED) {
+      throw new GameNotStartedError()
+    }
+
     match(action)
       .with({ type: "ADVANCE_STEP", playerId: P.string }, (action) =>
         this.advanceStep(action),

@@ -7,15 +7,24 @@ import { Player } from "../Player"
 import type { AbilityOnStack, SpellOnStack, StackItem } from "../StackTypes"
 import { type GameSteps, Step } from "../Steps"
 
+/**
+ * Create a game that has been fully started.
+ *
+ * Uses the new lifecycle API:
+ * 1. Game.create()
+ * 2. game.addPlayer()
+ * 3. game.start()
+ *
+ * This is the preferred way to create test games going forward.
+ */
 export function createStartedGame() {
   const player1 = new Player("p1")
   const player2 = new Player("p2")
 
-  const game = Game.start({
-    id: uuidv4(),
-    players: [player1, player2],
-    startingPlayerId: player1.id,
-  })
+  const game = Game.create(uuidv4())
+  game.addPlayer(player1)
+  game.addPlayer(player2)
+  game.start(player1.id)
 
   // The instanceId of the dummy land card in player1's hand
   const dummyLandInstanceId = `${player1.id}-dummy-land-instance`
