@@ -11,6 +11,7 @@ Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design 
 | [Architecture](./architecture.md) | Core design principles and architectural patterns |
 | [Turn Structure](./turn-structure.md) | Game phases, steps, and turn progression |
 | [Zones and Cards](./zones-and-cards.md) | Game zones, card definitions, and instances |
+| [Game State Export](./game-state-export.md) | Complete state export for UI and external consumers |
 
 ### Systems
 
@@ -45,6 +46,7 @@ Echomancy is in MVP phase, focusing on fundamental game mechanics:
 - Mana pool (basic operations: add, spend, clear)
 - Cost system (mana, tap, sacrifice costs with atomic payment)
 - Static abilities (Flying, Reach, Vigilance)
+- Game state export (complete, neutral export for UI and external systems)
 
 ## Source Code Structure
 

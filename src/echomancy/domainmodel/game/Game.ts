@@ -7,7 +7,7 @@ import {
 } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { EffectContext } from "../effects/EffectContext"
-import { type ZoneName, ZoneNames } from "../zones/Zone"
+import { type Zone, type ZoneName, ZoneNames } from "../zones/Zone"
 import type { Actions, AllowedAction } from "./GameActions"
 import {
   AttackerAlreadyBlockedError,
@@ -470,10 +470,7 @@ export class Game {
     }
   }
 
-  private exportZone(
-    zone: { cards: CardInstance[] },
-    controllerId: string,
-  ): ZoneExport {
+  private exportZone(zone: Zone, controllerId: string): ZoneExport {
     return {
       cards: zone.cards.map((card) =>
         this.exportCardInstance(card, controllerId),
@@ -511,7 +508,10 @@ export class Game {
     // Add creature state if this is a creature on the battlefield
     const creatureState = this.creatureStates.get(card.instanceId)
     if (creatureState) {
-      exported.creatureState = this.exportCreatureState(creatureState)
+      exported.creatureState = this.exportCreatureState(
+        card.instanceId,
+        creatureState,
+      )
     }
 
     // Planeswalker state is placeholder in MVP
@@ -522,21 +522,23 @@ export class Game {
     return exported
   }
 
-  private exportCreatureState(state: CreatureState): CreatureStateExport {
+  private exportCreatureState(
+    creatureId: string,
+    state: CreatureState,
+  ): CreatureStateExport {
     // Convert Map<CounterType, number> to Record<CounterTypeExport, number>
-    const countersRecord: Record<string, number> = {}
-    for (const [counterType, count] of state.counters.entries()) {
-      countersRecord[counterType] = count
+    const countersRecord: Record<CounterTypeExport, number> = {
+      PLUS_ONE_PLUS_ONE: state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0,
     }
 
     return {
       isTapped: state.isTapped,
       isAttacking: state.isAttacking,
       hasAttackedThisTurn: state.hasAttackedThisTurn,
-      power: state.basePower + (state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0),
-      toughness:
-        state.baseToughness + (state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0),
-      counters: countersRecord as Record<"PLUS_ONE_PLUS_ONE", number>,
+      // Reuse existing power/toughness calculation methods to avoid duplication
+      power: this.getCurrentPower(creatureId),
+      toughness: this.getCurrentToughness(creatureId),
+      counters: countersRecord,
       damageMarkedThisTurn: state.damageMarkedThisTurn,
       blockingCreatureId: state.blockingCreatureId,
       blockedBy: state.blockedBy,

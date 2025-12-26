@@ -172,15 +172,24 @@ This boundary is **intentional and enforced**.
 
 ---
 
-## Game State Export
-- Engine exposes a **pure, serializable state**
+## Game State Export ✅ IMPLEMENTED
+- Engine exposes a **pure, serializable state** via `Game.exportState()`
+- Complete export including all hidden information (hands, libraries)
 - No UI concepts inside the core
+- Neutral, deterministic, unfiltered data structure
+- Supports:
+  - Full game state (turn number, phase, priority)
+  - Player states (life, mana, zones, land plays)
+  - Card instances with complete state
+  - Creature stats (power/toughness, counters, combat state)
+  - Stack and scheduled steps
 
-## GameSnapshot (UI Layer)
+## GameSnapshot (UI Layer) — TODO
 - Built outside the engine
 - Player-relative visibility
 - Hidden information filtering
 - Read-only representation
+- Consumes `GameStateExport` and applies visibility rules
 
 ---
 
