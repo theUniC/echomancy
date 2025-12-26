@@ -416,9 +416,15 @@ export class Game {
    */
   exportState(): GameStateExport {
     // Build players export with all their state
+    // Iterate in turnOrder for deterministic, stable export order
     const playersExport: Record<string, PlayerStateExport> = {}
 
-    for (const [playerId, player] of this.playersById.entries()) {
+    for (const playerId of this.turnOrder) {
+      const player = this.playersById.get(playerId)
+      if (!player) {
+        throw new PlayerNotFoundError(playerId)
+      }
+
       const playerState = this.getPlayerState(playerId)
       const manaPool = this.manaPools.get(playerId) ?? {
         W: 0,
@@ -487,9 +493,10 @@ export class Game {
     const exported: CardInstanceExport = {
       instanceId: card.instanceId,
       ownerId: card.ownerId,
+      // TODO: If control-changing effects are implemented, controllerId must
+      // come from game state, not zone owner
       controllerId: controllerId,
       cardDefinitionId: def.id,
-      name: def.name,
       types: def.types,
     }
 

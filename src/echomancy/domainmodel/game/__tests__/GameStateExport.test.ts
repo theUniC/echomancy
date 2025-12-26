@@ -251,7 +251,6 @@ describe("GameStateExport", () => {
       expect(exportedCreature.ownerId).toBe(player1.id)
       expect(exportedCreature.controllerId).toBe(player1.id)
       expect(exportedCreature.cardDefinitionId).toBe(creature.definition.id)
-      expect(exportedCreature.name).toBe(creature.definition.name)
       expect(exportedCreature.types).toEqual(creature.definition.types)
       expect(exportedCreature.power).toBe(2)
       expect(exportedCreature.toughness).toBe(3)
