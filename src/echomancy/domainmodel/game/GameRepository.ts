@@ -1,6 +1,6 @@
-import { Game } from "./Game";
+import { Game } from "@/echomancy/domainmodel/game/Game"
 
 export interface GameRepository {
-    add(game: Game): void
-    byId(gameId: string): Game|undefined
+  add(game: Game): void
+  byId(gameId: string): Game | undefined
 }
