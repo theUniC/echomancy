@@ -558,14 +558,25 @@ export class Game {
       return {
         kind: "SPELL",
         sourceCardInstanceId: item.card.instanceId,
+        sourceCardDefinitionId: item.card.definition.id,
         controllerId: item.controllerId,
         targets: item.targets.map((t) => t.cardId),
       }
     } else {
-      // ABILITY
+      // ABILITY - need to find the source card to get definition ID
+      // Search all battlefields for the source card
+      let sourceCard: CardInstance | undefined
+      for (const playerState of this.playerStates.values()) {
+        sourceCard = playerState.battlefield.cards.find(
+          (c) => c.instanceId === item.sourceId,
+        )
+        if (sourceCard) break
+      }
+
       return {
         kind: "ACTIVATED_ABILITY",
         sourceCardInstanceId: item.sourceId,
+        sourceCardDefinitionId: sourceCard?.definition.id ?? "unknown",
         controllerId: item.controllerId,
         targets: item.targets.map((t) => t.cardId),
       }

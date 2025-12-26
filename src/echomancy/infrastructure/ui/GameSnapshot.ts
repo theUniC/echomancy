@@ -26,13 +26,16 @@
  */
 
 import type {
-  GameStateExport,
+  CardType,
+  StaticAbility,
+} from "../domainmodel/cards/CardDefinition"
+import type {
   CardInstanceExport,
-  ManaPoolExport,
   CounterTypeExport,
+  GameStateExport,
+  ManaPoolExport,
   StackItemExport,
 } from "../domainmodel/game/GameStateExport"
-import type { CardType, StaticAbility } from "../domainmodel/cards/CardDefinition"
 import type { GameSteps } from "../domainmodel/game/Steps"
 
 /**
@@ -281,7 +284,11 @@ export function createGameSnapshot(
   }
 
   // Build stack snapshot
-  const visibleStack = createStackSnapshot(exportedState.stack, cardRegistry, exportedState)
+  const visibleStack = createStackSnapshot(
+    exportedState.stack,
+    cardRegistry,
+    exportedState,
+  )
 
   // Build UI hints (basic implementation)
   const uiHints = createUIHints(exportedState, viewerPlayerId)
@@ -303,7 +310,10 @@ export function createGameSnapshot(
  * @param cardRegistry - Registry to resolve card names
  * @returns A flattened, display-ready card snapshot
  */
-function createCardSnapshot(card: CardInstanceExport, cardRegistry: CardRegistry): CardSnapshot {
+function createCardSnapshot(
+  card: CardInstanceExport,
+  cardRegistry: CardRegistry,
+): CardSnapshot {
   const name = cardRegistry.getCardName(card.cardDefinitionId)
 
   // Extract creature-specific state if present
@@ -355,11 +365,8 @@ function createStackSnapshot(
   exportedState: GameStateExport,
 ): StackSnapshot {
   const items = stack.map((item) => {
-    // Find the source card to get its name
-    const sourceCard = findCardInExport(exportedState, item.sourceCardInstanceId)
-    const sourceCardName = sourceCard
-      ? cardRegistry.getCardName(sourceCard.cardDefinitionId)
-      : "Unknown"
+    // Use the sourceCardDefinitionId directly to resolve the name
+    const sourceCardName = cardRegistry.getCardName(item.sourceCardDefinitionId)
 
     // Resolve target descriptions
     const targetDescriptions = item.targets.map((targetId) => {
@@ -399,7 +406,9 @@ function findCardInExport(
 ): CardInstanceExport | null {
   for (const playerState of Object.values(exportedState.players)) {
     // Search hand
-    const inHand = playerState.zones.hand.cards.find((c) => c.instanceId === instanceId)
+    const inHand = playerState.zones.hand.cards.find(
+      (c) => c.instanceId === instanceId,
+    )
     if (inHand) return inHand
 
     // Search battlefield
@@ -409,12 +418,16 @@ function findCardInExport(
     if (inBattlefield) return inBattlefield
 
     // Search graveyard
-    const inGraveyard = playerState.zones.graveyard.cards.find((c) => c.instanceId === instanceId)
+    const inGraveyard = playerState.zones.graveyard.cards.find(
+      (c) => c.instanceId === instanceId,
+    )
     if (inGraveyard) return inGraveyard
 
     // Search library if present
     if (playerState.zones.library) {
-      const inLibrary = playerState.zones.library.cards.find((c) => c.instanceId === instanceId)
+      const inLibrary = playerState.zones.library.cards.find(
+        (c) => c.instanceId === instanceId,
+      )
       if (inLibrary) return inLibrary
     }
   }
@@ -434,17 +447,17 @@ function derivePhaseFromStep(step: GameSteps): string {
     case "UPKEEP":
     case "DRAW":
       return "Beginning"
-    case "PRECOMBAT_MAIN":
+    case "FIRST_MAIN":
       return "Precombat Main"
-    case "BEGIN_COMBAT":
+    case "BEGINNING_OF_COMBAT":
     case "DECLARE_ATTACKERS":
     case "DECLARE_BLOCKERS":
     case "COMBAT_DAMAGE":
     case "END_OF_COMBAT":
       return "Combat"
-    case "POSTCOMBAT_MAIN":
+    case "SECOND_MAIN":
       return "Postcombat Main"
-    case "END":
+    case "END_STEP":
     case "CLEANUP":
       return "Ending"
     default:
@@ -463,7 +476,7 @@ function createCombatSummary(
   exportedState: GameStateExport,
 ): { attackerCount: number; blockerCount: number } | null {
   const combatSteps: GameSteps[] = [
-    "BEGIN_COMBAT",
+    "BEGINNING_OF_COMBAT",
     "DECLARE_ATTACKERS",
     "DECLARE_BLOCKERS",
     "COMBAT_DAMAGE",
@@ -499,7 +512,10 @@ function createCombatSummary(
  * @param viewerPlayerId - The viewer's player ID
  * @returns UI hints or null
  */
-function createUIHints(exportedState: GameStateExport, viewerPlayerId: string): UIHints | null {
+function createUIHints(
+  exportedState: GameStateExport,
+  viewerPlayerId: string,
+): UIHints | null {
   const viewerState = exportedState.players[viewerPlayerId]
   if (!viewerState) return null
 
@@ -510,9 +526,10 @@ function createUIHints(exportedState: GameStateExport, viewerPlayerId: string): 
   // NOTE: This is a hint only, not authoritative
   const isViewerTurn = exportedState.currentPlayerId === viewerPlayerId
   const isMainPhase =
-    exportedState.currentStep === "PRECOMBAT_MAIN" ||
-    exportedState.currentStep === "POSTCOMBAT_MAIN"
-  const canPlayLand = isViewerTurn && isMainPhase && viewerState.playedLandsThisTurn < 1
+    exportedState.currentStep === "FIRST_MAIN" ||
+    exportedState.currentStep === "SECOND_MAIN"
+  const canPlayLand =
+    isViewerTurn && isMainPhase && viewerState.playedLandsThisTurn < 1
 
   // Highlight attacking/blocking creatures
   const highlightedAttackers: string[] = []
