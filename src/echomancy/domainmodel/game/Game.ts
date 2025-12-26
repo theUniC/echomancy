@@ -36,6 +36,15 @@ import {
   TappedCreatureCannotBlockError,
 } from "./GameErrors"
 import { type GameEvent, GameEventTypes } from "./GameEvents"
+import type {
+  CardInstanceExport,
+  CreatureStateExport,
+  GameStateExport,
+  ManaPoolExport,
+  PlayerStateExport,
+  StackItemExport,
+  ZoneExport,
+} from "./GameStateExport"
 import type { Player } from "./Player"
 import type { PlayerState } from "./PlayerState"
 import type { AbilityOnStack, SpellOnStack, StackItem } from "./StackTypes"
@@ -157,6 +166,7 @@ type GameParams = {
 }
 
 export class Game {
+  private currentTurnNumber: number
   private playedLands: number
   private playerStates: Map<string, PlayerState>
   private manaPools: Map<string, ManaPool>
@@ -176,6 +186,7 @@ export class Game {
     playerStates: Map<string, PlayerState>,
     manaPools: Map<string, ManaPool>,
   ) {
+    this.currentTurnNumber = 1
     this.playedLands = 0
     this.playerStates = playerStates
     this.manaPools = manaPools
@@ -383,6 +394,172 @@ export class Game {
 
   getCreatureState(creatureId: string): CreatureState {
     return this.getCreatureStateOrThrow(creatureId)
+  }
+
+  /**
+   * Export the complete game state as a plain data structure.
+   *
+   * This export is:
+   * - Complete (includes all information, even hidden)
+   * - Neutral (not UI-oriented)
+   * - Unfiltered (no visibility rules applied)
+   * - Deterministic (same game state always produces same export)
+   *
+   * Use this as the foundation for:
+   * - UI snapshots (with visibility filtering applied)
+   * - Network serialization
+   * - Game replay
+   * - AI/bot decision making
+   *
+   * @returns A complete export of the current game state
+   */
+  exportState(): GameStateExport {
+    // Build players export with all their state
+    const playersExport: Record<string, PlayerStateExport> = {}
+
+    for (const [playerId, player] of this.playersById.entries()) {
+      const playerState = this.getPlayerState(playerId)
+      const manaPool = this.manaPools.get(playerId) ?? {
+        W: 0,
+        U: 0,
+        B: 0,
+        R: 0,
+        G: 0,
+        C: 0,
+      }
+
+      playersExport[playerId] = {
+        lifeTotal: player.lifeTotal,
+        manaPool: this.exportManaPool(manaPool),
+        playedLandsThisTurn:
+          playerId === this.currentPlayerId ? this.playedLands : 0,
+        zones: {
+          hand: this.exportZone(playerState.hand, playerId),
+          battlefield: this.exportZone(playerState.battlefield, playerId),
+          graveyard: this.exportZone(playerState.graveyard, playerId),
+        },
+      }
+    }
+
+    return {
+      gameId: this.id,
+      currentTurnNumber: this.currentTurnNumber,
+      currentPlayerId: this.currentPlayerId,
+      currentStep: this.currentStep,
+      priorityPlayerId: this.priorityPlayerId,
+      turnOrder: [...this.turnOrder],
+      players: playersExport,
+      stack: this.stack.items.map((item) => this.exportStackItem(item)),
+      scheduledSteps: [...this.scheduledSteps],
+      resumeStepAfterScheduled: this.resumeStepAfterScheduled,
+    }
+  }
+
+  // ============================================================================
+  // EXPORT HELPERS - Private methods for exportState()
+  // ============================================================================
+
+  private exportManaPool(manaPool: ManaPool): ManaPoolExport {
+    return {
+      W: manaPool.W,
+      U: manaPool.U,
+      B: manaPool.B,
+      R: manaPool.R,
+      G: manaPool.G,
+      C: manaPool.C,
+    }
+  }
+
+  private exportZone(
+    zone: { cards: CardInstance[] },
+    controllerId: string,
+  ): ZoneExport {
+    return {
+      cards: zone.cards.map((card) =>
+        this.exportCardInstance(card, controllerId),
+      ),
+    }
+  }
+
+  private exportCardInstance(
+    card: CardInstance,
+    controllerId: string,
+  ): CardInstanceExport {
+    const def = card.definition
+    const exported: CardInstanceExport = {
+      instanceId: card.instanceId,
+      ownerId: card.ownerId,
+      controllerId: controllerId,
+      cardDefinitionId: def.id,
+      name: def.name,
+      types: def.types,
+    }
+
+    // Add static abilities if present
+    if (def.staticAbilities && def.staticAbilities.length > 0) {
+      exported.staticAbilities = def.staticAbilities
+    }
+
+    // Add base power/toughness for creatures
+    if (def.power !== undefined) {
+      exported.power = def.power
+    }
+    if (def.toughness !== undefined) {
+      exported.toughness = def.toughness
+    }
+
+    // Add creature state if this is a creature on the battlefield
+    const creatureState = this.creatureStates.get(card.instanceId)
+    if (creatureState) {
+      exported.creatureState = this.exportCreatureState(creatureState)
+    }
+
+    // Planeswalker state is placeholder in MVP
+    if (this.isPlaneswalker(card)) {
+      exported.planeswalkerState = {}
+    }
+
+    return exported
+  }
+
+  private exportCreatureState(state: CreatureState): CreatureStateExport {
+    // Convert Map<CounterType, number> to Record<CounterTypeExport, number>
+    const countersRecord: Record<string, number> = {}
+    for (const [counterType, count] of state.counters.entries()) {
+      countersRecord[counterType] = count
+    }
+
+    return {
+      isTapped: state.isTapped,
+      isAttacking: state.isAttacking,
+      hasAttackedThisTurn: state.hasAttackedThisTurn,
+      power: state.basePower + (state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0),
+      toughness:
+        state.baseToughness + (state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0),
+      counters: countersRecord as Record<"PLUS_ONE_PLUS_ONE", number>,
+      damageMarkedThisTurn: state.damageMarkedThisTurn,
+      blockingCreatureId: state.blockingCreatureId,
+      blockedBy: state.blockedBy,
+    }
+  }
+
+  private exportStackItem(item: StackItem): StackItemExport {
+    if (item.kind === "SPELL") {
+      return {
+        kind: "SPELL",
+        sourceCardInstanceId: item.card.instanceId,
+        controllerId: item.controllerId,
+        targets: item.targets.map((t) => t.cardId),
+      }
+    } else {
+      // ABILITY
+      return {
+        kind: "ACTIVATED_ABILITY",
+        sourceCardInstanceId: item.sourceId,
+        controllerId: item.controllerId,
+        targets: item.targets.map((t) => t.cardId),
+      }
+    }
   }
 
   // ============================================================================
@@ -1216,6 +1393,11 @@ export class Game {
     this.currentPlayerId = this.turnOrder[nextIndex]
     this.playedLands = 0
 
+    // Increment turn number when we wrap around to the first player
+    if (nextIndex === 0) {
+      this.currentTurnNumber += 1
+    }
+
     // Reset creature states when turn changes
     this.resetCreatureStatesForNewTurn()
   }
@@ -1738,6 +1920,10 @@ export class Game {
 
   private isCreature(card: CardInstance): boolean {
     return card.definition.types.includes("CREATURE")
+  }
+
+  private isPlaneswalker(card: CardInstance): boolean {
+    return card.definition.types.includes("PLANESWALKER")
   }
 
   /**
