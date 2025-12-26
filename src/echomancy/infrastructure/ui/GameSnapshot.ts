@@ -41,12 +41,15 @@ import type { GameSteps } from "../domainmodel/game/Steps"
 /**
  * Combat state for a card in the UI.
  * Provides a flattened, display-ready view of combat participation.
+ *
+ * Note: Both blockedBy and blocking are arrays per spec, even though
+ * MVP only supports 1-to-1 blocking. This ensures UI contract compliance.
  */
 export type CombatStateSnapshot = {
   isAttacking: boolean
   isBlocking: boolean
   blockedBy: readonly string[] // Instance IDs of blockers
-  blocking: string | null // Instance ID of creature being blocked
+  blocking: readonly string[] // Instance IDs of creatures being blocked
 }
 
 /**
@@ -160,10 +163,12 @@ export type StackSnapshot = {
  * Optional UI hints derived from engine output.
  * These MUST NOT encode rules logic.
  * They are purely convenience flags for UI rendering.
+ *
+ * Note: canPlayLand was removed because determining land legality
+ * requires rules logic. UI must ask engine for "allowed actions" instead.
  */
 export type UIHints = {
   canPassPriority: boolean
-  canPlayLand: boolean
   highlightedAttackers: readonly string[] // Instance IDs
   highlightedBlockers: readonly string[] // Instance IDs
 }
@@ -356,7 +361,9 @@ function createCardSnapshot(
         isAttacking: creatureState.isAttacking,
         isBlocking: creatureState.blockingCreatureId !== null,
         blockedBy: creatureState.blockedBy ? [creatureState.blockedBy] : [],
-        blocking: creatureState.blockingCreatureId,
+        blocking: creatureState.blockingCreatureId
+          ? [creatureState.blockingCreatureId]
+          : [],
       }
     : null
 
@@ -380,17 +387,22 @@ function createCardSnapshot(
 /**
  * Creates a stack snapshot with resolved target descriptions.
  *
- * @param stack - The exported stack items
+ * IMPORTANT: Engine stores stack with top at END of array (uses push/pop).
+ * Spec requires TOP→BOTTOM ordering where index 0 is top.
+ * Therefore we must REVERSE the engine's array.
+ *
+ * @param stack - The exported stack items (bottom→top from engine)
  * @param cardRegistry - Registry to resolve card names
  * @param exportedState - Full exported state for resolving targets
- * @returns A stack snapshot with human-readable information
+ * @returns A stack snapshot with human-readable information (top→bottom)
  */
 function createStackSnapshot(
   stack: readonly StackItemExport[],
   cardRegistry: CardRegistry,
   exportedState: GameStateExport,
 ): StackSnapshot {
-  const items = stack.map((item) => {
+  // Reverse to match spec: index 0 = TOP of stack
+  const items = [...stack].reverse().map((item) => {
     // Use the sourceCardDefinitionId directly to resolve the name
     const sourceCardName = cardRegistry.getCardName(item.sourceCardDefinitionId)
 
@@ -548,15 +560,6 @@ function createUIHints(
   // Can pass priority if viewer has priority
   const canPassPriority = exportedState.priorityPlayerId === viewerPlayerId
 
-  // Can play land if it's viewer's turn and in a main phase
-  // NOTE: This is a hint only, not authoritative
-  const isViewerTurn = exportedState.currentPlayerId === viewerPlayerId
-  const isMainPhase =
-    exportedState.currentStep === "FIRST_MAIN" ||
-    exportedState.currentStep === "SECOND_MAIN"
-  const canPlayLand =
-    isViewerTurn && isMainPhase && viewerState.playedLandsThisTurn < 1
-
   // Highlight attacking/blocking creatures
   const highlightedAttackers: string[] = []
   const highlightedBlockers: string[] = []
@@ -574,7 +577,6 @@ function createUIHints(
 
   return {
     canPassPriority,
-    canPlayLand,
     highlightedAttackers,
     highlightedBlockers,
   }
