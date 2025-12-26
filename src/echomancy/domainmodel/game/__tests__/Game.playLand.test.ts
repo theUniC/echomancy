@@ -5,12 +5,15 @@ import {
   LandLimitExceededError,
 } from "../GameErrors"
 import { Step } from "../Steps"
-import { addTestLandToHand, advanceToStep, createStartedGame } from "./helpers"
+import {
+  addTestLandToHand,
+  advanceToStep,
+  createGameInMainPhaseWithLand,
+  createStartedGame,
+} from "./helpers"
 
 test("it allows the current player to play a land in first main phase", () => {
-  const { game, player1 } = createStartedGame()
-  const land = addTestLandToHand(game, player1.id)
-  advanceToStep(game, Step.FIRST_MAIN)
+  const { game, player1, land } = createGameInMainPhaseWithLand()
 
   const actionsBefore = game.getAllowedActionsFor(player1.id)
   expect(actionsBefore).toContain("PLAY_LAND")
@@ -49,9 +52,7 @@ test("it throws error when trying to play land outside main phases", () => {
 })
 
 test("it throws error when non-current player tries to play a land", () => {
-  const { game, player1, player2 } = createStartedGame()
-  const land = addTestLandToHand(game, player1.id)
-  advanceToStep(game, Step.FIRST_MAIN)
+  const { game, player2, land } = createGameInMainPhaseWithLand()
 
   expect(() => {
     game.apply({
@@ -84,9 +85,7 @@ test("it does not allow playing more than one land per turn", () => {
 })
 
 test("it removes PLAY_LAND from allowed actions after playing a land", () => {
-  const { game, player1 } = createStartedGame()
-  const land = addTestLandToHand(game, player1.id)
-  advanceToStep(game, Step.FIRST_MAIN)
+  const { game, player1, land } = createGameInMainPhaseWithLand()
 
   const actionsBefore = game.getAllowedActionsFor(player1.id)
   expect(actionsBefore).toContain("PLAY_LAND")

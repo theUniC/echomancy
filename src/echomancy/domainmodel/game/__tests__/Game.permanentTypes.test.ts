@@ -7,6 +7,7 @@ import {
   addSpellToHand,
   addTestLandToHand,
   createGameInMainPhase,
+  createGameInMainPhaseWithLand,
   createTestCreature,
   resolveStack,
 } from "./helpers"
@@ -289,8 +290,7 @@ describe("Permanent Types — MVP", () => {
 
   describe("Land permanents (existing behavior)", () => {
     test("land behavior still works unchanged", () => {
-      const { game, player1 } = createGameInMainPhase()
-      const land = addTestLandToHand(game, player1.id)
+      const { game, player1, land } = createGameInMainPhaseWithLand()
 
       // Play the land
       game.apply({
@@ -312,7 +312,7 @@ describe("Permanent Types — MVP", () => {
 
   describe("Multiple permanent types coexisting", () => {
     test("battlefield can contain multiple different permanent types simultaneously", () => {
-      const { game, player1, player2 } = createGameInMainPhase()
+      const { game, player1, player2, land } = createGameInMainPhaseWithLand()
 
       // Create one of each permanent type
       const creature = createTestCreature(player1.id, "creature-1")
@@ -350,8 +350,7 @@ describe("Permanent Types — MVP", () => {
       // Add creature directly to battlefield
       addCreatureToBattlefield(game, player1.id, creature)
 
-      // Play land
-      const land = addTestLandToHand(game, player1.id)
+      // Play land (already in hand from helper)
       game.apply({
         type: "PLAY_LAND",
         playerId: player1.id,
