@@ -1,5 +1,3 @@
-import { v4 as uuidv4 } from "uuid"
-
 const DEFAULT_LIFE_TOTAL = 20
 
 export class Player {
@@ -7,8 +5,12 @@ export class Player {
   name: string
   lifeTotal: number
 
-  constructor(name: string, lifeTotal: number = DEFAULT_LIFE_TOTAL) {
-    this.id = uuidv4()
+  constructor(
+    id: string,
+    name: string,
+    lifeTotal: number = DEFAULT_LIFE_TOTAL,
+  ) {
+    this.id = id
     this.name = name
     this.lifeTotal = lifeTotal
   }

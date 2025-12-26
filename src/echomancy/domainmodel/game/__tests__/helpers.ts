@@ -18,8 +18,8 @@ import { type GameSteps, Step } from "../Steps"
  * This is the preferred way to create test games going forward.
  */
 export function createStartedGame() {
-  const player1 = new Player("p1")
-  const player2 = new Player("p2")
+  const player1 = new Player(uuidv4(), "Player 1")
+  const player2 = new Player(uuidv4(), "Player 2")
 
   const game = Game.create(uuidv4())
   game.addPlayer(player1)
