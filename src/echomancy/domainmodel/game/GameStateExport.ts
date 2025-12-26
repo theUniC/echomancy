@@ -54,6 +54,10 @@ export type ManaPoolExport = {
 /**
  * Creature-specific state export.
  * Only present for cards with type CREATURE.
+ *
+ * Note: Includes raw combat bookkeeping fields (damageMarkedThisTurn,
+ * blockingCreatureId, blockedBy) as they exist in the engine today.
+ * These are not UI hints - they are core game state for combat resolution.
  */
 export type CreatureStateExport = {
   isTapped: boolean
@@ -76,13 +80,15 @@ export type PlaneswalkerStateExport = Record<string, never>
 /**
  * Card instance export representation.
  * Represents a specific card in the game with all its state.
+ *
+ * Note: This export does not include 'name' as it would be a UI helper.
+ * Consumers should resolve card names via cardDefinitionId lookup.
  */
 export type CardInstanceExport = {
   instanceId: string
   ownerId: string
   controllerId: string
   cardDefinitionId: string
-  name: string
   types: readonly CardType[]
   staticAbilities?: readonly StaticAbility[]
   power?: number
@@ -102,6 +108,10 @@ export type ZoneExport = {
 /**
  * Stack item export representation.
  * Represents a spell or ability on the stack.
+ *
+ * MVP limitation: TRIGGERED_ABILITY is defined in the contract but not yet
+ * used. Triggered abilities execute immediately in current MVP rather than
+ * going on the stack. Only SPELL and ACTIVATED_ABILITY will appear in exports.
  */
 export type StackItemExport = {
   kind: "SPELL" | "ACTIVATED_ABILITY" | "TRIGGERED_ABILITY"
@@ -113,7 +123,12 @@ export type StackItemExport = {
 /**
  * Player state export representation.
  * Contains all zones and mana pool for a player.
- * INCLUDES HIDDEN INFORMATION (hand, library).
+ *
+ * INCLUDES HIDDEN INFORMATION: hand is always exported.
+ * Library is optional (not yet implemented in current MVP).
+ *
+ * MVP limitation: playedLandsThisTurn is only tracked for the current player.
+ * Non-current players will always show 0 for this field.
  */
 export type PlayerStateExport = {
   lifeTotal: number
@@ -123,7 +138,7 @@ export type PlayerStateExport = {
     hand: ZoneExport
     battlefield: ZoneExport
     graveyard: ZoneExport
-    library?: ZoneExport // Optional - may not be implemented in MVP
+    library?: ZoneExport // Optional - not yet implemented in MVP
   }
 }
 
