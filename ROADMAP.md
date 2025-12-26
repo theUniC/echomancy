@@ -189,11 +189,12 @@ This boundary is **intentional and enforced**.
 - Complete export including all hidden information
 - Neutral, deterministic data structure
 
-## GameSnapshot (UI Layer) — TODO
-- Built outside the engine
-- Player-relative visibility
-- Hidden information filtering
-- Read-only representation
+## GameSnapshot (UI Layer) ✅ IMPLEMENTED
+- Built outside the engine in `src/echomancy/infrastructure/ui/`
+- Player-relative visibility filtering
+- Hidden information filtering (opponent's hand is hidden)
+- Read-only, immutable representation
+- Complete test coverage
 
 ---
 
