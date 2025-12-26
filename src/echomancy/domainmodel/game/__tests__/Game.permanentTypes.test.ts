@@ -4,11 +4,10 @@ import { ZoneNames } from "../../zones/Zone"
 import { GraveyardReason } from "../Game"
 import {
   addCreatureToBattlefield,
-  addLandToHand,
   addSpellToHand,
+  addTestLandToHand,
   createGameInMainPhase,
   createTestCreature,
-  createTestLand,
   resolveStack,
 } from "./helpers"
 
@@ -291,8 +290,7 @@ describe("Permanent Types — MVP", () => {
   describe("Land permanents (existing behavior)", () => {
     test("land behavior still works unchanged", () => {
       const { game, player1 } = createGameInMainPhase()
-      const land = createTestLand(player1.id)
-      addLandToHand(game, player1.id, land)
+      const land = addTestLandToHand(game, player1.id)
 
       // Play the land
       game.apply({
@@ -318,7 +316,6 @@ describe("Permanent Types — MVP", () => {
 
       // Create one of each permanent type
       const creature = createTestCreature(player1.id, "creature-1")
-      const land = createTestLand(player1.id)
 
       const artifact: CardInstance = {
         instanceId: "artifact-1",
@@ -354,7 +351,7 @@ describe("Permanent Types — MVP", () => {
       addCreatureToBattlefield(game, player1.id, creature)
 
       // Play land
-      addLandToHand(game, player1.id, land)
+      const land = addTestLandToHand(game, player1.id)
       game.apply({
         type: "PLAY_LAND",
         playerId: player1.id,

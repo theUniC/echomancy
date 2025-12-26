@@ -98,6 +98,25 @@ export function addLandToHand(
   playerState.hand.cards.push(land)
 }
 
+/**
+ * Creates a test land and adds it to the player's hand.
+ * This is a convenience helper to reduce boilerplate in tests.
+ *
+ * @param game - The game instance
+ * @param playerId - The player who will receive the land
+ * @param instanceId - Optional custom instance ID for the land
+ * @returns The created land card
+ */
+export function addTestLandToHand(
+  game: Game,
+  playerId: string,
+  instanceId?: string,
+): CardInstance {
+  const land = createTestLand(playerId, instanceId)
+  addLandToHand(game, playerId, land)
+  return land
+}
+
 export function addSpellToHand(
   game: Game,
   playerId: string,
