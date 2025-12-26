@@ -3,13 +3,12 @@ import type { CardInstance } from "../../cards/CardInstance"
 import { Step } from "../Steps"
 import {
   addCreatureToBattlefield,
-  addLandToHand,
   addSpellToHand,
   advanceToStep,
   createGameInMainPhase,
+  createGameInMainPhaseWithLand,
   createStartedGame,
   createTestCreature,
-  createTestLand,
   createTestSpell,
   resolveStack,
 } from "./helpers"
@@ -142,9 +141,7 @@ describe("GameStateExport", () => {
     })
 
     it("should track played lands this turn for current player only", () => {
-      const { game, player1, player2 } = createGameInMainPhase()
-      const land = createTestLand(player1.id)
-      addLandToHand(game, player1.id, land)
+      const { game, player1, player2, land } = createGameInMainPhaseWithLand()
 
       // Player1 plays a land
       game.apply({
@@ -160,9 +157,7 @@ describe("GameStateExport", () => {
     })
 
     it("should reset played lands when turn changes", () => {
-      const { game, player1, player2 } = createGameInMainPhase()
-      const land = createTestLand(player1.id)
-      addLandToHand(game, player1.id, land)
+      const { game, player1, player2, land } = createGameInMainPhaseWithLand()
 
       // Player1 plays a land
       game.apply({
