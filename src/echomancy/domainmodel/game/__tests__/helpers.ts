@@ -8,6 +8,18 @@ import type { AbilityOnStack, SpellOnStack, StackItem } from "../StackTypes"
 import { type GameSteps, Step } from "../Steps"
 
 /**
+ * Creates a test player with a UUID and optional custom name.
+ * This helper encapsulates player creation to reduce coupling in tests.
+ *
+ * @param name - Optional custom name for the player (defaults to "Test Player")
+ * @param id - Optional custom UUID (defaults to generated UUID)
+ * @returns A new Player instance
+ */
+export function createTestPlayer(name?: string, id?: string): Player {
+  return new Player(id ?? uuidv4(), name ?? "Test Player")
+}
+
+/**
  * Create a game that has been fully started.
  *
  * Uses the new lifecycle API:
@@ -18,8 +30,8 @@ import { type GameSteps, Step } from "../Steps"
  * This is the preferred way to create test games going forward.
  */
 export function createStartedGame() {
-  const player1 = new Player(uuidv4(), "Player 1")
-  const player2 = new Player(uuidv4(), "Player 2")
+  const player1 = createTestPlayer("Player 1")
+  const player2 = createTestPlayer("Player 2")
 
   const game = Game.create(uuidv4())
   game.addPlayer(player1)

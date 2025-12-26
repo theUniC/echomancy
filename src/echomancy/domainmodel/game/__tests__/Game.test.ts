@@ -7,12 +7,11 @@ import {
   InvalidPlayerCountError,
   InvalidStartingPlayerError,
 } from "../GameErrors"
-import { Player } from "../Player"
-import { advanceToStep, createStartedGame } from "./helpers"
+import { advanceToStep, createStartedGame, createTestPlayer } from "./helpers"
 
 test("it can be instantiated", () => {
-  const player1 = new Player(uuidv4(), "Player 1")
-  const player2 = new Player(uuidv4(), "Player 2")
+  const player1 = createTestPlayer("Player 1")
+  const player2 = createTestPlayer("Player 2")
   const playersById = new Map([
     [player1.id, player1],
     [player2.id, player2],
@@ -61,8 +60,8 @@ test("it can be instantiated", () => {
 })
 
 test("it accepts an id parameter when using create factory", () => {
-  const player1 = new Player(uuidv4(), "Player 1")
-  const player2 = new Player(uuidv4(), "Player 2")
+  const player1 = createTestPlayer("Player 1")
+  const player2 = createTestPlayer("Player 2")
   const gameId = uuidv4()
   const game = Game.create(gameId)
   game.addPlayer(player1)
@@ -80,8 +79,8 @@ test("it starts at UNTAP step after start is called", () => {
 })
 
 test("it sets the starting player correctly", () => {
-  const player1 = new Player(uuidv4(), "Player 1")
-  const player2 = new Player(uuidv4(), "Player 2")
+  const player1 = createTestPlayer("Player 1")
+  const player2 = createTestPlayer("Player 2")
   const game = Game.create(uuidv4())
   game.addPlayer(player1)
   game.addPlayer(player2)
@@ -124,8 +123,8 @@ test("it advances to next player when completing a turn", () => {
 })
 
 test("it validates starting player is in player list", () => {
-  const player1 = new Player(uuidv4(), "Player 1")
-  const player2 = new Player(uuidv4(), "Player 2")
+  const player1 = createTestPlayer("Player 1")
+  const player2 = createTestPlayer("Player 2")
   const game = Game.create(uuidv4())
   game.addPlayer(player1)
   game.addPlayer(player2)
@@ -136,7 +135,7 @@ test("it validates starting player is in player list", () => {
 })
 
 test("it requires at least 2 players", () => {
-  const player1 = new Player(uuidv4(), "Player 1")
+  const player1 = createTestPlayer("Player 1")
   const game = Game.create(uuidv4())
   game.addPlayer(player1)
 
