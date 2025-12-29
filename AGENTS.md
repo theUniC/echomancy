@@ -195,6 +195,46 @@ If the change feels risky, write tests first to lock current behavior.
 
 ---
 
+## Specifications (specs/)
+
+All feature specifications, design documents, and architecture decisions MUST be saved in the `specs/` folder.
+
+### When to create a spec
+
+Create a spec document when:
+- Designing a new feature or system
+- Making significant architectural decisions
+- Documenting complex game mechanics
+- Planning UI/UX flows
+
+### Spec file format
+
+```
+specs/
+├── features/           # Feature specifications
+│   └── FEATURE-NAME.md
+├── architecture/       # Architecture Decision Records
+│   └── ADR-NNN-title.md
+└── mechanics/          # Game mechanics specifications
+    └── MECHANIC-NAME.md
+```
+
+### Spec document structure
+
+Every spec should include:
+1. **Overview** - What and why
+2. **Detailed Design** - How it works
+3. **Implementation Notes** - Technical considerations
+4. **Open Questions** - Unresolved decisions (if any)
+
+### Naming conventions
+
+- Use kebab-case for filenames: `combat-system.md`, `mana-pool-redesign.md`
+- Prefix ADRs with number: `ADR-001-use-event-sourcing.md`
+- Be descriptive but concise
+
+---
+
 ## Commands
 
 ```bash
