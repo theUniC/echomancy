@@ -87,6 +87,43 @@ This is different from spells, where the card itself is on the stack.
 
 With multiple items on the stack, they resolve in reverse order from how they were added. If Spell A is cast, then Spell B, then Ability C is activated, the resolution order is: Ability C first, then Spell B, then Spell A.
 
+## End Turn Shortcut
+
+The END_TURN action is a **player shortcut**, not a rules action. It expresses the intent: "I will keep passing priority until the turn naturally ends."
+
+### How END_TURN Works
+
+When a player uses END_TURN:
+
+1. The engine records their **auto-pass intent**
+2. The engine does NOT directly advance steps or execute rules
+3. Priority resolution continues normally
+
+### Auto-Pass Behavior
+
+A player in auto-pass mode will automatically pass priority whenever they receive it:
+
+- **With spells on stack**: The player automatically passes, allowing the opponent to respond
+- **With empty stack**: If they are the active player, they advance to the next step
+
+This continues until:
+- The turn ends (reaching the next player's UNTAP step)
+- Something is added to the stack that requires opponent response
+- The auto-pass intent is cleared
+
+### Clearing Auto-Pass Intent
+
+Auto-pass intent clears automatically at the start of each new turn (UNTAP step). This ensures that END_TURN only affects the intended turn and doesn't carry over to future turns.
+
+### Important: Opponent Can Always Respond
+
+Even when a player is in auto-pass mode, their opponent retains full priority windows. The opponent can:
+- Cast spells in response
+- Activate abilities
+- Take any normally allowed action
+
+The auto-pass player will automatically pass back, but the opponent always gets their chance to act.
+
 ## MVP Limitations
 
 | Feature | Status |
