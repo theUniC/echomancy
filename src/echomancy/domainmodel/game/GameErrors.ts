@@ -225,3 +225,15 @@ export class DuplicatePlayerError extends GameError {
     super(`Player with id '${playerId}' has already been added to the game`)
   }
 }
+
+export class GameNotFoundError extends GameError {
+  constructor(gameId: string) {
+    super(`Game with id '${gameId}' not found`)
+  }
+}
+
+export class InvalidPlayerIdError extends GameError {
+  constructor(playerId: string) {
+    super(`Invalid player id: '${playerId}' is not a valid UUID`)
+  }
+}
