@@ -10,12 +10,12 @@ export class CreateGameCommand {
 export class CreateGameCommandHandler {
   constructor(private gameRepository: GameRepository) {}
 
-  handle(message: CreateGameCommand) {
-    if (!isValidUUID(message.id)) {
-      throw new InvalidGameIdError(message.id)
+  handle({ id }: CreateGameCommand) {
+    if (!isValidUUID(id)) {
+      throw new InvalidGameIdError(id)
     }
 
-    const game = Game.create(message.id)
+    const game = Game.create(id)
     this.gameRepository.add(game)
   }
 }
