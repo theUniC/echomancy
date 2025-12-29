@@ -4,7 +4,18 @@ import { StaticAbilities, type StaticAbility } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { EffectContext } from "../effects/EffectContext"
 import { type Zone, type ZoneName, ZoneNames } from "../zones/Zone"
-import type { Actions, AllowedAction } from "./GameActions"
+import type {
+  Actions,
+  ActivateAbility,
+  AdvanceStep,
+  AllowedAction,
+  CastSpell,
+  DeclareAttacker,
+  DeclareBlocker,
+  EndTurn,
+  PassPriority,
+  PlayLand,
+} from "./GameActions"
 import {
   AttackerAlreadyBlockedError,
   CannotAddPlayerAfterStartError,
@@ -614,24 +625,24 @@ export class Game {
         controllerId: item.controllerId,
         targets: item.targets.map((t) => t.cardId),
       }
-    } else {
-      // ABILITY - need to find the source card to get definition ID
-      // Search all battlefields for the source card
-      let sourceCard: CardInstance | undefined
-      for (const playerState of this.playerStates.values()) {
-        sourceCard = playerState.battlefield.cards.find(
-          (c) => c.instanceId === item.sourceId,
-        )
-        if (sourceCard) break
-      }
+    }
 
-      return {
-        kind: "ACTIVATED_ABILITY",
-        sourceCardInstanceId: item.sourceId,
-        sourceCardDefinitionId: sourceCard?.definition.id ?? "unknown",
-        controllerId: item.controllerId,
-        targets: item.targets.map((t) => t.cardId),
-      }
+    // ABILITY - need to find the source card to get definition ID
+    // Search all battlefields for the source card
+    let sourceCard: CardInstance | undefined
+    for (const playerState of this.playerStates.values()) {
+      sourceCard = playerState.battlefield.cards.find(
+        (c) => c.instanceId === item.sourceId,
+      )
+      if (sourceCard) break
+    }
+
+    return {
+      kind: "ACTIVATED_ABILITY",
+      sourceCardInstanceId: item.sourceId,
+      sourceCardDefinitionId: sourceCard?.definition.id ?? "unknown",
+      controllerId: item.controllerId,
+      targets: item.targets.map((t) => t.cardId),
     }
   }
 
