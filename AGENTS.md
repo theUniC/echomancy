@@ -23,6 +23,18 @@ When starting any task, follow this order:
 
 These rules exist to prevent silent bugs that pass tests but break game logic.
 
+### All content must be in English
+
+Everything in this project MUST be written in English:
+
+- Code (variables, functions, comments)
+- Documentation (docs/, specs/, README, ROADMAP)
+- Commit messages and PR descriptions
+- Test descriptions and assertions
+- Error messages and logs
+
+No exceptions. This ensures consistency and accessibility for all contributors.
+
 ### Read documentation before any task
 
 Before writing any code, read all documentation in `docs/`:
