@@ -198,6 +198,7 @@ export class Game {
   private stack: Stack = { items: [] }
   private priorityPlayerId: string | null = null
   private playersWhoPassedPriority: Set<string> = new Set()
+  private autoPassPlayers: Set<string> = new Set()
   private scheduledSteps: GameSteps[] = []
   private resumeStepAfterScheduled?: GameSteps = undefined
   private creatureStates: Map<string, CreatureState> = new Map()
@@ -454,6 +455,19 @@ export class Game {
 
   getPlayersInTurnOrder(): readonly string[] {
     return [...this.turnOrder]
+  }
+
+  /**
+   * Check if a player is in auto-pass mode.
+   *
+   * A player in auto-pass mode will automatically pass priority
+   * whenever they receive it. This is set by the END_TURN action.
+   *
+   * @param playerId - The ID of the player to check
+   * @returns true if the player is in auto-pass mode
+   */
+  isPlayerInAutoPass(playerId: string): boolean {
+    return this.autoPassPlayers.has(playerId)
   }
 
   getCreatureState(creatureId: string): CreatureState {
@@ -1077,6 +1091,23 @@ export class Game {
     this.performStepAdvance()
   }
 
+  /**
+   * Handle END_TURN action - records intent to auto-pass priority.
+   *
+   * END_TURN is a player shortcut, NOT a rules action. It expresses:
+   * "I intend to keep passing priority until the turn naturally ends."
+   *
+   * This method:
+   * - Records the player's intent to auto-pass
+   * - Triggers auto-pass processing
+   *
+   * This method does NOT:
+   * - Directly advance steps
+   * - Execute rules
+   * - Bypass priority windows
+   *
+   * The engine progresses through priority resolution only.
+   */
   private endTurn(action: EndTurn): void {
     this.assertIsCurrentPlayer(action.playerId, "END_TURN")
 
@@ -1084,11 +1115,11 @@ export class Game {
       throw new InvalidEndTurnError()
     }
 
-    while (this.currentStep !== Step.CLEANUP) {
-      this.performStepAdvance()
-    }
+    // Record intent only - do NOT execute rules
+    this.autoPassPlayers.add(action.playerId)
 
-    this.performStepAdvance()
+    // Trigger auto-pass processing
+    this.processAutoPass()
   }
 
   private playLand(action: PlayLand): void {
@@ -1163,7 +1194,7 @@ export class Game {
       this.resolveTopOfStack()
     } else {
       const opponentId = this.getOpponentOf(action.playerId)
-      this.priorityPlayerId = opponentId
+      this.assignPriorityTo(opponentId)
     }
   }
 
@@ -1415,8 +1446,8 @@ export class Game {
     this.setCurrentStep(nextStep)
 
     if (this.isMainPhase()) {
-      this.priorityPlayerId = this.currentPlayerId
       this.playersWhoPassedPriority.clear()
+      this.assignPriorityTo(this.currentPlayerId)
     }
   }
 
@@ -1426,8 +1457,10 @@ export class Game {
   }
 
   private onEnterStep(step: GameSteps): void {
-    // Execute step-specific actions first
+    // Clear auto-pass intent at the start of a new turn
+    // This ensures END_TURN only applies to the intended turn
     if (step === Step.UNTAP) {
+      this.autoPassPlayers.clear()
       this.autoUntapForCurrentPlayer()
     }
 
@@ -1502,7 +1535,7 @@ export class Game {
       .exhaustive()
 
     this.playersWhoPassedPriority.clear()
-    this.priorityPlayerId = this.currentPlayerId
+    this.assignPriorityTo(this.currentPlayerId)
   }
 
   private resolveSpell(spell: SpellOnStack): void {
@@ -1557,8 +1590,93 @@ export class Game {
 
   private givePriorityToOpponentOf(playerId: string): void {
     const opponentId = this.getOpponentOf(playerId)
-    this.priorityPlayerId = opponentId
     this.playersWhoPassedPriority.clear()
+    this.assignPriorityTo(opponentId)
+  }
+
+  // ============================================================================
+  // AUTO-PASS SYSTEM
+  // ============================================================================
+
+  /**
+   * Assigns priority to a player and checks for auto-pass.
+   *
+   * This is the central method for priority assignment. All priority changes
+   * (except initial game start) should go through this method to ensure
+   * auto-pass is properly handled.
+   *
+   * If the player receiving priority is in auto-pass mode:
+   * - With non-empty stack: they automatically pass priority
+   * - With empty stack (and they're active player): they auto-advance through steps
+   */
+  private assignPriorityTo(playerId: string): void {
+    this.priorityPlayerId = playerId
+
+    // Reactive auto-pass: if player is in auto-pass mode
+    if (this.autoPassPlayers.has(playerId)) {
+      if (this.hasSpellsOnStack()) {
+        // Auto-pass priority when stack is non-empty
+        this.performInternalPass(playerId)
+      } else if (playerId === this.currentPlayerId) {
+        // Auto-advance steps when stack is empty and they're the active player
+        this.processAutoPass()
+      }
+    }
+  }
+
+  /**
+   * Performs an internal priority pass for auto-pass processing.
+   *
+   * This is the same logic as passPriority but without the player action
+   * validation (since this is an internal engine action, not a player action).
+   */
+  private performInternalPass(playerId: string): void {
+    this.playersWhoPassedPriority.add(playerId)
+
+    if (this.bothPlayersHavePassed()) {
+      this.resolveTopOfStack()
+    } else {
+      const opponentId = this.getOpponentOf(playerId)
+      this.assignPriorityTo(opponentId)
+    }
+  }
+
+  /**
+   * Processes auto-pass for step advancement.
+   *
+   * When the active player is in auto-pass mode and the stack is empty,
+   * this method advances through steps until:
+   * - The turn ends (and new turn starts)
+   * - Something is added to the stack
+   * - The active player is no longer in auto-pass mode
+   *
+   * Safety: Limited to MAX_ITERATIONS to prevent infinite loops.
+   */
+  private processAutoPass(): void {
+    let iterations = 0
+    const MAX_ITERATIONS = 100 // Safety limit
+
+    while (iterations < MAX_ITERATIONS) {
+      iterations++
+
+      // Stop if active player is not in auto-pass
+      if (!this.autoPassPlayers.has(this.currentPlayerId)) {
+        break
+      }
+
+      // Stop if there's something on the stack (priority system takes over)
+      if (this.hasSpellsOnStack()) {
+        break
+      }
+
+      // Advance through cleanup to next turn
+      if (this.currentStep === Step.CLEANUP) {
+        this.performStepAdvance()
+        break // Turn has ended
+      }
+
+      this.performStepAdvance()
+    }
   }
 
   private clearAttackingState(): void {
