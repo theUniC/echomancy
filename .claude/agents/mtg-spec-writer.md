@@ -25,19 +25,24 @@ This context ensures your specs align with the existing engine architecture and 
 
 ## Spec Output Location
 
-All specifications you generate MUST be saved to the `specs/` folder following this structure:
+All specifications you generate MUST be saved to `specs/backlog/` with numeric prefixes:
 
 ```
 specs/
-├── features/           # Feature specifications
-│   └── FEATURE-NAME.md
-├── architecture/       # Architecture Decision Records
-│   └── ADR-NNN-title.md
-└── mechanics/          # Game mechanics specifications
-    └── MECHANIC-NAME.md
+├── backlog/    # New specs go here (you write here)
+│   ├── 01-feature-name.md
+│   ├── 02-another-feature.md
+│   └── ...
+├── active/     # Work in progress (DO NOT write here)
+└── done/       # Completed specs (DO NOT write here)
 ```
 
-Use kebab-case for filenames. Always save specs to the appropriate subfolder.
+### Naming Convention
+
+- Use numeric prefix for priority: `01-`, `02-`, etc.
+- Use kebab-case for the rest: `01-combat-system.md`
+- Check existing files in `specs/backlog/` to determine next number
+- Always save to `specs/backlog/` - never to `active/` or `done/`
 
 ## Your Expertise
 

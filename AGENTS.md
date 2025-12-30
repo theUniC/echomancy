@@ -203,40 +203,36 @@ If the change feels risky, write tests first to lock current behavior.
 
 ## Specifications (specs/)
 
-All feature specifications, design documents, and architecture decisions MUST be saved in the `specs/` folder.
+All feature specifications live in `specs/` with a backlog-based workflow.
 
-### When to create a spec
-
-Create a spec document when:
-- Designing a new feature or system
-- Making significant architectural decisions
-- Documenting complex game mechanics
-- Planning UI/UX flows
-
-### Spec file format
+### Folder Structure
 
 ```
 specs/
-├── features/           # Feature specifications
-│   └── FEATURE-NAME.md
-├── architecture/       # Architecture Decision Records
-│   └── ADR-NNN-title.md
-└── mechanics/          # Game mechanics specifications
-    └── MECHANIC-NAME.md
+├── backlog/    # Specs waiting to be implemented (prioritized by number)
+│   ├── 01-next-feature.md
+│   ├── 02-another-feature.md
+│   └── ...
+├── active/     # Currently being implemented (1-2 specs max)
+└── done/       # Completed specs (reference)
 ```
 
-### Spec document structure
+### Workflow
 
-Every spec should include:
-1. **Overview** - What and why
-2. **Detailed Design** - How it works
-3. **Implementation Notes** - Technical considerations
-4. **Open Questions** - Unresolved decisions (if any)
+1. **New specs** -> `specs/backlog/` with numeric prefix (01-, 02-, etc.)
+2. **Start work** -> Move spec from `backlog/` to `active/`
+3. **Finish work** -> Move spec from `active/` to `done/`
+
+### Rules
+
+- **Agents read only `specs/active/`** - They implement what's there
+- **Humans move specs** between folders to control what gets built
+- **One spec at a time** - Keep `active/` small to avoid big bang implementations
 
 ### Naming conventions
 
-- Use kebab-case for filenames: `combat-system.md`, `mana-pool-redesign.md`
-- Prefix ADRs with number: `ADR-001-use-event-sourcing.md`
+- Numeric prefix for priority: `01-`, `02-`, etc.
+- Use kebab-case: `01-combat-system.md`, `02-mana-pool.md`
 - Be descriptive but concise
 
 ---

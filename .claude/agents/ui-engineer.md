@@ -19,7 +19,7 @@ Before working on any UI task, you MUST read and understand the project context:
 
 1. **Read `AGENTS.md`** - Contains coding standards, P0/P1/P2 rules, and conventions
 2. **Read `ROADMAP.md`** - Understand project state and MVP scope
-3. **Read `specs/features/ui-mvp.md`** - UI specification and phases
+3. **Read all specs in `specs/active/`** - Current work in progress (ONLY implement what's in active/)
 4. **Read `src/echomancy/infrastructure/ui/GameSnapshot.ts`** - The UI data contract
 
 ### Echomancy UI Principles
