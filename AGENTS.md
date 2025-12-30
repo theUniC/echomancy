@@ -37,17 +37,11 @@ No exceptions. This ensures consistency and accessibility for all contributors.
 
 ### Read documentation before any task
 
-Before writing any code, read all documentation in `docs/`:
+Before writing any code, read relevant documentation in `docs/`:
 
-- `docs/README.md` - Documentation index
-- `docs/architecture.md` - Core principles (Game as authority, declarative abilities)
-- `docs/ability-system.md` - How abilities work
-- `docs/effect-system.md` - How effects execute
-- `docs/game-events.md` - Event types and trigger evaluation
-- `docs/stack-and-priority.md` - Stack resolution
-- `docs/turn-structure.md` - Phases and steps
-- `docs/zones-and-cards.md` - Zone system and card model
-- `docs/testing-guide.md` - Test helpers and patterns
+1. Start with `docs/README.md` for the documentation index
+2. Read files relevant to your task (architecture, abilities, effects, etc.)
+3. Check `docs/reference/` for MTG Comprehensive Rules when validating game mechanics
 
 > **Why**: The documentation explains architectural decisions and constraints. Without understanding these, you will likely violate core principles.
 
@@ -265,7 +259,18 @@ bun run format   # Auto-format code
 | What | Where |
 |------|-------|
 | Documentation | `docs/` (read this first!) |
+| MTG Rules Reference | `docs/reference/MagicCompRules-*.txt` |
+| Specifications | `specs/` (features, architecture, mechanics) |
 | Game engine core | `src/echomancy/domainmodel/game/` |
 | Card/Effect types | `src/echomancy/domainmodel/cards/`, `effects/` |
 | Test helpers | `src/echomancy/domainmodel/game/__tests__/helpers.ts` |
 | All tests | `src/echomancy/domainmodel/game/__tests__/` |
+
+---
+
+## Claude Code Resources
+
+| What | Where |
+|------|-------|
+| Specialized agents | `.claude/agents/` |
+| Reusable skills | `.claude/skills/` (invoke with `/skill-name`) |
