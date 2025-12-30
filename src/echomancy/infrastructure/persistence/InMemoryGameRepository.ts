@@ -1,5 +1,5 @@
-import { Game } from "@/echomancy/domainmodel/game/Game"
-import { GameRepository } from "@/echomancy/domainmodel/game/GameRepository"
+import type { Game } from "@/echomancy/domainmodel/game/Game"
+import type { GameRepository } from "@/echomancy/domainmodel/game/GameRepository"
 
 export class InMemoryGameRepository implements GameRepository {
   private games: Map<string, Game> = new Map()

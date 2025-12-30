@@ -1,4 +1,4 @@
-import { Game } from "@/echomancy/domainmodel/game/Game"
+import type { Game } from "@/echomancy/domainmodel/game/Game"
 
 export interface GameRepository {
   add(game: Game): void

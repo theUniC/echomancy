@@ -5,7 +5,6 @@ import { GraveyardReason } from "../Game"
 import {
   addCreatureToBattlefield,
   addSpellToHand,
-  addTestLandToHand,
   createGameInMainPhase,
   createGameInMainPhaseWithLand,
   createTestCreature,
