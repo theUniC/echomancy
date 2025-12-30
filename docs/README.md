@@ -9,6 +9,9 @@ Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design 
 | Document | Description |
 |----------|-------------|
 | [Architecture](./architecture.md) | Core design principles and architectural patterns |
+| [UI Architecture](./ui-architecture.md) | How UI interacts with the game engine |
+| [API Conventions](./api-conventions.md) | RESTful API design and route handlers |
+| [Commands and Queries](./commands-and-queries.md) | CQRS-lite pattern for application layer |
 | [Turn Structure](./turn-structure.md) | Game phases, steps, and turn progression |
 | [Zones and Cards](./zones-and-cards.md) | Game zones, card definitions, and instances |
 | [Game State Export](./game-state-export.md) | Complete state export for UI and external consumers |
