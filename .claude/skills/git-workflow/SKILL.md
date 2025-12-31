@@ -68,10 +68,6 @@ git commit -m "$(cat <<'EOF'
 <type>: <short description>
 
 <optional body explaining why>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -102,8 +98,6 @@ gh pr create --title "<title>" --body "$(cat <<'EOF'
 ## Test plan
 - [ ] Tests pass locally
 - [ ] Manual verification of <specific behavior>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
 ```
