@@ -5,9 +5,9 @@ import {
 } from "@/echomancy/application/command/join-game/JoinGameCommand"
 import {
   GameNotFoundError,
+  InvalidGameIdError,
   InvalidPlayerIdError,
-} from "@/echomancy/domainmodel/game/GameErrors"
-import { InvalidGameIdError } from "@/echomancy/domainmodel/game/InvalidGameIdError"
+} from "@/echomancy/application/errors"
 import { gameRepository } from "@/lib/repositories"
 
 type JoinGameRequest = {

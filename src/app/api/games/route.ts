@@ -3,7 +3,7 @@ import {
   CreateGameCommand,
   CreateGameCommandHandler,
 } from "@/echomancy/application/command/create-game/CreateGameCommand"
-import { InvalidGameIdError } from "@/echomancy/domainmodel/game/InvalidGameIdError"
+import { InvalidGameIdError } from "@/echomancy/application/errors"
 import { gameRepository } from "@/lib/repositories"
 
 type CreateGameRequest = {

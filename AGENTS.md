@@ -94,6 +94,22 @@ npm install
 
 > **Why**: Bun is faster and the primary package manager. Use npm only if Bun fails due to compatibility issues.
 
+### API routes never import from domainmodel/
+
+API routes can only import from `application/` and `infrastructure/`. If a Command or Query doesn't exist, create it first.
+
+```typescript
+// CORRECT
+const handler = new StartGameCommandHandler(gameRepository)
+handler.handle(new StartGameCommand(gameId, startingPlayerId))
+
+// WRONG - direct domain access from API route
+const game = gameRepository.byId(gameId)
+game.start(startingPlayerId)  // Bypasses application layer
+```
+
+> **Why**: The application layer (`Commands/Queries`) is the only entry point to the domain. This ensures validation, error handling, and business logic are centralized. API routes are just HTTP adapters.
+
 ---
 
 ## P1: Strong Preferences
@@ -182,6 +198,7 @@ If you see yourself doing any of these, stop and reconsider:
 | Skipping `resolveStack()` | Always resolve before asserting effects |
 | Committing without `bun test` | Run tests first |
 | Adding feature without updating docs | Update relevant `docs/*.md` file |
+| API route importing from `domainmodel/` | Use Commands/Queries from `application/` |
 
 ---
 

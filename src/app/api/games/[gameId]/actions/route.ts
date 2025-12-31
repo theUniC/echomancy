@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server"
-import { validate as isValidUUID } from "uuid"
-import type { Actions } from "@/echomancy/domainmodel/game/GameActions"
+import {
+  ApplyActionCommand,
+  ApplyActionCommandHandler,
+} from "@/echomancy/application/command/apply-action/ApplyActionCommand"
 import {
   GameError,
   GameNotFoundError,
-} from "@/echomancy/domainmodel/game/GameErrors"
-import { InvalidGameIdError } from "@/echomancy/domainmodel/game/InvalidGameIdError"
+  InvalidGameIdError,
+} from "@/echomancy/application/errors"
+import {
+  GetGameStateQuery,
+  GetGameStateQueryHandler,
+} from "@/echomancy/application/query/get-game-state/GetGameStateQuery"
+import type { Actions } from "@/echomancy/application/types"
 import { gameRepository } from "@/lib/repositories"
 
 type RouteParams = {
@@ -15,7 +22,7 @@ type RouteParams = {
 /**
  * POST /api/games/[gameId]/actions
  *
- * Applies a game action via game.apply().
+ * Applies a game action via ApplyActionCommand.
  *
  * Request body:
  *   Any valid action JSON, e.g.:
@@ -34,21 +41,15 @@ export async function POST(
 ): Promise<NextResponse> {
   try {
     const { gameId } = await params
-
-    if (!isValidUUID(gameId)) {
-      throw new InvalidGameIdError(gameId)
-    }
-
-    const game = gameRepository.byId(gameId)
-    if (!game) {
-      throw new GameNotFoundError(gameId)
-    }
-
     const action = (await request.json()) as Actions
 
-    game.apply(action)
+    // Apply the action
+    const applyHandler = new ApplyActionCommandHandler(gameRepository)
+    applyHandler.handle(new ApplyActionCommand(gameId, action))
 
-    const state = game.exportState()
+    // Get updated state
+    const queryHandler = new GetGameStateQueryHandler(gameRepository)
+    const state = queryHandler.handle(new GetGameStateQuery(gameId))
 
     return NextResponse.json({ data: { state } }, { status: 200 })
   } catch (error) {

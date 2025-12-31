@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server"
-import { validate as isValidUUID } from "uuid"
-import { GameNotFoundError } from "@/echomancy/domainmodel/game/GameErrors"
-import { InvalidGameIdError } from "@/echomancy/domainmodel/game/InvalidGameIdError"
+import {
+  GameNotFoundError,
+  InvalidGameIdError,
+} from "@/echomancy/application/errors"
+import {
+  GetGameStateQuery,
+  GetGameStateQueryHandler,
+} from "@/echomancy/application/query/get-game-state/GetGameStateQuery"
 import { gameRepository } from "@/lib/repositories"
 
 type RouteParams = {
@@ -11,7 +16,7 @@ type RouteParams = {
 /**
  * GET /api/games/[gameId]/state
  *
- * Returns the current game state via game.exportState().
+ * Returns the current game state via GetGameStateQuery.
  *
  * Response:
  *   200: { "data": {...state} }
@@ -25,16 +30,8 @@ export async function GET(
   try {
     const { gameId } = await params
 
-    if (!isValidUUID(gameId)) {
-      throw new InvalidGameIdError(gameId)
-    }
-
-    const game = gameRepository.byId(gameId)
-    if (!game) {
-      throw new GameNotFoundError(gameId)
-    }
-
-    const state = game.exportState()
+    const handler = new GetGameStateQueryHandler(gameRepository)
+    const state = handler.handle(new GetGameStateQuery(gameId))
 
     return NextResponse.json({ data: state }, { status: 200 })
   } catch (error) {
