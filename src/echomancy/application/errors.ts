@@ -1,8 +1,9 @@
 /**
  * Re-exports domain errors for use by API routes.
  *
- * API routes can only import from `application/` and `infrastructure/`.
- * This module provides access to domain errors without violating that rule.
+ * EXCEPTION: API routes normally cannot import from domainmodel/.
+ * Errors are allowed as an exception because they define the API
+ * error contract without exposing domain logic.
  */
 
 export {

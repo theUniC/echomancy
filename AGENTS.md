@@ -110,6 +110,12 @@ game.start(startingPlayerId)  // Bypasses application layer
 
 > **Why**: The application layer (`Commands/Queries`) is the only entry point to the domain. This ensures validation, error handling, and business logic are centralized. API routes are just HTTP adapters.
 
+**Exceptions** (re-exported via `application/`):
+- `application/errors.ts` - Domain errors for API error handling
+- `application/types.ts` - `Actions` and `GameStateExport` for API contracts
+
+These define input/output shapes without exposing domain logic.
+
 ---
 
 ## P1: Strong Preferences
