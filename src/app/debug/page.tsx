@@ -1,9 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 type GameState = Record<string, unknown> | null
 type ErrorState = { code: string; message: string } | null
+type GameSummary = {
+  gameId: string
+  status: "not_started" | "in_progress" | "finished"
+  playerNames: string[]
+  turnNumber: number | null
+  currentPhase: string | null
+}
 
 export default function DebugPage() {
   const [gameId, setGameId] = useState<string | null>(null)
@@ -13,6 +20,69 @@ export default function DebugPage() {
   const [error, setError] = useState<ErrorState>(null)
   const [actionInput, setActionInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [gameList, setGameList] = useState<GameSummary[]>([])
+  const [isLoadingGames, setIsLoadingGames] = useState(false)
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null)
+
+  // Fetch list of existing games
+  const fetchGames = useCallback(async () => {
+    setIsLoadingGames(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/games")
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(
+          `Failed to fetch games: ${errorData.error?.message || response.statusText}`,
+        )
+      }
+      const data = await response.json()
+      setGameList(data.data)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      setError({ code: "FETCH_GAMES_FAILED", message: errorMessage })
+    } finally {
+      setIsLoadingGames(false)
+    }
+  }, [])
+
+  // Load a specific game
+  const loadGame = async (gameIdToLoad: string) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const stateResponse = await fetch(`/api/games/${gameIdToLoad}/state`)
+      if (!stateResponse.ok) {
+        const errorData = await stateResponse.json()
+        throw new Error(
+          `Failed to load game: ${errorData.error?.message || stateResponse.statusText}`,
+        )
+      }
+      const stateData = await stateResponse.json()
+      const state = stateData.data
+
+      // Extract player IDs from turnOrder
+      const playerIds = state.turnOrder || []
+      const p1Id = playerIds[0] || null
+      const p2Id = playerIds[1] || null
+
+      setGameId(gameIdToLoad)
+      setPlayer1Id(p1Id)
+      setPlayer2Id(p2Id)
+      setGameState(state)
+      setSelectedGameId(gameIdToLoad)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      setError({ code: "LOAD_GAME_FAILED", message: errorMessage })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Fetch games on component mount
+  useEffect(() => {
+    fetchGames()
+  }, [fetchGames])
 
   const createGame = async () => {
     setIsLoading(true)
@@ -94,6 +164,10 @@ export default function DebugPage() {
       setPlayer1Id(newPlayer1Id)
       setPlayer2Id(newPlayer2Id)
       setGameState(stateData.data)
+      setSelectedGameId(newGameId)
+
+      // Refresh game list to include newly created game
+      await fetchGames()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err)
       setError({ code: "CREATE_FAILED", message: errorMessage })
@@ -155,6 +229,81 @@ export default function DebugPage() {
     >
       <h1>Echomancy Debug Console</h1>
 
+      {/* Load Existing Game Section */}
+      <section
+        style={{
+          marginBottom: "30px",
+          padding: "15px",
+          border: "1px solid #ccc",
+          borderRadius: "5px",
+        }}
+      >
+        <h2>1. Load Existing Game</h2>
+        {isLoadingGames && <p>Loading games...</p>}
+        {!isLoadingGames && gameList.length === 0 && (
+          <p style={{ color: "#666", fontStyle: "italic" }}>
+            No games found. Create a new game below.
+          </p>
+        )}
+        {!isLoadingGames && gameList.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
+            {gameList.map((game) => (
+              <button
+                type="button"
+                key={game.gameId}
+                onClick={() => loadGame(game.gameId)}
+                disabled={isLoading}
+                style={{
+                  padding: "10px",
+                  textAlign: "left",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                  backgroundColor:
+                    selectedGameId === game.gameId ? "#e6f3ff" : "#f9f9f9",
+                  border:
+                    selectedGameId === game.gameId
+                      ? "2px solid #007bff"
+                      : "1px solid #ddd",
+                  borderRadius: "5px",
+                  fontFamily: "monospace",
+                  fontSize: "13px",
+                }}
+              >
+                <div>
+                  <strong>ID:</strong>{" "}
+                  <code style={{ background: "#fff", padding: "2px 4px" }}>
+                    {game.gameId.substring(0, 8)}...
+                  </code>
+                </div>
+                <div>
+                  <strong>Status:</strong> {game.status}
+                  {game.turnNumber !== null && (
+                    <>
+                      {" "}
+                      | <strong>Turn:</strong> {game.turnNumber}
+                    </>
+                  )}
+                  {game.currentPhase && (
+                    <>
+                      {" "}
+                      | <strong>Phase:</strong> {game.currentPhase}
+                    </>
+                  )}
+                </div>
+                <div>
+                  <strong>Players:</strong> {game.playerNames.join(", ")}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* Create Game Section */}
       <section
         style={{
@@ -164,7 +313,7 @@ export default function DebugPage() {
           borderRadius: "5px",
         }}
       >
-        <h2>1. Create New Game</h2>
+        <h2>2. Create New Game</h2>
         <button
           type="button"
           onClick={createGame}
@@ -241,7 +390,7 @@ export default function DebugPage() {
           borderRadius: "5px",
         }}
       >
-        <h2>2. Submit Action</h2>
+        <h2>3. Submit Action</h2>
         <textarea
           value={actionInput}
           onChange={(e) => setActionInput(e.target.value)}
@@ -307,7 +456,7 @@ export default function DebugPage() {
             borderRadius: "5px",
           }}
         >
-          <h2>3. Current Game State</h2>
+          <h2>4. Current Game State</h2>
           <pre
             style={{
               background: "#f5f5f5",

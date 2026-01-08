@@ -11,4 +11,8 @@ export class InMemoryGameRepository implements GameRepository {
   byId(gameId: string): Game | undefined {
     return this.games.get(gameId)
   }
+
+  all(): Game[] {
+    return Array.from(this.games.values())
+  }
 }

@@ -458,6 +458,24 @@ export class Game {
   }
 
   /**
+   * Get all players in the game with their basic info.
+   * Returns players in registration order (before start) or turn order (after start).
+   */
+  getPlayers(): readonly { id: string; name: string }[] {
+    const playerIds =
+      this.turnOrder.length > 0
+        ? this.turnOrder
+        : Array.from(this.playersById.keys())
+    return playerIds.map((id) => {
+      const player = this.playersById.get(id)
+      if (!player) {
+        throw new PlayerNotFoundError(id)
+      }
+      return { id: player.id, name: player.name }
+    })
+  }
+
+  /**
    * Check if a player is in auto-pass mode.
    *
    * A player in auto-pass mode will automatically pass priority

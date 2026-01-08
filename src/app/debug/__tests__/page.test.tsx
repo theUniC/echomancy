@@ -32,15 +32,18 @@ Object.defineProperty(global, "crypto", {
 global.fetch = vi.fn()
 
 const mockGameState = {
+  gameId: mockUUID1,
   currentTurnNumber: 1,
   currentPlayerId: mockUUID2,
   priorityPlayerId: mockUUID2,
   currentStep: "UNTAP",
+  turnOrder: [mockUUID2, mockUUID3],
   stack: [],
   players: {
     [mockUUID2]: {
       lifeTotal: 20,
       manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+      playedLandsThisTurn: 0,
       zones: {
         hand: { cards: [] },
         battlefield: { cards: [] },
@@ -50,6 +53,7 @@ const mockGameState = {
     [mockUUID3]: {
       lifeTotal: 20,
       manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+      playedLandsThisTurn: 0,
       zones: {
         hand: { cards: [] },
         battlefield: { cards: [] },
@@ -57,7 +61,25 @@ const mockGameState = {
       },
     },
   },
+  scheduledSteps: [],
 }
+
+const mockGameList = [
+  {
+    gameId: mockUUID1,
+    status: "in_progress" as const,
+    playerNames: ["Player 1", "Player 2"],
+    turnNumber: 1,
+    currentPhase: "UNTAP",
+  },
+  {
+    gameId: "game-uuid-2",
+    status: "not_started" as const,
+    playerNames: ["Alice", "Bob"],
+    turnNumber: null,
+    currentPhase: null,
+  },
+]
 
 // Helper to type JSON into textarea (avoids issues with user-event parsing braces)
 const typeJSON = (element: Element, json: string) => {
@@ -72,12 +94,24 @@ describe("DebugPage", () => {
 
   describe("rendering", () => {
     it("displays the debug console title", () => {
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
+
       render(<DebugPage />)
 
       expect(screen.getByText("Echomancy Debug Console")).toBeInTheDocument()
     })
 
     it("displays create game button initially", () => {
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
+
       render(<DebugPage />)
 
       expect(
@@ -86,6 +120,12 @@ describe("DebugPage", () => {
     })
 
     it("disables action submission initially", () => {
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
+
       render(<DebugPage />)
 
       const textarea = screen.getByPlaceholderText(/ADVANCE_STEP/i)
@@ -98,6 +138,12 @@ describe("DebugPage", () => {
     })
 
     it("shows placeholder text in action input", () => {
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
+
       render(<DebugPage />)
 
       expect(
@@ -108,10 +154,238 @@ describe("DebugPage", () => {
     })
   })
 
+  describe("listing games", () => {
+    it("fetches and displays list of games on mount", async () => {
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: mockGameList }),
+      } as Response)
+
+      render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/game-uuid-1/)).toBeInTheDocument()
+      })
+
+      expect(screen.getByText(/Player 1, Player 2/)).toBeInTheDocument()
+      expect(screen.getByText(/Alice, Bob/)).toBeInTheDocument()
+    })
+
+    it("shows loading state while fetching games", () => {
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+      let resolveGames: (value: unknown) => void
+      const gamesPromise = new Promise((resolve) => {
+        resolveGames = resolve
+      })
+      mockFetch.mockReturnValueOnce(gamesPromise as Promise<Response>)
+
+      render(<DebugPage />)
+
+      expect(screen.getByText(/loading games/i)).toBeInTheDocument()
+
+      resolveGames?.({
+        ok: true,
+        json: async () => ({ data: [] }),
+      })
+    })
+
+    it("shows message when no games exist", async () => {
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
+
+      render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/no games found. create a new game below./i),
+        ).toBeInTheDocument()
+      })
+    })
+
+    it("displays error when fetching games fails", async () => {
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Internal Server Error",
+        json: async () => ({
+          error: { code: "FETCH_ERROR", message: "Database unavailable" },
+        }),
+      } as Response)
+
+      render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toBeInTheDocument()
+      })
+
+      expect(screen.getByText(/FETCH_GAMES_FAILED/i)).toBeInTheDocument()
+      expect(screen.getByText(/Database unavailable/i)).toBeInTheDocument()
+    })
+
+    it("displays game status and metadata correctly", async () => {
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: mockGameList }),
+      } as Response)
+
+      render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/Status: in_progress/)).toBeInTheDocument()
+      })
+
+      expect(screen.getByText(/Turn: 1/)).toBeInTheDocument()
+      expect(screen.getByText(/Phase: UNTAP/)).toBeInTheDocument()
+      expect(screen.getByText(/Status: not_started/)).toBeInTheDocument()
+    })
+  })
+
+  describe("loading a game", () => {
+    it("loads game state when clicking on a game", async () => {
+      const user = userEvent.setup()
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: mockGameList }),
+      } as Response)
+
+      render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/game-uuid-1/)).toBeInTheDocument()
+      })
+
+      // Mock game state fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: mockGameState }),
+      } as Response)
+
+      const gameButton = screen.getByRole("button", { name: /game-uuid-1/i })
+      await user.click(gameButton)
+
+      await waitFor(() => {
+        expect(screen.getByText(/"currentTurnNumber": 1/)).toBeInTheDocument()
+      })
+    })
+
+    it("displays player IDs after loading game", async () => {
+      const user = userEvent.setup()
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: mockGameList }),
+      } as Response)
+
+      render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/game-uuid-1/)).toBeInTheDocument()
+      })
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: mockGameState }),
+      } as Response)
+
+      await user.click(screen.getByRole("button", { name: /game-uuid-1/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText(/Player 1 ID:/i)).toBeInTheDocument()
+      })
+
+      expect(screen.getByText(mockUUID2)).toBeInTheDocument()
+      expect(screen.getByText(mockUUID3)).toBeInTheDocument()
+    })
+
+    it("highlights selected game", async () => {
+      const user = userEvent.setup()
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: mockGameList }),
+      } as Response)
+
+      render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/game-uuid-1/)).toBeInTheDocument()
+      })
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: mockGameState }),
+      } as Response)
+
+      const gameButton = screen.getByRole("button", { name: /game-uuid-1/i })
+      await user.click(gameButton)
+
+      await waitFor(() => {
+        expect(gameButton).toHaveStyle({ backgroundColor: "#e6f3ff" })
+      })
+    })
+
+    it("displays error when loading game fails", async () => {
+      const user = userEvent.setup()
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: mockGameList }),
+      } as Response)
+
+      render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/game-uuid-1/)).toBeInTheDocument()
+      })
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Not Found",
+        json: async () => ({
+          error: { code: "GAME_NOT_FOUND", message: "Game not found" },
+        }),
+      } as Response)
+
+      await user.click(screen.getByRole("button", { name: /game-uuid-1/i }))
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toBeInTheDocument()
+      })
+
+      expect(screen.getByText(/LOAD_GAME_FAILED/i)).toBeInTheDocument()
+      expect(screen.getByText(/Game not found/i)).toBeInTheDocument()
+    })
+  })
+
   describe("creating a game", () => {
     it("creates game with correct API sequence", async () => {
       const user = userEvent.setup()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response) // GET /api/games
+
+      render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/no games found. create a new game below./i),
+        ).toBeInTheDocument()
+      })
 
       // Mock all API calls to succeed
       mockFetch.mockResolvedValueOnce({
@@ -134,24 +408,26 @@ describe("DebugPage", () => {
         ok: true,
         json: async () => ({ data: mockGameState }),
       } as Response) // GET /api/games/:id/state
-
-      render(<DebugPage />)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [mockGameList[0]] }),
+      } as Response) // GET /api/games (refresh after create)
 
       await user.click(screen.getByRole("button", { name: /create new game/i }))
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledTimes(5)
+        expect(mockFetch).toHaveBeenCalledTimes(7) // Initial fetch + 5 create calls + refresh
       })
 
-      // Verify API call sequence
-      expect(mockFetch).toHaveBeenNthCalledWith(1, "/api/games", {
+      // Verify API call sequence (after initial fetch)
+      expect(mockFetch).toHaveBeenNthCalledWith(2, "/api/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gameId: mockUUID1 }),
       })
 
       expect(mockFetch).toHaveBeenNthCalledWith(
-        2,
+        3,
         `/api/games/${mockUUID1}/players`,
         {
           method: "POST",
@@ -164,7 +440,7 @@ describe("DebugPage", () => {
       )
 
       expect(mockFetch).toHaveBeenNthCalledWith(
-        3,
+        4,
         `/api/games/${mockUUID1}/players`,
         {
           method: "POST",
@@ -177,7 +453,7 @@ describe("DebugPage", () => {
       )
 
       expect(mockFetch).toHaveBeenNthCalledWith(
-        4,
+        5,
         `/api/games/${mockUUID1}/start`,
         {
           method: "POST",
@@ -187,14 +463,23 @@ describe("DebugPage", () => {
       )
 
       expect(mockFetch).toHaveBeenNthCalledWith(
-        5,
+        6,
         `/api/games/${mockUUID1}/state`,
       )
+
+      // Verify refresh call
+      expect(mockFetch).toHaveBeenNthCalledWith(7, "/api/games")
     })
 
     it("displays game IDs after successful creation", async () => {
       const user = userEvent.setup()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
 
       // Mock successful responses
       mockFetch.mockResolvedValueOnce({
@@ -216,6 +501,10 @@ describe("DebugPage", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ data: mockGameState }),
+      } as Response)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [mockGameList[0]] }),
       } as Response)
 
       render(<DebugPage />)
@@ -235,7 +524,13 @@ describe("DebugPage", () => {
 
     it("displays game state after successful creation", async () => {
       const user = userEvent.setup()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
 
       // Mock successful responses
       mockFetch.mockResolvedValueOnce({
@@ -257,6 +552,10 @@ describe("DebugPage", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ data: mockGameState }),
+      } as Response)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [mockGameList[0]] }),
       } as Response)
 
       render(<DebugPage />)
@@ -273,7 +572,13 @@ describe("DebugPage", () => {
 
     it("enables action input after game creation", async () => {
       const user = userEvent.setup()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
 
       // Mock successful responses
       mockFetch.mockResolvedValueOnce({
@@ -295,6 +600,10 @@ describe("DebugPage", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ data: mockGameState }),
+      } as Response)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [mockGameList[0]] }),
       } as Response)
 
       render(<DebugPage />)
@@ -312,7 +621,13 @@ describe("DebugPage", () => {
 
     it("displays error when game creation fails", async () => {
       const user = userEvent.setup()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
 
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -336,7 +651,13 @@ describe("DebugPage", () => {
 
     it("displays loading state during game creation", async () => {
       const user = userEvent.setup()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
 
       // Create a promise we can control
       let resolveCreate: (value: unknown) => void
@@ -344,9 +665,15 @@ describe("DebugPage", () => {
         resolveCreate = resolve
       })
 
-      mockFetch.mockReturnValueOnce(createPromise as Promise<Response>)
-
       render(<DebugPage />)
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/no games found. create a new game below./i),
+        ).toBeInTheDocument()
+      })
+
+      mockFetch.mockReturnValueOnce(createPromise as Promise<Response>)
 
       await user.click(screen.getByRole("button", { name: /create new game/i }))
 
@@ -363,7 +690,13 @@ describe("DebugPage", () => {
   describe("submitting actions", () => {
     const setupGameCreated = async () => {
       const user = userEvent.setup()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
 
       // Mock successful game creation
       mockFetch.mockResolvedValueOnce({
@@ -386,6 +719,10 @@ describe("DebugPage", () => {
         ok: true,
         json: async () => ({ data: mockGameState }),
       } as Response)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [mockGameList[0]] }),
+      } as Response)
 
       render(<DebugPage />)
 
@@ -400,7 +737,7 @@ describe("DebugPage", () => {
 
     it("submits valid JSON action", async () => {
       const user = await setupGameCreated()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
 
       const actionPayload = { type: "ADVANCE_STEP", playerId: mockUUID2 }
 
@@ -431,7 +768,7 @@ describe("DebugPage", () => {
 
     it("updates game state after successful action", async () => {
       const user = await setupGameCreated()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
 
       const updatedGameState = {
         ...mockGameState,
@@ -457,7 +794,7 @@ describe("DebugPage", () => {
 
     it("clears input after successful action", async () => {
       const user = await setupGameCreated()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -494,7 +831,7 @@ describe("DebugPage", () => {
 
     it("displays error when action fails", async () => {
       const user = await setupGameCreated()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
 
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -524,7 +861,7 @@ describe("DebugPage", () => {
 
     it("preserves game state when action fails", async () => {
       const user = await setupGameCreated()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
 
       // Capture initial state
       const initialStateText = screen.getByText(/"currentStep": "UNTAP"/)
@@ -582,7 +919,13 @@ describe("DebugPage", () => {
   describe("error handling", () => {
     it("clears previous errors when creating new game", async () => {
       const user = userEvent.setup()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
 
       // First attempt fails
       mockFetch.mockResolvedValueOnce({
@@ -622,6 +965,10 @@ describe("DebugPage", () => {
         ok: true,
         json: async () => ({ data: mockGameState }),
       } as Response)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [mockGameList[0]] }),
+      } as Response)
 
       await user.click(screen.getByRole("button", { name: /create new game/i }))
 
@@ -632,7 +979,13 @@ describe("DebugPage", () => {
 
     it("displays error with alert role for accessibility", async () => {
       const user = userEvent.setup()
-      const mockFetch = vi.mocked(fetch)
+      const mockFetch = fetch as ReturnType<typeof vi.fn>
+
+      // Mock initial game list fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response)
 
       mockFetch.mockResolvedValueOnce({
         ok: false,
