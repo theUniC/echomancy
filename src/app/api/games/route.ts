@@ -4,6 +4,10 @@ import {
   CreateGameCommandHandler,
 } from "@/echomancy/application/command/create-game/CreateGameCommand"
 import { InvalidGameIdError } from "@/echomancy/application/errors"
+import {
+  ListGamesQuery,
+  ListGamesQueryHandler,
+} from "@/echomancy/application/query/list-games/ListGamesQuery"
 import { gameRepository } from "@/lib/repositories"
 
 type CreateGameRequest = {
@@ -40,4 +44,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
     throw error
   }
+}
+
+/**
+ * GET /api/games
+ *
+ * Lists all games with their summaries.
+ *
+ * Response:
+ *   200: { "data": GameSummary[] }
+ */
+export async function GET(): Promise<NextResponse> {
+  const handler = new ListGamesQueryHandler(gameRepository)
+  const games = handler.handle(new ListGamesQuery())
+
+  return NextResponse.json({ data: games })
 }
