@@ -19,6 +19,6 @@ NEVER implement directly. Use:
 - `mtg-product-manager` - To adjust ROADMAP and decide priorities
 - `mtg-spec-writer` - To write new feature specs
 - `typescript-architect` - To check for Typescript errors and issues
-- `agent-orchestrator` - To parallelize work that can be done in parallel using subagents
+- `tech-lead-strategist` - For multi-step tasks requiring strategic planning and breakdown
 
 For tasks with frontend + backend, use `/subagent-driven-development`.
