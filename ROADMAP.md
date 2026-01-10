@@ -204,7 +204,49 @@ The UI is part of the MVP.
 
 ---
 
+## 🟡 UI MVP Status: **IN PROGRESS**
+
+The UI MVP is being built incrementally in small phases.
+
+### UI Implementation Phases
+
+**Phase 0: Debug Console** ✅ COMPLETE
+- Developer console for testing
+- Game creation and management
+- Action submission via JSON
+
+**Phase 1: Read-Only Display** 🔄 IN PROGRESS
+- 1a: Route & Data Pipeline (next up)
+- 1b: Basic Game Info (turn, phase, life)
+- 1c: Battlefield Display
+- 1d: Hand Display
+- 1e: Stack & Additional Zones
+
+**Phase 2: Basic Actions** ⏳ PLANNED
+- Pass priority
+- End turn
+- Play land
+
+**Phase 3: Spell Casting** ⏳ PLANNED
+- Cast spell from hand
+- Target selection
+- Mana payment
+
+**Phase 4: Combat** ⏳ PLANNED
+- Declare attackers
+- Declare blockers
+- Combat damage
+
+**Phase 5: Polish** ⏳ PLANNED
+- Visual improvements
+- Error messaging
+- UX refinements
+
+---
+
 ## 🟢 UI MVP Scope
+
+When complete, the UI will support:
 
 ### Zone UI
 - Hand
