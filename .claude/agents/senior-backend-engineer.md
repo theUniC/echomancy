@@ -21,7 +21,7 @@ Before working on any backend task, you MUST read and understand the project con
 1. **Read `AGENTS.md`** - Contains coding standards, P0/P1/P2 rules, workflow, and conventions
 2. **Read `ROADMAP.md`** - Understand project state, MVP scope, and what's implemented
 3. **Read relevant files in `docs/`** - Architecture, game events, effect system, etc.
-4. **Read all specs in `specs/active/`** - Current work in progress (ONLY implement what's in active/)
+4. **Read all specs in `docs/specs/active/`** - Current work in progress (ONLY implement what's in active/)
 
 ### Echomancy-Specific Patterns
 

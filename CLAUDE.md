@@ -65,13 +65,13 @@ writer                                  ↓
 **OUTPUT**:
 - Updated ROADMAP
 - Decision: implement now / later / never
-- New spec in `specs/backlog/` (if needed)
+- New spec in `docs/specs/backlog/` (if needed)
 
 ---
 
 ## Phase 2: Technical Planning (Implementation)
 
-**WHEN**: Feature approved and spec in `specs/active/`
+**WHEN**: Feature approved and spec in `docs/specs/active/`
 
 **WHO**: `tech-lead-strategist`
 
@@ -121,7 +121,7 @@ writer                                  ↓
 ## Phase 5: Finalization
 
 1. **Update Documentation**: If architectural changes, update `docs/`
-2. **Move Spec**: `specs/active/` → `specs/done/`
+2. **Move Spec**: `docs/specs/active/` → `docs/specs/done/`
 3. **Commit**: Use `/git-workflow` skill
 
 ---

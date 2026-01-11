@@ -28,7 +28,7 @@ These rules exist to prevent silent bugs that pass tests but break game logic.
 Everything in this project MUST be written in English:
 
 - Code (variables, functions, comments)
-- Documentation (docs/, specs/, README, ROADMAP)
+- Documentation (docs/, docs/specs/, README, ROADMAP)
 - Commit messages and PR descriptions
 - Test descriptions and assertions
 - Error messages and logs
@@ -224,14 +224,14 @@ If the change feels risky, write tests first to lock current behavior.
 
 ---
 
-## Specifications (specs/)
+## Specifications (docs/specs/)
 
-All feature specifications live in `specs/` with a backlog-based workflow.
+All feature specifications live in `docs/specs/` with a backlog-based workflow.
 
 ### Folder Structure
 
 ```
-specs/
+docs/specs/
 ├── backlog/    # Specs waiting to be implemented (prioritized by number)
 │   ├── 01-next-feature.md
 │   ├── 02-another-feature.md
@@ -242,13 +242,13 @@ specs/
 
 ### Workflow
 
-1. **New specs** -> `specs/backlog/` with numeric prefix (01-, 02-, etc.)
+1. **New specs** -> `docs/specs/backlog/` with numeric prefix (01-, 02-, etc.)
 2. **Start work** -> Move spec from `backlog/` to `active/`
 3. **Finish work** -> Move spec from `active/` to `done/`
 
 ### Rules
 
-- **Agents read only `specs/active/`** - They implement what's there
+- **Agents read only `docs/specs/active/`** - They implement what's there
 - **Humans move specs** between folders to control what gets built
 - **One spec at a time** - Keep `active/` small to avoid big bang implementations
 
@@ -279,7 +279,7 @@ bun run format   # Auto-format code
 |------|-------|
 | Documentation | `docs/` (read this first!) |
 | MTG Rules Reference | `docs/reference/MagicCompRules-*.txt` |
-| Specifications | `specs/` (features, architecture, mechanics) |
+| Specifications | `docs/specs/` (features, architecture, mechanics) |
 | Game engine core | `src/echomancy/domainmodel/game/` |
 | Card/Effect types | `src/echomancy/domainmodel/cards/`, `effects/` |
 | Test helpers | `src/echomancy/domainmodel/game/__tests__/helpers.ts` |

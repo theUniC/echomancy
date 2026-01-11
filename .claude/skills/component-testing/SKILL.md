@@ -21,7 +21,7 @@ bun test <component-name>   # Specific component
 
 **Key files:**
 - `src/echomancy/infrastructure/ui/` - UI components
-- `specs/features/ui-mvp.md` - UI specification
+- `docs/specs/features/ui-mvp.md` - UI specification
 
 ## When to Use
 

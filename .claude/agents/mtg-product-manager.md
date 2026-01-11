@@ -20,7 +20,7 @@ Before providing product guidance, you MUST read and understand the project cont
 1. **Read `AGENTS.md`** - Contains project workflow and conventions
 2. **Read `ROADMAP.md`** - Understand current project state, MVP definition, what's implemented vs deferred
 3. **Read relevant files in `docs/`** - Architecture, game systems, and design decisions
-4. **Check `specs/`** - Review existing specifications for context on prior decisions
+4. **Check `docs/specs/`** - Review existing specifications for context on prior decisions
 
 ### About Echomancy
 

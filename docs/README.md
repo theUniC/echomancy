@@ -37,6 +37,20 @@ Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design 
 |----------|-------------|
 | [Testing Guide](./testing-guide.md) | Test helpers, patterns, and best practices |
 
+### Specifications
+
+Feature specifications and design documents are organized in `docs/specs/`:
+
+```
+docs/specs/
+├── active/     # Currently being implemented (1-2 specs max)
+├── backlog/    # Prioritized specs waiting to be implemented
+├── done/       # Completed specifications (reference)
+└── features/   # Feature design documents and architecture decisions
+```
+
+See `AGENTS.md` for the complete specification workflow.
+
 ## Project Status
 
 Echomancy is in MVP phase, focusing on fundamental game mechanics:

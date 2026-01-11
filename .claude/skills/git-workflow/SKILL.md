@@ -18,7 +18,7 @@ bun test && bun run lint && bun run format
 
 **Check if docs need updating:**
 - New functionality → Update relevant `docs/*.md`
-- New specs → Save to `specs/`
+- New specs → Save to `docs/specs/`
 - Changed behavior → Update affected documentation
 
 ## Process
@@ -41,7 +41,7 @@ bun test && bun run lint && bun run format
 Ask yourself:
 - Did I add new functionality? → Update `docs/`
 - Did I change existing behavior? → Update affected docs
-- Did I add a new feature? → Consider adding to `specs/features/`
+- Did I add a new feature? → Consider adding to `docs/specs/features/`
 
 ### 3. Review Changes
 
