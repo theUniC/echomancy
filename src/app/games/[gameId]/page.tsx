@@ -7,6 +7,7 @@ import {
   createGameSnapshot,
   type GameSnapshot,
 } from "@/echomancy/infrastructure/ui/GameSnapshot"
+import { formatPhaseAndStep } from "./formatters"
 
 type GamePageProps = {
   params: Promise<{ gameId: string }>
@@ -91,5 +92,33 @@ export default function GamePage(props: GamePageProps) {
     return <div>No game snapshot available</div>
   }
 
-  return <div>Game snapshot loaded successfully for Player 1</div>
+  return <GameInfo snapshot={snapshot} />
+}
+
+type GameInfoProps = {
+  snapshot: GameSnapshot
+}
+
+function GameInfo({ snapshot }: GameInfoProps) {
+  const { publicGameState, privatePlayerState, opponentStates } = snapshot
+
+  // Format phase and step for display
+  const phaseStepDisplay = formatPhaseAndStep(
+    publicGameState.currentPhase,
+    publicGameState.currentStep,
+  )
+
+  // Get opponent life total (handle null case)
+  const opponentLife = opponentStates[0]?.lifeTotal ?? null
+
+  return (
+    <div>
+      <div>
+        Turn {publicGameState.turnNumber} - {phaseStepDisplay}
+      </div>
+
+      <div>Your Life: {privatePlayerState.lifeTotal}</div>
+      {opponentLife !== null && <div>Opponent Life: {opponentLife}</div>}
+    </div>
+  )
 }
