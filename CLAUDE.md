@@ -30,8 +30,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     ┌───┴────┐           (typo,      Plans &
    YES      NO           format)     coordinates
     ↓        ↓                          ↓
-mtg-spec-  Continue                Specialized
-writer                             agents
+mtg-spec-  Continue                Is it UI work?
+writer                                  ↓
+                                ┌───────┴────────┐
+                               YES              NO
+                                ↓                ↓
+                         Has visual      Backend/TS
+                         design needs?   specialist
+                                ↓
+                         ┌──────┴──────┐
+                        YES            NO
+                         ↓              ↓
+                    tcg-ui-designer  ui-engineer
+                         ↓           (directly)
+                    ui-engineer
+                    (implements
+                     design)
 ```
 
 ---
