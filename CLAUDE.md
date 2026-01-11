@@ -79,7 +79,8 @@ writer                             agents
 **WHO**: Specialist agents (NEVER implement directly)
 
 **Available Specialists**:
-- `ui-engineer` - React/Next.js frontend work
+- `tcg-ui-designer` - Visual design (layout, states, aesthetics) - **use BEFORE ui-engineer**
+- `ui-engineer` - React/Next.js frontend implementation
 - `senior-backend-engineer` - Backend API, domain logic, DDD patterns
 - `typescript-architect` - Complex type system issues
 - `/subagent-driven-development` - Parallel frontend + backend work
@@ -87,6 +88,8 @@ writer                             agents
 **COORDINATED BY**: `tech-lead-strategist`
 
 **KEY RULE**: ALL implementation goes through specialized agents. No exceptions.
+
+**IMPORTANT**: For UI features, visual design (`tcg-ui-designer`) should happen BEFORE implementation (`ui-engineer`).
 
 ---
 
@@ -153,6 +156,7 @@ You MAY implement directly for:
 | `mtg-product-manager` | Product strategy, ROADMAP | New features, prioritization |
 | `mtg-spec-writer` | Write specifications | Need detailed spec document |
 | `tech-lead-strategist` | Plan implementation | Any non-trivial work |
+| `tcg-ui-designer` | Visual design for TCG UI | Layout, visual states, aesthetics |
 | `ui-engineer` | Frontend implementation | React/Next.js work |
 | `senior-backend-engineer` | Backend implementation | API, domain logic, DDD |
 | `typescript-architect` | Type system issues | Complex TypeScript problems |
