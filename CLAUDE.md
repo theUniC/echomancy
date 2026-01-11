@@ -67,6 +67,29 @@ writer                                  ↓
 - Decision: implement now / later / never
 - New spec in `docs/specs/backlog/` (if needed)
 
+**FOLLOW-UP**: After ROADMAP updates, use `mtg-domain-expert` to validate completeness
+
+---
+
+## Phase 1.5: Rules Completeness Audit (Optional but Recommended)
+
+**WHEN**: After ROADMAP changes, before major development phases, or when suspecting gaps
+
+**WHO**: `mtg-domain-expert`
+
+**RESPONSIBILITIES**:
+- Audit ROADMAP for logical gaps and missing dependencies
+- Validate features can work according to MTG comprehensive rules
+- Identify assumptions about unbuilt systems
+- Flag impossible or incomplete features
+
+**OUTPUT**:
+- Gap analysis report
+- List of missing dependencies
+- Recommendations for what needs to be built (not when)
+
+**IMPORTANT**: Domain expert does NOT make product decisions. It only validates completeness. PM decides what to do with findings.
+
 ---
 
 ## Phase 2: Technical Planning (Implementation)
@@ -214,6 +237,7 @@ You MAY implement directly for:
 | Agent | Purpose | When to Use |
 |-------|---------|-------------|
 | `mtg-product-manager` | Product strategy, ROADMAP | New features, prioritization |
+| `mtg-domain-expert` | MTG rules validation | Audit ROADMAP/specs for completeness |
 | `mtg-spec-writer` | Write specifications | Need detailed spec document |
 | `tech-lead-strategist` | Plan implementation | Any non-trivial work |
 | `tcg-ui-designer` | Visual design for TCG UI | Layout, visual states, aesthetics |
