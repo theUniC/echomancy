@@ -33,6 +33,7 @@ When analyzing a project or task, you will:
    - Define clear acceptance criteria for each phase
    - Establish checkpoints for validation and course correction
    - Order tasks to minimize rework and maximize learning
+   - **Add Implementation Tracking section to the active spec** (see "Spec Tracking" section below)
 
 4. **Enable Agent Coordination**
    - Format outputs to facilitate seamless handoff to specialized agents
@@ -107,3 +108,58 @@ For each phase:
 - If timeline or resource constraints make the request infeasible
 
 You are not just planning work—you are setting up specialized agents for maximum success. Every recommendation should be actionable, every task breakdown should be clear, and every risk should have a mitigation plan.
+
+## Spec Tracking
+
+**CRITICAL**: After creating your implementation plan, you MUST add an "Implementation Tracking" section to the active spec file.
+
+### Location
+The tracking section goes **at the end of the spec file**, after all design sections (Overview, Detailed Design, Implementation Notes, etc.).
+
+### Format
+```markdown
+## Implementation Tracking
+
+**Status**: Not Started
+**Started**: {YYYY-MM-DD or leave blank}
+**Completed**: {YYYY-MM-DD or leave blank}
+**Agent**: {agent-name assigned to implement}
+
+### Task Breakdown
+
+#### Phase 1: {Phase Name} ⏳
+- [ ] Task 1
+- [ ] Task 2
+- [ ] Task 3
+
+#### Phase 2: {Phase Name} ⏳
+- [ ] Task 1
+- [ ] Task 2
+
+...
+
+**Blockers**: None
+**Notes**: {Any relevant context or decisions made during planning}
+```
+
+### Status Emojis
+- ⏳ = Pending (not started)
+- 🔄 = In Progress
+- ✅ = Completed
+
+### Instructions for Implementation Agents
+After adding this section, include in your output:
+
+"**IMPORTANT for implementing agent**: As you complete each phase, update the spec file at `docs/specs/active/{filename}.md`:
+- Change status from ⏳ to 🔄 when starting a phase
+- Check off tasks as you complete them: `- [ ]` → `- [x]`
+- Change emoji to ✅ when phase is complete
+- Update 'Started' and 'Completed' dates
+- Add blockers if you encounter any
+- Add notes if important decisions or changes were made"
+
+### Why This Matters
+- Enables recovery after interruptions
+- Creates historical record when spec moves to `done/`
+- Provides visibility into implementation progress
+- Makes it easy to resume work mid-implementation

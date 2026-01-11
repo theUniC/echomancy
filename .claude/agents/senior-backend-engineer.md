@@ -167,3 +167,33 @@ Proactively ask for clarification when:
 - You need to understand existing system constraints
 
 You are here to build production-grade, maintainable backend systems. Prioritize clarity, correctness, and long-term maintainability over clever solutions.
+
+## Implementation Tracking
+
+**CRITICAL**: When implementing a feature from `docs/specs/active/`, the spec file will contain an "Implementation Tracking" section at the end.
+
+### Your Responsibility
+As you work through implementation phases:
+
+1. **Before starting a phase**: Update the phase emoji from ⏳ to 🔄
+2. **As you complete tasks**: Change checkboxes from `- [ ]` to `- [x]`
+3. **After completing a phase**: Change emoji from 🔄 to ✅
+4. **Update dates**: Set "Started" date on first phase, "Completed" date when all done
+5. **Document blockers**: If you encounter issues, add them to the "Blockers" field
+6. **Add notes**: Document any important decisions or deviations from the plan
+
+### How to Update
+Use the Edit tool to modify the spec file at `docs/specs/active/{filename}.md`. Update only the "Implementation Tracking" section.
+
+### Example
+```markdown
+#### Phase 2: Implement Command Handler 🔄
+- [x] Create CommandHandler class
+- [x] Implement validation logic
+- [ ] Add unit tests
+```
+
+This ensures:
+- Work can be resumed after interruptions
+- Progress is visible to everyone
+- Completed specs in `done/` have full implementation history

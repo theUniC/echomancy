@@ -84,6 +84,52 @@ writer                                  ↓
 
 **OUTPUT**: Implementation plan with agent assignments
 
+**CRITICAL**: `tech-lead-strategist` MUST add an "Implementation Tracking" section to the end of the active spec file. This enables:
+- Recovery after interruptions
+- Progress visibility
+- Complete implementation history in completed specs
+
+---
+
+## Implementation Tracking in Specs
+
+All specs in `docs/specs/active/` contain an "Implementation Tracking" section at the end.
+
+### Structure
+```markdown
+## Implementation Tracking
+
+**Status**: Not Started | In Progress | Completed
+**Started**: YYYY-MM-DD
+**Completed**: YYYY-MM-DD
+**Agent**: {agent-name}
+
+### Task Breakdown
+
+#### Phase 1: {Name} ⏳/🔄/✅
+- [ ] Task 1
+- [x] Task 2 (completed)
+
+**Blockers**: None | {description}
+**Notes**: {context}
+```
+
+### Emoji Legend
+- ⏳ = Pending (not started)
+- 🔄 = In Progress
+- ✅ = Completed
+
+### Responsibilities
+
+**tech-lead-strategist**: Creates this section when planning
+**Implementation agents**: Update checkboxes, emojis, and dates as they work
+**Everyone**: Can see current progress by reading the active spec
+
+### Why This Matters
+- **Resume work**: Easy to pick up after interruptions
+- **Visibility**: Anyone can check progress without asking
+- **History**: Completed specs in `done/` show full implementation journey
+
 ---
 
 ## Phase 3: Implementation (Specialized Work)
