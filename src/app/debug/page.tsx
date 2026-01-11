@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 
 type GameState = Record<string, unknown> | null
@@ -343,15 +344,23 @@ export default function DebugPage() {
           >
             <div style={{ marginBottom: "8px" }}>
               <strong>Game ID:</strong>{" "}
-              <code
+              <Link
+                href={`/games/${gameId}`}
                 style={{
-                  background: "#fff",
-                  padding: "2px 6px",
-                  borderRadius: "3px",
+                  color: "#007bff",
+                  textDecoration: "underline",
                 }}
               >
-                {gameId}
-              </code>
+                <code
+                  style={{
+                    background: "#fff",
+                    padding: "2px 6px",
+                    borderRadius: "3px",
+                  }}
+                >
+                  {gameId}
+                </code>
+              </Link>
             </div>
             <div style={{ marginBottom: "8px" }}>
               <strong>Player 1 ID:</strong>{" "}
