@@ -103,6 +103,22 @@ Render snapshot data
   - Handles loading/error states
 ```
 
+### Rendering Technology Strategy
+
+**Phase 1a-1b: HTML/CSS/React**
+- Simple text display (loading states, game info, life totals)
+- Standard React patterns
+- No special rendering libraries
+
+**Phase 1c-1e: PixiJS + HTML/CSS Hybrid**
+- **PixiJS for cards**: Battlefield cards, hand cards, all card rendering
+- **HTML/CSS for UI chrome**: Turn/phase display, life totals, buttons, static info
+- **Why this split**: PixiJS provides performance and future flexibility for card interactions (drag & drop, animations), while HTML/CSS remains simpler for standard UI elements
+
+**PixiJS Introduction Point**: Phase 1c (Battlefield Display)
+
+This decision avoids premature complexity in Phase 1a-1b while establishing the rendering foundation before Phase 2 (interactions).
+
 ### Error Handling
 - Game not found (404) → "Error: Game not found"
 - Network error → "Error: Failed to load game"
