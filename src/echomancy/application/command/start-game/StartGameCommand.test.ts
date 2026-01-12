@@ -115,4 +115,175 @@ describe("StartGameCommand", () => {
       commandHandler.handle(new StartGameCommand(gameId, player2Id))
     }).toThrow(GameAlreadyStartedError)
   })
+
+  it("populates each player's hand with 7 cards on game start", () => {
+    const gameRepository = new InMemoryGameRepository()
+    const gameId = uuidv4()
+    const player1Id = uuidv4()
+    const player2Id = uuidv4()
+
+    const game = Game.create(gameId)
+    game.addPlayer(new Player(player1Id, "Player 1"))
+    game.addPlayer(new Player(player2Id, "Player 2"))
+    gameRepository.add(game)
+
+    const commandHandler = new StartGameCommandHandler(gameRepository)
+    commandHandler.handle(new StartGameCommand(gameId, player1Id))
+
+    const updatedGame = gameRepository.byId(gameId)
+    if (!updatedGame) {
+      throw new Error("Game not found after start")
+    }
+
+    const player1State = updatedGame.getPlayerState(player1Id)
+    const player2State = updatedGame.getPlayerState(player2Id)
+
+    expect(player1State.hand.cards).toHaveLength(7)
+    expect(player2State.hand.cards).toHaveLength(7)
+  })
+
+  it("hand contains 2 lands and 5 creatures", () => {
+    const gameRepository = new InMemoryGameRepository()
+    const gameId = uuidv4()
+    const player1Id = uuidv4()
+    const player2Id = uuidv4()
+
+    const game = Game.create(gameId)
+    game.addPlayer(new Player(player1Id, "Player 1"))
+    game.addPlayer(new Player(player2Id, "Player 2"))
+    gameRepository.add(game)
+
+    const commandHandler = new StartGameCommandHandler(gameRepository)
+    commandHandler.handle(new StartGameCommand(gameId, player1Id))
+
+    const updatedGame = gameRepository.byId(gameId)
+    if (!updatedGame) {
+      throw new Error("Game not found after start")
+    }
+
+    const player1State = updatedGame.getPlayerState(player1Id)
+    const player2State = updatedGame.getPlayerState(player2Id)
+
+    // Check player 1 composition
+    const player1Lands = player1State.hand.cards.filter((card) =>
+      card.definition.types.includes("LAND"),
+    )
+    const player1Creatures = player1State.hand.cards.filter((card) =>
+      card.definition.types.includes("CREATURE"),
+    )
+    expect(player1Lands).toHaveLength(2)
+    expect(player1Creatures).toHaveLength(5)
+
+    // Check player 2 composition
+    const player2Lands = player2State.hand.cards.filter((card) =>
+      card.definition.types.includes("LAND"),
+    )
+    const player2Creatures = player2State.hand.cards.filter((card) =>
+      card.definition.types.includes("CREATURE"),
+    )
+    expect(player2Lands).toHaveLength(2)
+    expect(player2Creatures).toHaveLength(5)
+  })
+
+  it("each card has unique instanceId", () => {
+    const gameRepository = new InMemoryGameRepository()
+    const gameId = uuidv4()
+    const player1Id = uuidv4()
+    const player2Id = uuidv4()
+
+    const game = Game.create(gameId)
+    game.addPlayer(new Player(player1Id, "Player 1"))
+    game.addPlayer(new Player(player2Id, "Player 2"))
+    gameRepository.add(game)
+
+    const commandHandler = new StartGameCommandHandler(gameRepository)
+    commandHandler.handle(new StartGameCommand(gameId, player1Id))
+
+    const updatedGame = gameRepository.byId(gameId)
+    if (!updatedGame) {
+      throw new Error("Game not found after start")
+    }
+
+    const player1State = updatedGame.getPlayerState(player1Id)
+    const player2State = updatedGame.getPlayerState(player2Id)
+
+    // Collect all card instance IDs
+    const allInstanceIds = [
+      ...player1State.hand.cards.map((c) => c.instanceId),
+      ...player2State.hand.cards.map((c) => c.instanceId),
+    ]
+
+    // Check for uniqueness
+    const uniqueIds = new Set(allInstanceIds)
+    expect(uniqueIds.size).toBe(14) // 7 cards per player * 2 players
+  })
+
+  it("creatures have correct power/toughness and keywords", () => {
+    const gameRepository = new InMemoryGameRepository()
+    const gameId = uuidv4()
+    const player1Id = uuidv4()
+    const player2Id = uuidv4()
+
+    const game = Game.create(gameId)
+    game.addPlayer(new Player(player1Id, "Player 1"))
+    game.addPlayer(new Player(player2Id, "Player 2"))
+    gameRepository.add(game)
+
+    const commandHandler = new StartGameCommandHandler(gameRepository)
+    commandHandler.handle(new StartGameCommand(gameId, player1Id))
+
+    const updatedGame = gameRepository.byId(gameId)
+    if (!updatedGame) {
+      throw new Error("Game not found after start")
+    }
+
+    const player1State = updatedGame.getPlayerState(player1Id)
+
+    const creatures = player1State.hand.cards.filter((card) =>
+      card.definition.types.includes("CREATURE"),
+    )
+
+    // Verify we have 5 creatures
+    expect(creatures).toHaveLength(5)
+
+    // All creatures should have defined power and toughness
+    for (const creature of creatures) {
+      expect(creature.definition.power).toBeDefined()
+      expect(creature.definition.toughness).toBeDefined()
+      expect(typeof creature.definition.power).toBe("number")
+      expect(typeof creature.definition.toughness).toBe("number")
+    }
+
+    // Verify we have the expected creatures (by name)
+    const creatureNames = creatures.map((c) => c.definition.name).sort()
+    expect(creatureNames).toEqual([
+      "Elite Vanguard",
+      "Giant Spider",
+      "Grizzly Bears",
+      "Llanowar Elves",
+      "Serra Angel",
+    ])
+
+    // Verify specific creatures have correct stats
+    const grizzlyBears = creatures.find(
+      (c) => c.definition.name === "Grizzly Bears",
+    )
+    expect(grizzlyBears?.definition.power).toBe(2)
+    expect(grizzlyBears?.definition.toughness).toBe(2)
+
+    const serraAngel = creatures.find(
+      (c) => c.definition.name === "Serra Angel",
+    )
+    expect(serraAngel?.definition.power).toBe(4)
+    expect(serraAngel?.definition.toughness).toBe(4)
+    expect(serraAngel?.definition.staticAbilities).toContain("FLYING")
+    expect(serraAngel?.definition.staticAbilities).toContain("VIGILANCE")
+
+    const giantSpider = creatures.find(
+      (c) => c.definition.name === "Giant Spider",
+    )
+    expect(giantSpider?.definition.power).toBe(2)
+    expect(giantSpider?.definition.toughness).toBe(4)
+    expect(giantSpider?.definition.staticAbilities).toContain("REACH")
+  })
 })

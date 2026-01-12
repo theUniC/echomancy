@@ -49,6 +49,11 @@ When opponent has priority:
 ## Dependencies
 
 - Phase 1 complete (visual display working)
+  - Phase 1a: Route and data pipeline
+  - Phase 1b: Basic game info display
+  - Phase 1b.5: Starting hand bootstrap (cards in hand to play)
+  - Phase 1c: Battlefield display
+  - Phase 1d: Hand display
 
 ## Out of Scope
 

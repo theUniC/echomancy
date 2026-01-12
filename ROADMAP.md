@@ -216,8 +216,9 @@ The UI MVP is being built incrementally in small phases.
 - Action submission via JSON
 
 **Phase 1: Read-Only Display** 🔄 IN PROGRESS
-- 1a: Route & Data Pipeline (next up)
-- 1b: Basic Game Info (turn, phase, life)
+- 1a: Route & Data Pipeline ✅ COMPLETE
+- 1b: Basic Game Info (turn, phase, life) ✅ COMPLETE
+- 1b.5: Starting Hand Bootstrap (NEXT UP)
 - 1c: Battlefield Display
 - 1d: Hand Display
 - 1e: Stack & Additional Zones
@@ -283,8 +284,10 @@ When complete, the UI will support:
 
 ---
 
-## ❌ Explicitly NOT in UI MVP
+## Explicitly NOT in UI MVP
 - Deck builder
+- Library zone / draw system
+- Mulligan
 - Matchmaking
 - Replays
 - Animations
@@ -304,8 +307,17 @@ Legend:
 ---
 
 ## Zones
+- Library zone with deck support [CORE-EXT]
+- Draw card action [CORE-EXT]
 - Exile zone [UI-REQ]
 - Command zone [COMPAT]
+
+## Game Setup
+- Deck builder [UI-REQ]
+- Deck loading at game start [CORE-EXT]
+- Shuffle library [CORE-EXT]
+- Draw opening hand [CORE-EXT]
+- Mulligan system [CORE-EXT]
 
 ## Counters
 - -1/-1 counters [COMPAT]

@@ -25,6 +25,14 @@ const mockCardRegistry: CardRegistry = {
       "test-land": "Test Land",
       "flying-creature": "Flying Creature",
       "test-creature-ability": "Creature with Ability",
+      // Starting hand bootstrap cards
+      forest: "Forest",
+      plains: "Plains",
+      "grizzly-bears": "Grizzly Bears",
+      "elite-vanguard": "Elite Vanguard",
+      "giant-spider": "Giant Spider",
+      "serra-angel": "Serra Angel",
+      "llanowar-elves": "Llanowar Elves",
     }
     return nameMap[cardDefinitionId] ?? cardDefinitionId
   },
