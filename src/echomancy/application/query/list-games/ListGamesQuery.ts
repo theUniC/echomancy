@@ -22,15 +22,16 @@ export class ListGamesQueryHandler {
     const games = this.gameRepository.all()
 
     return games.map((game) => {
-      const status = this.mapLifecycleStatus(game.lifecycleState)
-      const isStarted = game.lifecycleState !== GameLifecycleState.CREATED
+      const lifecycleState = game.getLifecycleState()
+      const status = this.mapLifecycleStatus(lifecycleState)
+      const isStarted = lifecycleState !== GameLifecycleState.CREATED
       const players = game.getPlayers()
 
       return {
         gameId: game.id,
         status,
         playerNames: players.map((p) => p.name),
-        turnNumber: isStarted ? game.currentTurnNumber : null,
+        turnNumber: isStarted ? game.getCurrentTurnNumber() : null,
         currentPhase: isStarted ? game.currentStep : null,
       }
     })

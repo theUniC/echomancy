@@ -28,15 +28,15 @@
 import type {
   CardType,
   StaticAbility,
-} from "../domainmodel/cards/CardDefinition"
+} from "../../domainmodel/cards/CardDefinition"
 import type {
   CardInstanceExport,
   CounterTypeExport,
   GameStateExport,
   ManaPoolExport,
   StackItemExport,
-} from "../domainmodel/game/GameStateExport"
-import type { GameSteps } from "../domainmodel/game/Steps"
+} from "../../domainmodel/game/GameStateExport"
+import type { GameSteps } from "../../domainmodel/game/Steps"
 
 /**
  * Combat state for a card in the UI.

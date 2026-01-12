@@ -458,6 +458,20 @@ export class Game {
   }
 
   /**
+   * Get the current lifecycle state of the game.
+   */
+  getLifecycleState(): GameLifecycleState {
+    return this.lifecycleState
+  }
+
+  /**
+   * Get the current turn number.
+   */
+  getCurrentTurnNumber(): number {
+    return this.currentTurnNumber
+  }
+
+  /**
    * Get all players in the game with their basic info.
    * Returns players in registration order (before start) or turn order (after start).
    */
@@ -655,7 +669,7 @@ export class Game {
         sourceCardInstanceId: item.card.instanceId,
         sourceCardDefinitionId: item.card.definition.id,
         controllerId: item.controllerId,
-        targets: item.targets.map((t) => t.cardId),
+        targets: item.targets.map((t) => t.playerId),
       }
     }
 
@@ -674,7 +688,7 @@ export class Game {
       sourceCardInstanceId: item.sourceId,
       sourceCardDefinitionId: sourceCard?.definition.id ?? "unknown",
       controllerId: item.controllerId,
-      targets: item.targets.map((t) => t.cardId),
+      targets: item.targets.map((t) => t.playerId),
     }
   }
 

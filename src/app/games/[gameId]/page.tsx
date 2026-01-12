@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { use, useEffect, useState } from "react"
 import type { GameStateExport } from "@/echomancy/domainmodel/game/GameStateExport"
 import {
@@ -8,6 +9,15 @@ import {
   type GameSnapshot,
 } from "@/echomancy/infrastructure/ui/GameSnapshot"
 import { formatPhaseAndStep } from "./formatters"
+
+// Dynamic import of BattlefieldDisplay with ssr: false for PixiJS compatibility
+const BattlefieldDisplay = dynamic(
+  () =>
+    import("./components/battlefield/BattlefieldDisplay").then(
+      (mod) => mod.BattlefieldDisplay,
+    ),
+  { ssr: false },
+)
 
 type GamePageProps = {
   params: Promise<{ gameId: string }>
@@ -119,6 +129,11 @@ function GameInfo({ snapshot }: GameInfoProps) {
 
       <div>Your Life: {privatePlayerState.lifeTotal}</div>
       {opponentLife !== null && <div>Opponent Life: {opponentLife}</div>}
+
+      {/* Battlefield Display */}
+      <div style={{ marginTop: "20px" }}>
+        <BattlefieldDisplay snapshot={snapshot} />
+      </div>
     </div>
   )
 }
