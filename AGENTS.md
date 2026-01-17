@@ -4,6 +4,20 @@
 
 ---
 
+## Finding the Next Task
+
+**Always check `docs/specs/BACKLOG.md` first** to find the next prioritized work item.
+
+1. Open `docs/specs/BACKLOG.md`
+2. Find the first item with status `TODO` in the backlog tables
+3. The spec file is in `docs/specs/backlog/` with the spec ID (e.g., `B1-04` → `B1-04-summoning-sickness.md`)
+4. When starting work: change status to `IN PROGRESS` and move spec to `docs/specs/active/`
+5. When done: change status to `DONE` and move spec to `docs/specs/done/`
+
+> **Why**: The backlog is prioritized. Working on items out of order may create dependency issues or waste effort on lower-priority features.
+
+---
+
 ## Task Workflow
 
 When starting any task, follow this order:
@@ -28,7 +42,7 @@ These rules exist to prevent silent bugs that pass tests but break game logic.
 Everything in this project MUST be written in English:
 
 - Code (variables, functions, comments)
-- Documentation (docs/, docs/specs/, README, ROADMAP)
+- Documentation (docs/, docs/specs/, README, BACKLOG)
 - Commit messages and PR descriptions
 - Test descriptions and assertions
 - Error messages and logs
