@@ -96,7 +96,7 @@ export function CardSprite({
         alpha={alpha}
         eventMode={onClick ? "static" : "auto"} // Enable interactivity if onClick provided
         cursor={onClick ? "pointer" : "default"}
-        onclick={handleClick}
+        onPointerDown={handleClick}
       />
 
       {/* Playable border */}

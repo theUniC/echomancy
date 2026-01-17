@@ -44,67 +44,74 @@ export default function GamePage(props: GamePageProps) {
   const [actionError, setActionError] = useState<ErrorState>(null)
   const [playableCardIds, setPlayableCardIds] = useState<readonly string[]>([])
 
-  const fetchGameState = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+  const fetchGameState = useCallback(
+    async (isInitialLoad = false) => {
+      if (isInitialLoad) {
+        setIsLoading(true)
+      }
+      setError(null)
 
-    try {
-      const response = await fetch(`/api/games/${gameId}/state`)
+      try {
+        const response = await fetch(`/api/games/${gameId}/state`)
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError({ code: "NOT_FOUND", message: "Game not found" })
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError({ code: "NOT_FOUND", message: "Game not found" })
+            return
+          }
+          const errorData = await response.json()
+          setError({
+            code: "FETCH_FAILED",
+            message: errorData.error?.message || "Failed to load game",
+          })
           return
         }
-        const errorData = await response.json()
+
+        const data = await response.json()
+        const state: GameStateExport = data.data
+
+        // Create GameSnapshot for Player 1
+        if (!state.turnOrder || state.turnOrder.length === 0) {
+          setError({ code: "NO_PLAYERS", message: "No players in game" })
+          return
+        }
+
+        const player1Id = state.turnOrder[0]
+        const gameSnapshot = createGameSnapshot(
+          state,
+          player1Id,
+          simpleCardRegistry,
+        )
+        setSnapshot(gameSnapshot)
+
+        // Fetch allowed actions for the player
+        const allowedActionsResponse = await fetch(
+          `/api/games/${gameId}/allowed-actions?playerId=${player1Id}`,
+        )
+
+        if (allowedActionsResponse.ok) {
+          const allowedActionsData = await allowedActionsResponse.json()
+          setPlayableCardIds(allowedActionsData.data?.playableLands ?? [])
+        } else {
+          // If allowed actions fails, continue with empty playable lands
+          setPlayableCardIds([])
+        }
+      } catch {
         setError({
-          code: "FETCH_FAILED",
-          message: errorData.error?.message || "Failed to load game",
+          code: "NETWORK_ERROR",
+          message: "Failed to load game",
         })
-        return
+      } finally {
+        if (isInitialLoad) {
+          setIsLoading(false)
+        }
       }
-
-      const data = await response.json()
-      const state: GameStateExport = data.data
-
-      // Create GameSnapshot for Player 1
-      if (!state.turnOrder || state.turnOrder.length === 0) {
-        setError({ code: "NO_PLAYERS", message: "No players in game" })
-        return
-      }
-
-      const player1Id = state.turnOrder[0]
-      const gameSnapshot = createGameSnapshot(
-        state,
-        player1Id,
-        simpleCardRegistry,
-      )
-      setSnapshot(gameSnapshot)
-
-      // Fetch allowed actions for the player
-      const allowedActionsResponse = await fetch(
-        `/api/games/${gameId}/allowed-actions?playerId=${player1Id}`,
-      )
-
-      if (allowedActionsResponse.ok) {
-        const allowedActionsData = await allowedActionsResponse.json()
-        setPlayableCardIds(allowedActionsData.data?.playableLands ?? [])
-      } else {
-        // If allowed actions fails, continue with empty playable lands
-        setPlayableCardIds([])
-      }
-    } catch {
-      setError({
-        code: "NETWORK_ERROR",
-        message: "Failed to load game",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [gameId])
+    },
+    [gameId],
+  )
 
   useEffect(() => {
-    fetchGameState()
+    fetchGameState(true) // Initial load shows loading state
   }, [fetchGameState])
 
   if (isLoading) {
@@ -179,11 +186,12 @@ function GameInfo({
           }),
         })
 
+        const responseData = await response.json()
+
         if (!response.ok) {
-          const errorData = await response.json()
           setActionError({
-            code: errorData.error?.code || "ACTION_FAILED",
-            message: errorData.error?.message || "Failed to play land",
+            code: responseData.error?.code || "ACTION_FAILED",
+            message: responseData.error?.message || "Failed to play land",
           })
           return
         }
