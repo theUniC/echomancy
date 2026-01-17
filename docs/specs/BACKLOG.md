@@ -33,6 +33,14 @@ Work items in order of implementation. **Always take the first `TODO` item.**
 - `TODO` - Ready to implement, spec in `docs/specs/backlog/`
 - `BLOCKED` - Cannot start until dependency is done
 
+### Priority 0: Foundation (Blocking)
+
+This refactor is foundational and should be done before other backlog items.
+
+| # | Spec | Description | Status | Dependency |
+|---|------|-------------|--------|------------|
+| 0 | B0-01 | Game.ts DDD Refactor (2,282 → ~600-800 lines) | TODO | - |
+
 ### Priority 1: Core Engine Fixes (Parallel)
 
 These fix critical bugs and gaps. Can be done in parallel.
@@ -40,8 +48,8 @@ These fix critical bugs and gaps. Can be done in parallel.
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
 | 1 | B1-04 | Summoning sickness + Haste keyword | DONE | - |
-| 2 | B1-05 | Spell timing (instant vs sorcery) + Flash | TODO | - |
-| 3 | B1-06 | Mana cost payment (manaCost field, generic mana) | TODO | - |
+| 2 | B1-05 | Spell timing (instant vs sorcery) + Flash | TODO | B0-01 (Phase 1-2) |
+| 3 | B1-06 | Mana cost payment (manaCost field, generic mana) | TODO | B0-01 (Phase 1-2) |
 
 ### Priority 2: Core Engine Foundation (Sequential)
 
