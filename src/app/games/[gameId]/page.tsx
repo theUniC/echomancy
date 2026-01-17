@@ -8,6 +8,7 @@ import {
   createGameSnapshot,
   type GameSnapshot,
 } from "@/echomancy/infrastructure/ui/GameSnapshot"
+import { OpponentHandCount } from "./components/hand/OpponentHandCount"
 import { formatPhaseAndStep } from "./formatters"
 
 // Dynamic import of BattlefieldDisplay with ssr: false for PixiJS compatibility
@@ -118,8 +119,9 @@ function GameInfo({ snapshot }: GameInfoProps) {
     publicGameState.currentStep,
   )
 
-  // Get opponent life total (handle null case)
+  // Get opponent data (handle null case)
   const opponentLife = opponentStates[0]?.lifeTotal ?? null
+  const opponentHandSize = opponentStates[0]?.handSize ?? 0
 
   return (
     <div>
@@ -130,7 +132,10 @@ function GameInfo({ snapshot }: GameInfoProps) {
       <div>Your Life: {privatePlayerState.lifeTotal}</div>
       {opponentLife !== null && <div>Opponent Life: {opponentLife}</div>}
 
-      {/* Battlefield Display */}
+      {/* Opponent Hand Count */}
+      <OpponentHandCount count={opponentHandSize} />
+
+      {/* Battlefield and Hand Display */}
       <div style={{ marginTop: "20px" }}>
         <BattlefieldDisplay snapshot={snapshot} />
       </div>

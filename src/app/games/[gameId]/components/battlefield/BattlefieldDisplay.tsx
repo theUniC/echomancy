@@ -1,21 +1,25 @@
 "use client"
 
 /**
- * BattlefieldDisplay - PixiJS Stage for Battlefield Rendering
+ * BattlefieldDisplay - PixiJS Stage for Battlefield and Hand Rendering
  *
- * Main canvas component that renders both players' battlefields.
+ * Main canvas component that renders both players' battlefields and the viewing player's hand.
  *
- * Canvas: 1920×1080 (standard HD reference size)
+ * Canvas: 1920×1220 (extended to include hand zone)
  *
  * Zone positioning:
  * - Opponent battlefield: Y 60-380 (center at Y=220)
  * - Center gap: Y 380-460 (80px separation)
  * - Your battlefield: Y 460-780 (center at Y=550)
+ * - Separator: Y 780-820 (40px separator)
+ * - Hand zone: Y 820-1040 (cards at Y=925)
  *
  * Zone backgrounds:
  * - Opponent zone: #2E1F1F (dark red-brown)
  * - Your zone: #1E2A36 (dark blue-gray)
  * - Center gap: #0D1117 (near-black)
+ * - Separator: #0D1117 (near-black)
+ * - Hand zone: #0F1419 (dark)
  *
  * IMPORTANT: This uses dynamic import with ssr: false for Next.js compatibility.
  * PixiJS requires browser APIs not available during SSR.
@@ -26,22 +30,26 @@ import type * as PIXI from "pixi.js"
 import { Container, Graphics } from "pixi.js"
 import { useCallback, useState } from "react"
 import type { GameSnapshot } from "@/echomancy/infrastructure/ui/GameSnapshot"
+import { HandZoneContent } from "../hand/HandZone"
 import { BattlefieldZoneContent } from "./BattlefieldZone"
 
 // Register PixiJS classes with @pixi/react
 extend({ Container, Graphics })
 
 const CANVAS_WIDTH = 1920
-const CANVAS_HEIGHT = 1080
+const CANVAS_HEIGHT = 1220 // Extended to include hand zone
 
 // Zone positioning (from spec)
 const OPPONENT_ZONE_Y = 220
 const YOUR_ZONE_Y = 550
+const HAND_ZONE_Y = 925 // Center of hand zone
 
 // Zone background colors (from spec)
 const OPPONENT_ZONE_BG = 0x2e1f1f // Dark red-brown
 const YOUR_ZONE_BG = 0x1e2a36 // Dark blue-gray
 const CENTER_GAP_BG = 0x0d1117 // Near-black
+const SEPARATOR_BG = 0x0d1117 // Near-black (separator between battlefield and hand)
+const HAND_ZONE_BG = 0x0f1419 // Dark (hand zone)
 
 type BattlefieldDisplayProps = {
   snapshot: GameSnapshot
@@ -51,8 +59,9 @@ export function BattlefieldDisplay({ snapshot }: BattlefieldDisplayProps) {
   const { privatePlayerState, opponentStates } = snapshot
 
   // Get cards from snapshot
-  const yourCards = privatePlayerState.battlefield
+  const yourBattlefieldCards = privatePlayerState.battlefield
   const opponentCards = opponentStates[0]?.battlefield ?? []
+  const yourHandCards = privatePlayerState.hand
 
   // Store renderer reference
   const [renderer, setRenderer] = useState<PIXI.Renderer | null>(null)
@@ -72,9 +81,19 @@ export function BattlefieldDisplay({ snapshot }: BattlefieldDisplayProps) {
     g.drawRect(0, 380, CANVAS_WIDTH, 80)
     g.endFill()
 
-    // Your zone background (Y 460-780)
+    // Your battlefield zone background (Y 460-780)
     g.beginFill(YOUR_ZONE_BG)
     g.drawRect(0, 460, CANVAS_WIDTH, 320)
+    g.endFill()
+
+    // Separator between battlefield and hand (Y 780-820)
+    g.beginFill(SEPARATOR_BG)
+    g.drawRect(0, 780, CANVAS_WIDTH, 40)
+    g.endFill()
+
+    // Hand zone background (Y 820-1040)
+    g.beginFill(HAND_ZONE_BG)
+    g.drawRect(0, 820, CANVAS_WIDTH, 220)
     g.endFill()
   }, [])
 
@@ -105,9 +124,16 @@ export function BattlefieldDisplay({ snapshot }: BattlefieldDisplayProps) {
 
           {/* Your battlefield */}
           <BattlefieldZoneContent
-            cards={yourCards}
+            cards={yourBattlefieldCards}
             baseY={YOUR_ZONE_Y}
             isOpponent={false}
+            renderer={renderer}
+          />
+
+          {/* Your hand */}
+          <HandZoneContent
+            cards={yourHandCards}
+            baseY={HAND_ZONE_Y}
             renderer={renderer}
           />
         </>
