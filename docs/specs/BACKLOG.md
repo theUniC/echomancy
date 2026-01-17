@@ -39,7 +39,7 @@ These fix critical bugs and gaps. Can be done in parallel.
 
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
-| 1 | B1-04 | Summoning sickness + Haste keyword | IN PROGRESS | - |
+| 1 | B1-04 | Summoning sickness + Haste keyword | DONE | - |
 | 2 | B1-05 | Spell timing (instant vs sorcery) + Flash | TODO | - |
 | 3 | B1-06 | Mana cost payment (manaCost field, generic mana) | TODO | - |
 
@@ -57,7 +57,7 @@ These enable real game flow. Must be done in order.
 
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
-| 7 | 09 | UI: Declare attackers | BLOCKED | B1-04 |
+| 7 | 09 | UI: Declare attackers | TODO | B1-04 ✓ |
 | 8 | 10 | UI: Declare blockers | BLOCKED | 09 |
 | 9 | 11 | UI: Combat damage | BLOCKED | 10 |
 
@@ -73,7 +73,7 @@ These enable real game flow. Must be done in order.
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
 | 12 | 15 | UI: Stack display | TODO | - |
-| 13 | 13 | UI: Activated abilities | BLOCKED | B1-04 |
+| 13 | 13 | UI: Activated abilities | TODO | B1-04 ✓ |
 
 ### Priority 6: Nice to Have
 
