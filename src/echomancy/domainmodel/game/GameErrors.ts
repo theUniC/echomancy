@@ -198,6 +198,14 @@ export class CannotBlockFlyingCreatureError extends GameError {
   }
 }
 
+export class CreatureHasSummoningSicknessError extends GameError {
+  constructor(creatureId: string) {
+    super(
+      `Creature '${creatureId}' has summoning sickness and cannot attack or use tap abilities this turn`,
+    )
+  }
+}
+
 // ============================================================================
 // Game Lifecycle Errors
 // ============================================================================

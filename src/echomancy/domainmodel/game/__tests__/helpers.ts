@@ -239,8 +239,32 @@ export function addCreatureToHand(
  * Adds a creature to the battlefield for the given player.
  * IMPORTANT: This helper MUST use game.enterBattlefield() to ensure
  * consistent ETB handling across all code paths (production and tests).
+ *
+ * NOTE: This helper clears summoning sickness by default for test convenience.
+ * Most tests were written before summoning sickness was implemented and expect
+ * creatures to be able to attack immediately. Use addCreatureToBattlefieldWithSummoningSickness
+ * if you need to test summoning sickness behavior.
  */
 export function addCreatureToBattlefield(
+  game: Game,
+  playerId: string,
+  creature: CardInstance,
+): void {
+  game.enterBattlefield(creature, playerId)
+
+  // Clear summoning sickness for test convenience (most tests were written
+  // before summoning sickness was implemented)
+  const creatureState = game.getCreatureState(creature.instanceId)
+  if (creatureState) {
+    creatureState.hasSummoningSickness = false
+  }
+}
+
+/**
+ * Adds a creature to the battlefield WITH summoning sickness.
+ * Use this when you need to test summoning sickness behavior.
+ */
+export function addCreatureToBattlefieldWithSummoningSickness(
   game: Game,
   playerId: string,
   creature: CardInstance,

@@ -63,6 +63,7 @@ export type CreatureStateExport = {
   isTapped: boolean
   isAttacking: boolean
   hasAttackedThisTurn: boolean
+  hasSummoningSickness: boolean
   power: number
   toughness: number
   counters: Record<CounterTypeExport, number>

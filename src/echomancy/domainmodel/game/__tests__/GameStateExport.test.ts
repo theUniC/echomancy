@@ -464,7 +464,7 @@ describe("GameStateExport", () => {
         },
       }
 
-      game.enterBattlefield(creatureWithAbility, player1.id)
+      addCreatureToBattlefield(game, player1.id, creatureWithAbility)
 
       game.apply({
         type: "ACTIVATE_ABILITY",

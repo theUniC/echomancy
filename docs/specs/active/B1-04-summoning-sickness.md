@@ -107,3 +107,44 @@ Creatures with the "HASTE" keyword ignore summoning sickness entirely. They can 
 - Export flag in `Game.exportState()` for UI to display (e.g., grayed-out creatures)
 - Follow existing error patterns from `GameErrors.ts`
 - Keep implementation simple - just a boolean flag, no complex timestamp logic
+
+## Implementation Tracking
+
+**Status**: Completed
+**Started**: 2026-01-17
+**Completed**: 2026-01-17
+**Agent**: senior-backend-engineer
+
+### Task Breakdown
+
+#### Phase 1: Summoning Sickness Implementation ✅
+
+**Types & Errors**
+- [x] Add `HASTE` to `StaticAbility` type in `CardDefinition.ts`
+- [x] Add `HASTE` to `StaticAbilities` constant object
+- [x] Add `CreatureHasSummoningSicknessError` in `GameErrors.ts`
+- [x] Add `hasSummoningSickness: boolean` to `CreatureState` type in `Game.ts`
+- [x] Add `hasSummoningSickness: boolean` to `CreatureStateExport` type in `GameStateExport.ts`
+
+**Core Logic**
+- [x] Set `hasSummoningSickness = true` in `initializeCreatureStateIfNeeded()`
+- [x] Export `hasSummoningSickness` in `exportCreatureState()`
+- [x] Check summoning sickness in `declareAttacker()` with Haste bypass
+- [x] Check summoning sickness in `payActivationCost()` with Haste bypass
+- [x] Clear summoning sickness at UNTAP step for active player's creatures
+
+**Tests**
+- [x] Add `createTestCreatureWithHaste()` helper
+- [x] Test creature enters battlefield with `hasSummoningSickness = true`
+- [x] Test creature cannot attack same turn (throws error)
+- [x] Test creature can attack next turn (summoning sickness cleared)
+- [x] Test tap ability fails with summoning sickness (throws error)
+- [x] Test Haste creature can attack same turn
+- [x] Test Haste creature can use tap abilities same turn
+
+**Blockers**: None
+**Notes**:
+- All tests passing (9 new tests in Game.summoningSickness.test.ts)
+- All existing tests pass (441 tests total)
+- Created `addCreatureToBattlefieldWithSummoningSickness()` helper for tests that need to test summoning sickness behavior
+- Updated `addCreatureToBattlefield()` helper to clear summoning sickness by default for backwards compatibility with existing tests

@@ -27,6 +27,7 @@ import {
   CardNotFoundInHandError,
   CreatureAlreadyAttackedError,
   CreatureAlreadyBlockingError,
+  CreatureHasSummoningSicknessError,
   DuplicatePlayerError,
   GameAlreadyStartedError,
   GameNotStartedError,
@@ -131,6 +132,7 @@ export type CreatureState = {
   isTapped: boolean
   isAttacking: boolean
   hasAttackedThisTurn: boolean
+  hasSummoningSickness: boolean
   basePower: number
   baseToughness: number
   counters: Map<CounterType, number>
@@ -652,6 +654,7 @@ export class Game {
       isTapped: state.isTapped,
       isAttacking: state.isAttacking,
       hasAttackedThisTurn: state.hasAttackedThisTurn,
+      hasSummoningSickness: state.hasSummoningSickness,
       // Reuse existing power/toughness calculation methods to avoid duplication
       power: this.getCurrentPower(creatureId),
       toughness: this.getCurrentToughness(creatureId),
@@ -884,6 +887,7 @@ export class Game {
         isTapped: false,
         isAttacking: false,
         hasAttackedThisTurn: false,
+        hasSummoningSickness: true,
         basePower: card.definition.power ?? DEFAULT_CREATURE_POWER,
         baseToughness: card.definition.toughness ?? DEFAULT_CREATURE_TOUGHNESS,
         counters: new Map(),
@@ -1254,6 +1258,14 @@ export class Game {
 
     const creatureState = this.getCreatureState(action.creatureId)
 
+    // Verify creature does not have summoning sickness (unless it has Haste)
+    if (
+      creatureState.hasSummoningSickness &&
+      !this.hasStaticAbility(creature, StaticAbilities.HASTE)
+    ) {
+      throw new CreatureHasSummoningSicknessError(action.creatureId)
+    }
+
     // Verify creature is not tapped
     if (creatureState.isTapped) {
       throw new TappedCreatureCannotAttackError(action.creatureId)
@@ -1433,6 +1445,26 @@ export class Game {
             "permanent is already tapped",
           )
         }
+
+        // Find the creature card to check for Haste
+        // Search all battlefields for the permanent
+        let permanent: CardInstance | undefined
+        for (const playerState of this.playerStates.values()) {
+          permanent = playerState.battlefield.cards.find(
+            (card) => card.instanceId === permanentId,
+          )
+          if (permanent) break
+        }
+
+        // Check for summoning sickness (unless has Haste)
+        if (
+          creatureState.hasSummoningSickness &&
+          permanent &&
+          !this.hasStaticAbility(permanent, StaticAbilities.HASTE)
+        ) {
+          throw new CreatureHasSummoningSicknessError(permanentId)
+        }
+
         // Tap the creature
         creatureState.isTapped = true
       }
@@ -1522,11 +1554,13 @@ export class Game {
     const playerState = this.getPlayerState(this.currentPlayerId)
 
     // Untap only creatures controlled by the current player
+    // Also clear summoning sickness for creatures controlled by the current player
     for (const card of playerState.battlefield.cards) {
       if (this.isCreature(card)) {
         const creatureState = this.creatureStates.get(card.instanceId)
         if (creatureState) {
           creatureState.isTapped = false
+          creatureState.hasSummoningSickness = false
         }
       }
     }

@@ -41,7 +41,7 @@ export type CardType =
  * - Ability gain/loss ("creature gains flying until end of turn")
  * - Replacement effects
  */
-export type StaticAbility = "FLYING" | "REACH" | "VIGILANCE"
+export type StaticAbility = "FLYING" | "REACH" | "VIGILANCE" | "HASTE"
 
 /**
  * Static ability keyword constants.
@@ -51,6 +51,7 @@ export const StaticAbilities = {
   FLYING: "FLYING" as const,
   REACH: "REACH" as const,
   VIGILANCE: "VIGILANCE" as const,
+  HASTE: "HASTE" as const,
 } satisfies Record<string, StaticAbility>
 
 export type CardDefinition = {
