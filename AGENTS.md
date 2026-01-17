@@ -166,6 +166,12 @@ bun test && bun run lint && bun run format
 
 All three must pass. No exceptions.
 
+### Always ask before committing or pushing
+
+**MANDATORY**: Before executing any `git commit` or `git push` command, you MUST ask the user for explicit confirmation. Never commit or push changes without user approval.
+
+> **Why**: The user needs full control over what goes into the repository. Unexpected commits can disrupt workflows, include incomplete work, or push changes the user wanted to review first.
+
 ---
 
 ## P2: Style Guidelines
@@ -203,6 +209,7 @@ If you see yourself doing any of these, stop and reconsider:
 | Using `any` type | Find or create proper type |
 | Skipping `resolveStack()` | Always resolve before asserting effects |
 | Committing without `bun test` | Run tests first |
+| Committing/pushing without asking user | Always ask for explicit confirmation first |
 | Adding feature without updating docs | Update relevant `docs/*.md` file |
 | API route importing from `domainmodel/` | Use Commands/Queries from `application/` |
 
