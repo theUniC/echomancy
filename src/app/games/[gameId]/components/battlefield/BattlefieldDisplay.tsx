@@ -53,9 +53,15 @@ const HAND_ZONE_BG = 0x0f1419 // Dark (hand zone)
 
 type BattlefieldDisplayProps = {
   snapshot: GameSnapshot
+  onHandCardClick?: (cardId: string) => void
+  playableCardIds?: readonly string[]
 }
 
-export function BattlefieldDisplay({ snapshot }: BattlefieldDisplayProps) {
+export function BattlefieldDisplay({
+  snapshot,
+  onHandCardClick,
+  playableCardIds = [],
+}: BattlefieldDisplayProps) {
   const { privatePlayerState, opponentStates } = snapshot
 
   // Get cards from snapshot
@@ -135,6 +141,8 @@ export function BattlefieldDisplay({ snapshot }: BattlefieldDisplayProps) {
             cards={yourHandCards}
             baseY={HAND_ZONE_Y}
             renderer={renderer}
+            onCardClick={onHandCardClick}
+            playableCardIds={playableCardIds}
           />
         </>
       )}

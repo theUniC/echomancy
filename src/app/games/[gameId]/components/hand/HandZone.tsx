@@ -32,9 +32,17 @@ type HandZoneProps = {
   cards: readonly CardSnapshot[]
   baseY: number
   renderer: PIXI.Renderer
+  onCardClick?: (cardId: string) => void
+  playableCardIds?: readonly string[]
 }
 
-export function HandZoneContent({ cards, baseY, renderer }: HandZoneProps) {
+export function HandZoneContent({
+  cards,
+  baseY,
+  renderer,
+  onCardClick,
+  playableCardIds = [],
+}: HandZoneProps) {
   // Handle empty hand
   if (cards.length === 0) {
     return null
@@ -53,6 +61,7 @@ export function HandZoneContent({ cards, baseY, renderer }: HandZoneProps) {
       {cards.map((card, index) => {
         const x = startX + index * CARD_VISIBLE_WIDTH + CARD_WIDTH / 2
         const y = baseY
+        const isPlayable = playableCardIds.includes(card.instanceId)
 
         return (
           <CardSprite
@@ -62,6 +71,8 @@ export function HandZoneContent({ cards, baseY, renderer }: HandZoneProps) {
             y={y}
             isOpponent={false}
             renderer={renderer}
+            onClick={onCardClick}
+            isPlayable={isPlayable}
           />
         )
       })}

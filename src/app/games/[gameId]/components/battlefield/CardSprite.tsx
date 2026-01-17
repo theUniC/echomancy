@@ -22,12 +22,12 @@
 
 import { extend } from "@pixi/react"
 import type * as PIXI from "pixi.js"
-import { Sprite } from "pixi.js"
+import { Graphics, Sprite } from "pixi.js"
 import type { CardSnapshot } from "@/echomancy/infrastructure/ui/GameSnapshot"
 import { getTexture } from "../../textures/CardTextureCache"
 
 // Register PixiJS classes with @pixi/react
-extend({ Sprite })
+extend({ Sprite, Graphics })
 
 type CardSpriteProps = {
   card: CardSnapshot
@@ -35,6 +35,8 @@ type CardSpriteProps = {
   y: number
   isOpponent: boolean
   renderer: PIXI.Renderer
+  onClick?: (cardId: string) => void
+  isPlayable?: boolean
 }
 
 export function CardSprite({
@@ -43,6 +45,8 @@ export function CardSprite({
   y,
   isOpponent,
   renderer,
+  onClick,
+  isPlayable = false,
 }: CardSpriteProps) {
   // Get texture from cache (or generate if not cached)
   const texture = getTexture(card, renderer)
@@ -55,14 +59,48 @@ export function CardSprite({
   // Calculate alpha based on tapped state
   const alpha = card.tapped ? 0.85 : 1.0
 
+  // Handle click event
+  const handleClick = () => {
+    if (onClick) {
+      onClick(card.instanceId)
+    }
+  }
+
+  // Draw green border for playable cards
+  const drawPlayableBorder = (g: PIXI.Graphics) => {
+    g.clear()
+
+    if (isPlayable) {
+      // Card dimensions
+      const cardWidth = 180
+      const cardHeight = 252
+
+      // Draw green border (4px thick)
+      g.lineStyle(4, 0x00ff00, 1) // Green color with full opacity
+      g.drawRoundedRect(
+        -cardWidth / 2,
+        -cardHeight / 2,
+        cardWidth,
+        cardHeight,
+        12, // Corner radius to match card
+      )
+    }
+  }
+
   return (
-    <pixiSprite
-      texture={texture}
-      x={x}
-      y={y}
-      anchor={0.5} // Center anchor for rotation
-      rotation={rotation}
-      alpha={alpha}
-    />
+    <pixiContainer x={x} y={y} rotation={rotation}>
+      {/* Card sprite */}
+      <pixiSprite
+        texture={texture}
+        anchor={0.5} // Center anchor for rotation
+        alpha={alpha}
+        eventMode={onClick ? "static" : "auto"} // Enable interactivity if onClick provided
+        cursor={onClick ? "pointer" : "default"}
+        onclick={handleClick}
+      />
+
+      {/* Playable border */}
+      {isPlayable && <pixiGraphics draw={drawPlayableBorder} />}
+    </pixiContainer>
   )
 }

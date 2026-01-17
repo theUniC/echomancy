@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { use, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useState } from "react"
 import type { GameStateExport } from "@/echomancy/domainmodel/game/GameStateExport"
 import {
   type CardRegistry,
@@ -41,56 +41,71 @@ export default function GamePage(props: GamePageProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<ErrorState>(null)
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null)
+  const [actionError, setActionError] = useState<ErrorState>(null)
+  const [playableCardIds, setPlayableCardIds] = useState<readonly string[]>([])
+
+  const fetchGameState = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/games/${gameId}/state`)
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setError({ code: "NOT_FOUND", message: "Game not found" })
+          return
+        }
+        const errorData = await response.json()
+        setError({
+          code: "FETCH_FAILED",
+          message: errorData.error?.message || "Failed to load game",
+        })
+        return
+      }
+
+      const data = await response.json()
+      const state: GameStateExport = data.data
+
+      // Create GameSnapshot for Player 1
+      if (!state.turnOrder || state.turnOrder.length === 0) {
+        setError({ code: "NO_PLAYERS", message: "No players in game" })
+        return
+      }
+
+      const player1Id = state.turnOrder[0]
+      const gameSnapshot = createGameSnapshot(
+        state,
+        player1Id,
+        simpleCardRegistry,
+      )
+      setSnapshot(gameSnapshot)
+
+      // Fetch allowed actions for the player
+      const allowedActionsResponse = await fetch(
+        `/api/games/${gameId}/allowed-actions?playerId=${player1Id}`,
+      )
+
+      if (allowedActionsResponse.ok) {
+        const allowedActionsData = await allowedActionsResponse.json()
+        setPlayableCardIds(allowedActionsData.data?.playableLands ?? [])
+      } else {
+        // If allowed actions fails, continue with empty playable lands
+        setPlayableCardIds([])
+      }
+    } catch {
+      setError({
+        code: "NETWORK_ERROR",
+        message: "Failed to load game",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [gameId])
 
   useEffect(() => {
-    const fetchGameState = async () => {
-      setIsLoading(true)
-      setError(null)
-
-      try {
-        const response = await fetch(`/api/games/${gameId}/state`)
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            setError({ code: "NOT_FOUND", message: "Game not found" })
-            return
-          }
-          const errorData = await response.json()
-          setError({
-            code: "FETCH_FAILED",
-            message: errorData.error?.message || "Failed to load game",
-          })
-          return
-        }
-
-        const data = await response.json()
-        const state: GameStateExport = data.data
-
-        // Create GameSnapshot for Player 1
-        if (!state.turnOrder || state.turnOrder.length === 0) {
-          setError({ code: "NO_PLAYERS", message: "No players in game" })
-          return
-        }
-
-        const player1Id = state.turnOrder[0]
-        const gameSnapshot = createGameSnapshot(
-          state,
-          player1Id,
-          simpleCardRegistry,
-        )
-        setSnapshot(gameSnapshot)
-      } catch {
-        setError({
-          code: "NETWORK_ERROR",
-          message: "Failed to load game",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
     fetchGameState()
-  }, [gameId])
+  }, [fetchGameState])
 
   if (isLoading) {
     return <div>Loading game...</div>
@@ -104,14 +119,35 @@ export default function GamePage(props: GamePageProps) {
     return <div>No game snapshot available</div>
   }
 
-  return <GameInfo snapshot={snapshot} />
+  return (
+    <GameInfo
+      snapshot={snapshot}
+      gameId={gameId}
+      actionError={actionError}
+      setActionError={setActionError}
+      refreshGameState={fetchGameState}
+      playableCardIds={playableCardIds}
+    />
+  )
 }
 
 type GameInfoProps = {
   snapshot: GameSnapshot
+  gameId: string
+  actionError: ErrorState
+  setActionError: (error: ErrorState) => void
+  refreshGameState: () => Promise<void>
+  playableCardIds: readonly string[]
 }
 
-function GameInfo({ snapshot }: GameInfoProps) {
+function GameInfo({
+  snapshot,
+  gameId,
+  actionError,
+  setActionError,
+  refreshGameState,
+  playableCardIds,
+}: GameInfoProps) {
   const { publicGameState, privatePlayerState, opponentStates } = snapshot
 
   // Format phase and step for display
@@ -125,8 +161,75 @@ function GameInfo({ snapshot }: GameInfoProps) {
   const opponentHandSize = opponentStates[0]?.handSize ?? 0
   const opponentGraveyardSize = opponentStates[0]?.graveyard.length ?? 0
 
+  // Handle card click from hand - play land action
+  const handleCardClick = useCallback(
+    async (cardInstanceId: string) => {
+      setActionError(null)
+
+      try {
+        const response = await fetch(`/api/games/${gameId}/actions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "PLAY_LAND",
+            playerId: snapshot.viewerPlayerId,
+            cardId: cardInstanceId,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          setActionError({
+            code: errorData.error?.code || "ACTION_FAILED",
+            message: errorData.error?.message || "Failed to play land",
+          })
+          return
+        }
+
+        // Refresh game state after successful action
+        await refreshGameState()
+      } catch {
+        setActionError({
+          code: "NETWORK_ERROR",
+          message: "Failed to play land",
+        })
+      }
+    },
+    [gameId, snapshot.viewerPlayerId, setActionError, refreshGameState],
+  )
+
   return (
     <div>
+      {/* Action Error Display */}
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            padding: "12px",
+            marginBottom: "16px",
+            backgroundColor: "#fee",
+            border: "1px solid #c33",
+            borderRadius: "4px",
+            color: "#c33",
+          }}
+        >
+          <strong>Error:</strong> {actionError.message}
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            style={{
+              marginLeft: "12px",
+              padding: "4px 8px",
+              cursor: "pointer",
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div>
         Turn {publicGameState.turnNumber} - {phaseStepDisplay}
       </div>
@@ -149,7 +252,11 @@ function GameInfo({ snapshot }: GameInfoProps) {
 
       {/* Battlefield and Hand Display */}
       <div style={{ marginTop: "20px" }}>
-        <BattlefieldDisplay snapshot={snapshot} />
+        <BattlefieldDisplay
+          snapshot={snapshot}
+          onHandCardClick={handleCardClick}
+          playableCardIds={playableCardIds}
+        />
       </div>
     </div>
   )
