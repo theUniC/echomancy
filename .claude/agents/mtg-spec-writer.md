@@ -113,6 +113,35 @@ Every spec you produce must follow this structure:
 - What this feature explicitly does NOT include
 - Future considerations (deferred, not forgotten)
 
+## Spec Scope Limits
+
+**CRITICAL**: Every spec must be small and focused. If a feature exceeds these limits, break it into multiple specs.
+
+### Hard Limits
+- **Maximum 1 concept/system** - Each spec introduces ONE new thing (e.g., "combat damage" or "mana payment", not both)
+- **Maximum 5 tasks** - If you need more than 5 tasks, the spec is too big
+
+### How to Break Down Large Features
+
+If a feature naturally exceeds these limits, create multiple sequential specs:
+
+**Example**: "Implement combat system" is too big. Break into:
+1. `01-declare-attackers.md` - Attacking creature selection and tap
+2. `02-declare-blockers.md` - Blocking creature assignment
+3. `03-combat-damage.md` - Damage calculation and assignment
+4. `04-combat-keywords.md` - First strike, trample, etc.
+
+Each spec should be implementable independently (with clear dependencies noted).
+
+### Self-Check Before Saving
+
+Before saving any spec, verify:
+- [ ] Introduces only 1 new concept/system
+- [ ] Can be broken into ≤5 concrete tasks
+- [ ] Dependencies on other specs are clearly noted in "Out of Scope"
+
+If any check fails, split the spec.
+
 ## Design Principles You Follow
 
 1. **Clarity Over Complexity**: Rules should be understandable. If a mechanic requires a paragraph to explain a corner case, consider simplifying.
