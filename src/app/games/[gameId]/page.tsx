@@ -8,6 +8,7 @@ import {
   createGameSnapshot,
   type GameSnapshot,
 } from "@/echomancy/infrastructure/ui/GameSnapshot"
+import { GraveyardCount } from "./components/graveyard/GraveyardCount"
 import { OpponentHandCount } from "./components/hand/OpponentHandCount"
 import { formatPhaseAndStep } from "./formatters"
 
@@ -122,6 +123,7 @@ function GameInfo({ snapshot }: GameInfoProps) {
   // Get opponent data (handle null case)
   const opponentLife = opponentStates[0]?.lifeTotal ?? null
   const opponentHandSize = opponentStates[0]?.handSize ?? 0
+  const opponentGraveyardSize = opponentStates[0]?.graveyard.length ?? 0
 
   return (
     <div>
@@ -134,6 +136,16 @@ function GameInfo({ snapshot }: GameInfoProps) {
 
       {/* Opponent Hand Count */}
       <OpponentHandCount count={opponentHandSize} />
+
+      {/* Graveyard Counts */}
+      <GraveyardCount
+        count={privatePlayerState.graveyard.length}
+        label="Your Graveyard"
+      />
+      <GraveyardCount
+        count={opponentGraveyardSize}
+        label="Opponent Graveyard"
+      />
 
       {/* Battlefield and Hand Display */}
       <div style={{ marginTop: "20px" }}>
