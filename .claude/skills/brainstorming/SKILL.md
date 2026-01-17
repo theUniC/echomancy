@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation. (project)"
+description: "Use before designing new features to explore ideas collaboratively. Not needed for bugfixes or small changes. (project)"
 ---
 
 # Brainstorming Ideas Into Designs
@@ -48,8 +48,8 @@ Before brainstorming, read:
 ## After the Design
 
 **Documentation:**
-- Write the validated design to `docs/specs/features/YYYY-MM-DD-<topic>.md`
-- Follow the spec structure from `AGENTS.md`: Overview, Detailed Design, Implementation Notes, Open Questions
+- Write the validated design to `docs/specs/backlog/NN-<topic>.md` (check existing files for next number)
+- Follow the spec structure: Overview, User Stories, Player Experience, Game Rules, Acceptance Criteria, Out of Scope
 - Commit the design document to git
 
 **Implementation (if continuing):**

@@ -27,8 +27,7 @@ Your role is to identify:
 - ✅ **Hidden assumptions**: Code/specs assume something not yet built
 
 Your role is **NOT** to:
-- ❌ Decide what to build (that's mtg-product-manager)
-- ❌ Decide when to build it (that's mtg-product-manager)
+- ❌ Decide what to build or when (that's a product decision)
 - ❌ Implement anything (that's engineers)
 - ❌ Write specs (that's mtg-spec-writer)
 

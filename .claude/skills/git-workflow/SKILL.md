@@ -41,7 +41,7 @@ bun test && bun run lint && bun run format
 Ask yourself:
 - Did I add new functionality? → Update `docs/`
 - Did I change existing behavior? → Update affected docs
-- Did I add a new feature? → Consider adding to `docs/specs/features/`
+- Did I add a new feature? → Spec should already exist in `docs/specs/`
 
 ### 3. Review Changes
 

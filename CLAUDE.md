@@ -8,6 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## MANDATORY: Complete Development Workflow
 
+### First and most important rule
+
+**MANDATORY** - Never ever in any single case you're allowed to skip the decision tree below. So don't jump to implement or do the work yourself.
+
 ### Decision Tree: What to Do First?
 
 ```
@@ -15,86 +19,81 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 │ USER REQUEST                                    │
 └─────────────────────────────────────────────────┘
                     ↓
-         New feature or priority change?
+            Is it trivial work?
+            (typo, format, move file)
                     ↓
         ┌───────────┴───────────┐
        YES                      NO
         ↓                        ↓
-   mtg-product-manager    Is it trivial work?
-        ↓                        ↓
-   Decide priority          ┌───┴────┐
-   Update ROADMAP          YES       NO
-        ↓                   ↓          ↓
-   Needs spec?          Implement   tech-lead-strategist
-        ↓                directly       ↓
-    ┌───┴────┐           (typo,      Plans &
-   YES      NO           format)     coordinates
-    ↓        ↓                          ↓
-mtg-spec-  Continue                Is it UI work?
-writer                                  ↓
-                                ┌───────┴────────┐
-                               YES              NO
-                                ↓                ↓
-                         Has visual      Backend/TS
-                         design needs?   specialist
-                                ↓
-                         ┌──────┴──────┐
-                        YES            NO
-                         ↓              ↓
-                    tcg-ui-designer  ui-engineer
-                         ↓           (directly)
-                    ui-engineer
-                    (implements
-                     design)
+    Implement              Needs a spec?
+    directly                    ↓
+                        ┌───────┴───────┐
+                       YES              NO
+                        ↓                ↓
+                 mtg-spec-writer   tech-lead-strategist
+                        ↓                ↓
+                 (validate with    Plans &
+                  mtg-domain-      coordinates
+                  expert if                ↓
+                  rules-heavy)     Is it UI work?
+                                          ↓
+                                  ┌───────┴────────┐
+                                 YES              NO
+                                  ↓                ↓
+                           Has visual      Backend/TS
+                           design needs?   specialist
+                                  ↓
+                           ┌──────┴──────┐
+                          YES            NO
+                           ↓              ↓
+                      tcg-ui-designer  ui-engineer
+                           ↓           (directly)
+                      ui-engineer
+                      (implements
+                       design)
 ```
 
 ---
 
-## Phase 1: Strategic Planning (Product)
+## Phase 1: Specification (When Needed)
 
-**WHEN**: New feature, scope change, prioritization needed
+**WHEN**: New feature that needs detailed requirements
 
-**WHO**: `mtg-product-manager`
+**WHO**: `mtg-spec-writer`
 
 **RESPONSIBILITIES**:
-- Decide WHAT to build and WHEN
-- Update ROADMAP with priorities
-- Validate features against MTG rules and player expectations
-- Call `mtg-spec-writer` if new spec needed
+- Write clear, detailed specifications
+- Focus on WHAT and WHY, not HOW
+- Define acceptance criteria
+- Document edge cases
 
-**OUTPUT**:
-- Updated ROADMAP
-- Decision: implement now / later / never
-- New spec in `docs/specs/backlog/` (if needed)
+**OUTPUT**: New spec in `docs/specs/backlog/`
 
-**FOLLOW-UP**: After ROADMAP updates, use `mtg-domain-expert` to validate completeness
+**VALIDATION**: For rules-heavy features, use `mtg-domain-expert` to validate the spec covers all MTG rules correctly.
 
 ---
 
-## Phase 1.5: Rules Completeness Audit (Optional but Recommended)
+## Phase 1.5: Rules Completeness Audit (Optional)
 
-**WHEN**: After ROADMAP changes, before major development phases, or when suspecting gaps
+**WHEN**: Before implementing rules-heavy features, or when suspecting gaps
 
 **WHO**: `mtg-domain-expert`
 
 **RESPONSIBILITIES**:
-- Audit ROADMAP for logical gaps and missing dependencies
-- Validate features can work according to MTG comprehensive rules
-- Identify assumptions about unbuilt systems
+- Validate specs against MTG comprehensive rules
+- Identify missing dependencies
 - Flag impossible or incomplete features
 
 **OUTPUT**:
 - Gap analysis report
 - List of missing dependencies
-- Recommendations for what needs to be built (not when)
-
-**IMPORTANT**: Domain expert does NOT make product decisions. It only validates completeness. PM decides what to do with findings.
+- Recommendations for what needs to be added to spec
 
 ---
 
 ## Phase 2: Technical Planning (Implementation)
 
-**WHEN**: Feature approved and spec in `docs/specs/active/`
+**WHEN**: Spec ready in `docs/specs/active/`
 
 **WHO**: `tech-lead-strategist`
 
@@ -107,10 +106,7 @@ writer                                  ↓
 
 **OUTPUT**: Implementation plan with agent assignments
 
-**CRITICAL**: `tech-lead-strategist` MUST add an "Implementation Tracking" section to the end of the active spec file. This enables:
-- Recovery after interruptions
-- Progress visibility
-- Complete implementation history in completed specs
+**CRITICAL**: `tech-lead-strategist` MUST add an "Implementation Tracking" section to the end of the active spec file.
 
 ---
 
@@ -148,11 +144,6 @@ All specs in `docs/specs/active/` contain an "Implementation Tracking" section a
 **Implementation agents**: Update checkboxes, emojis, and dates as they work
 **Everyone**: Can see current progress by reading the active spec
 
-### Why This Matters
-- **Resume work**: Easy to pick up after interruptions
-- **Visibility**: Anyone can check progress without asking
-- **History**: Completed specs in `done/` show full implementation journey
-
 ---
 
 ## Phase 3: Implementation (Specialized Work)
@@ -162,17 +153,18 @@ All specs in `docs/specs/active/` contain an "Implementation Tracking" section a
 **WHO**: Specialist agents (NEVER implement directly)
 
 **Available Specialists**:
-- `tcg-ui-designer` - Visual design (layout, states, aesthetics) - **use BEFORE ui-engineer**
+- `tcg-ui-designer` - Visual design (layout, states, aesthetics)
 - `ui-engineer` - React/Next.js frontend implementation
 - `senior-backend-engineer` - Backend API, domain logic, DDD patterns
-- `typescript-architect` - Complex type system issues
 - `/subagent-driven-development` - Parallel frontend + backend work
 
 **COORDINATED BY**: `tech-lead-strategist`
 
 **KEY RULE**: ALL implementation goes through specialized agents. No exceptions.
 
-**IMPORTANT**: For UI features, visual design (`tcg-ui-designer`) should happen BEFORE implementation (`ui-engineer`).
+**UI Design Guidelines**:
+- **New layouts/components**: Use `tcg-ui-designer` first, then `ui-engineer`
+- **Small UI changes** (tweaks, bug fixes, minor adjustments): `ui-engineer` directly
 
 ---
 
@@ -197,24 +189,17 @@ All specs in `docs/specs/active/` contain an "Implementation Tracking" section a
 
 ## Key Principles
 
-### ⚡ NEVER Implement Directly
+### NEVER Implement Directly
 ALL work goes through specialized agents. No exceptions.
 
-### 🎯 Tech Lead Coordinates Implementation
+### Tech Lead Coordinates Implementation
 For any non-trivial work, `tech-lead-strategist`:
 - Owns the implementation plan
 - Coordinates specialist agents
 - Ensures quality gates are met
 - Breaks down complex tasks
 
-### 📋 Product Manager Owns Priorities
-`mtg-product-manager`:
-- Decides WHAT to build
-- Decides WHEN to build it
-- Updates ROADMAP
-- Can create specs via `mtg-spec-writer`
-
-### 🔧 Specialists Execute
+### Specialists Execute
 Implementation agents execute plans, never create strategy.
 
 ---
@@ -222,11 +207,11 @@ Implementation agents execute plans, never create strategy.
 ## Exceptions: Trivial Work (Skip Tech Lead)
 
 You MAY implement directly for:
-- ✅ Typo fixes
-- ✅ Formatting/linting changes
-- ✅ Moving files
-- ✅ Documentation updates (non-architectural)
-- ✅ Single-line bug fixes
+- Typo fixes
+- Formatting/linting changes
+- Moving files
+- Documentation updates (non-architectural)
+- Single-line bug fixes
 
 **Everything else requires `tech-lead-strategist`**
 
@@ -236,14 +221,12 @@ You MAY implement directly for:
 
 | Agent | Purpose | When to Use |
 |-------|---------|-------------|
-| `mtg-product-manager` | Product strategy, ROADMAP | New features, prioritization |
-| `mtg-domain-expert` | MTG rules validation | Audit ROADMAP/specs for completeness |
+| `mtg-domain-expert` | MTG rules validation | Validate specs for rules completeness |
 | `mtg-spec-writer` | Write specifications | Need detailed spec document |
 | `tech-lead-strategist` | Plan implementation | Any non-trivial work |
-| `tcg-ui-designer` | Visual design for TCG UI | Layout, visual states, aesthetics |
+| `tcg-ui-designer` | Visual design for TCG UI | New layouts, visual states, aesthetics |
 | `ui-engineer` | Frontend implementation | React/Next.js work |
 | `senior-backend-engineer` | Backend implementation | API, domain logic, DDD |
-| `typescript-architect` | Type system issues | Complex TypeScript problems |
 | `mtg-code-reviewer` | Code review | After implementation |
 
 **Skills**:
