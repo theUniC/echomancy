@@ -10,6 +10,8 @@ import {
 } from "@/echomancy/infrastructure/ui/GameSnapshot"
 import { GraveyardCount } from "./components/graveyard/GraveyardCount"
 import { OpponentHandCount } from "./components/hand/OpponentHandCount"
+import { PriorityControls } from "./components/priority/PriorityControls"
+import { PriorityIndicator } from "./components/priority/PriorityIndicator"
 import { formatPhaseAndStep } from "./formatters"
 
 // Dynamic import of BattlefieldDisplay with ssr: false for PixiJS compatibility
@@ -168,6 +170,11 @@ function GameInfo({
   const opponentHandSize = opponentStates[0]?.handSize ?? 0
   const opponentGraveyardSize = opponentStates[0]?.graveyard.length ?? 0
 
+  // Determine if viewer has priority
+  const hasPriority =
+    publicGameState.priorityPlayerId === snapshot.viewerPlayerId
+  const canPassPriority = snapshot.uiHints?.canPassPriority ?? false
+
   // Handle card click from hand - play land action
   const handleCardClick = useCallback(
     async (cardInstanceId: string) => {
@@ -208,6 +215,78 @@ function GameInfo({
     [gameId, snapshot.viewerPlayerId, setActionError, refreshGameState],
   )
 
+  // Handle pass priority action
+  const handlePass = useCallback(async () => {
+    setActionError(null)
+
+    try {
+      const response = await fetch(`/api/games/${gameId}/actions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "ADVANCE_STEP",
+          playerId: snapshot.viewerPlayerId,
+        }),
+      })
+
+      const responseData = await response.json()
+
+      if (!response.ok) {
+        setActionError({
+          code: responseData.error?.code || "ACTION_FAILED",
+          message: responseData.error?.message || "Failed to pass priority",
+        })
+        return
+      }
+
+      // Refresh game state after successful action
+      await refreshGameState()
+    } catch {
+      setActionError({
+        code: "NETWORK_ERROR",
+        message: "Failed to pass priority",
+      })
+    }
+  }, [gameId, snapshot.viewerPlayerId, setActionError, refreshGameState])
+
+  // Handle end turn action
+  const handleEndTurn = useCallback(async () => {
+    setActionError(null)
+
+    try {
+      const response = await fetch(`/api/games/${gameId}/actions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "END_TURN",
+          playerId: snapshot.viewerPlayerId,
+        }),
+      })
+
+      const responseData = await response.json()
+
+      if (!response.ok) {
+        setActionError({
+          code: responseData.error?.code || "ACTION_FAILED",
+          message: responseData.error?.message || "Failed to end turn",
+        })
+        return
+      }
+
+      // Refresh game state after successful action
+      await refreshGameState()
+    } catch {
+      setActionError({
+        code: "NETWORK_ERROR",
+        message: "Failed to end turn",
+      })
+    }
+  }, [gameId, snapshot.viewerPlayerId, setActionError, refreshGameState])
+
   return (
     <div>
       {/* Action Error Display */}
@@ -237,6 +316,16 @@ function GameInfo({
           </button>
         </div>
       )}
+
+      {/* Priority Indicator */}
+      <PriorityIndicator hasPriority={hasPriority} />
+
+      {/* Priority Control Buttons */}
+      <PriorityControls
+        canPassPriority={canPassPriority}
+        onPass={handlePass}
+        onEndTurn={handleEndTurn}
+      />
 
       <div>
         Turn {publicGameState.turnNumber} - {phaseStepDisplay}
