@@ -147,8 +147,7 @@ test("TapSelfCost.canPay returns false when permanent is already tapped", () => 
   addCreatureToBattlefield(game, player1.id, creature)
 
   // Tap the creature
-  const creatureState = game.getCreatureState(creature.instanceId)
-  creatureState.isTapped = true
+  game.tapPermanent(creature.instanceId)
 
   const cost = new TapSelfCost()
   const canPay = cost.canPay(game, {
@@ -224,8 +223,7 @@ test("TapSelfCost.pay throws PermanentAlreadyTappedError when permanent is alrea
   addCreatureToBattlefield(game, player1.id, creature)
 
   // Tap the creature
-  const creatureState = game.getCreatureState(creature.instanceId)
-  creatureState.isTapped = true
+  game.tapPermanent(creature.instanceId)
 
   const cost = new TapSelfCost()
   expect(() =>

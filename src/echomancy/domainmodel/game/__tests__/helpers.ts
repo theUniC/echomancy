@@ -254,9 +254,17 @@ export function addCreatureToBattlefield(
 
   // Clear summoning sickness for test convenience (most tests were written
   // before summoning sickness was implemented)
-  const creatureState = game.getCreatureState(creature.instanceId)
+  // Use private method access to get mutable state
+  // biome-ignore lint/suspicious/noExplicitAny: Test helper needs private access
+  const creatureState = (game as any).getCreatureStateOrThrow(
+    creature.instanceId,
+  )
   if (creatureState) {
-    creatureState.hasSummoningSickness = false
+    // biome-ignore lint/suspicious/noExplicitAny: Test helper needs private access
+    ;(game as any).creatureStates.set(
+      creature.instanceId,
+      creatureState.withSummoningSickness(false),
+    )
   }
 }
 

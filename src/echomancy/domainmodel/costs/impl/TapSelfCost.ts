@@ -60,6 +60,6 @@ export class TapSelfCost implements Cost {
       throw new PermanentAlreadyTappedError(context.sourceId)
     }
 
-    creatureState.isTapped = true
+    game.tapPermanent(permanent.instanceId)
   }
 }

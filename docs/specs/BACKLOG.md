@@ -39,7 +39,7 @@ This refactor is foundational and should be done before other backlog items.
 
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
-| 0 | B0-01 | Game.ts DDD Refactor (2,282 → ~600-800 lines) | TODO | - |
+| 0 | B0-01 | Game.ts DDD Refactor (2,282 → ~600-800 lines) | IN PROGRESS | - |
 
 ### Priority 1: Core Engine Fixes (Parallel)
 

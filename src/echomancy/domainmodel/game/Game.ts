@@ -50,7 +50,6 @@ import {
 import { type GameEvent, GameEventTypes } from "./GameEvents"
 import type {
   CardInstanceExport,
-  CounterTypeExport,
   CreatureStateExport,
   GameStateExport,
   ManaPoolExport,
@@ -63,6 +62,11 @@ import type { PlayerState } from "./PlayerState"
 import type { AbilityOnStack, SpellOnStack, StackItem } from "./StackTypes"
 import { advance } from "./StepMachine"
 import { type GameSteps, Step } from "./Steps"
+import { CanActivateAbility } from "./specifications/CanActivateAbility"
+import { CanCastSpell } from "./specifications/CanCastSpell"
+import { CanDeclareAttacker } from "./specifications/CanDeclareAttacker"
+import { CanPlayLand } from "./specifications/CanPlayLand"
+import { HasPriority } from "./specifications/HasPriority"
 
 // Re-export stack types for backward compatibility
 export type { AbilityOnStack, SpellOnStack, StackItem }
@@ -71,8 +75,8 @@ export type { AbilityOnStack, SpellOnStack, StackItem }
  * Game configuration constants
  */
 const MIN_PLAYERS = 2
-const DEFAULT_CREATURE_POWER = 0
-const DEFAULT_CREATURE_TOUGHNESS = 1
+const _DEFAULT_CREATURE_POWER = 0
+const _DEFAULT_CREATURE_TOUGHNESS = 1
 
 /**
  * Game lifecycle states
@@ -96,18 +100,25 @@ export enum GraveyardReason {
   STATE_BASED = "state-based",
 }
 
-/**
- * Counter types supported by the game engine.
- *
- * MVP includes only +1/+1 counters.
- * Future expansion: -1/-1, poison, charge, loyalty, etc.
- *
- * @see Power/Toughness + Counters MVP Contract
- */
-export type CounterType = "PLUS_ONE_PLUS_ONE"
+// ============================================================================
+// CREATURE STATE TYPES
+// ============================================================================
+
+// Re-export CounterType from CreatureState VO for backward compatibility
+export type { CounterType } from "./valueobjects/CreatureState"
+
+// Import CreatureState VO (renamed to avoid conflict with backward compat export)
+import {
+  type CounterType,
+  type CreatureStateSnapshot,
+  CreatureState as CreatureStateVO,
+} from "./valueobjects/CreatureState"
 
 /**
- * Creature state including combat state and numeric stats.
+ * Creature state for external use (backward compatibility).
+ *
+ * This is the snapshot type exported by Game.getCreatureState().
+ * Internally, Game.ts uses CreatureStateVO instances.
  *
  * MVP supports:
  * - Base power and toughness
@@ -128,18 +139,7 @@ export type CounterType = "PLUS_ONE_PLUS_ONE"
  * @see Power/Toughness + Counters MVP Contract
  * @see Combat Resolution MVP Contract
  */
-export type CreatureState = {
-  isTapped: boolean
-  isAttacking: boolean
-  hasAttackedThisTurn: boolean
-  hasSummoningSickness: boolean
-  basePower: number
-  baseToughness: number
-  counters: Map<CounterType, number>
-  damageMarkedThisTurn: number
-  blockingCreatureId: string | null // Which attacker this creature is blocking (null if not blocking)
-  blockedBy: string | null // Which creature is blocking this attacker (null if unblocked)
-}
+export type CreatureState = CreatureStateSnapshot
 
 /**
  * Planeswalker state (MVP - placeholder only)
@@ -158,18 +158,18 @@ export type PlaneswalkerState = Record<string, never>
 // MANA POOL TYPES
 // ============================================================================
 
-export type ManaColor = "W" | "U" | "B" | "R" | "G" | "C"
+// Re-export ManaPool types for backward compatibility
+export type {
+  ManaColor,
+  ManaPoolSnapshot,
+} from "./valueobjects/ManaPool"
 
-export type ManaPool = {
-  W: number
-  U: number
-  B: number
-  R: number
-  G: number
-  C: number
-}
-
-export type ManaPoolSnapshot = Readonly<ManaPool>
+import {
+  type ManaColor,
+  ManaPool,
+  InsufficientManaError as ManaPoolInsufficientManaError,
+  type ManaPoolSnapshot,
+} from "./valueobjects/ManaPool"
 
 type Stack = {
   items: StackItem[]
@@ -198,12 +198,27 @@ export class Game {
   private playerStates: Map<string, PlayerState> = new Map()
   private manaPools: Map<string, ManaPool> = new Map()
   private stack: Stack = { items: [] }
-  private priorityPlayerId: string | null = null
+  private _priorityPlayerId: string | null = null
   private playersWhoPassedPriority: Set<string> = new Set()
+
+  /**
+   * Returns the player ID who currently has priority, or null if no one has priority.
+   */
+  get priorityPlayerId(): string | null {
+    return this._priorityPlayerId
+  }
+
+  /**
+   * Returns the number of lands the current player has played this turn.
+   */
+  get playedLandsThisTurn(): number {
+    return this.playedLands
+  }
+
   private autoPassPlayers: Set<string> = new Set()
   private scheduledSteps: GameSteps[] = []
   private resumeStepAfterScheduled?: GameSteps = undefined
-  private creatureStates: Map<string, CreatureState> = new Map()
+  private creatureStates: Map<string, CreatureStateVO> = new Map()
 
   constructor(id: string) {
     this.id = id
@@ -267,7 +282,7 @@ export class Game {
     })
 
     // Initialize mana pool
-    this.manaPools.set(player.id, Game.createEmptyManaPool())
+    this.manaPools.set(player.id, ManaPool.empty())
   }
 
   /**
@@ -309,17 +324,13 @@ export class Game {
     // Initialize Magic rules state
     this.currentPlayerId = startingPlayerId
     this.currentStep = Step.UNTAP
-    this.priorityPlayerId = startingPlayerId
+    this._priorityPlayerId = startingPlayerId
     this.currentTurnNumber = 1
     this.playedLands = 0
 
     // LIFECYCLE TRANSITION: CREATED → STARTED
     // From this point forward, all Magic rules are active
     this.lifecycleState = GameLifecycleState.STARTED
-  }
-
-  private static createEmptyManaPool(): ManaPool {
-    return { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }
   }
 
   // ============================================================================
@@ -505,7 +516,8 @@ export class Game {
   }
 
   getCreatureState(creatureId: string): CreatureState {
-    return this.getCreatureStateOrThrow(creatureId)
+    const state = this.getCreatureStateOrThrow(creatureId)
+    return state.toExport()
   }
 
   /**
@@ -537,14 +549,7 @@ export class Game {
       }
 
       const playerState = this.getPlayerState(playerId)
-      const manaPool = this.manaPools.get(playerId) ?? {
-        W: 0,
-        U: 0,
-        B: 0,
-        R: 0,
-        G: 0,
-        C: 0,
-      }
+      const manaPool = this.manaPools.get(playerId) ?? ManaPool.empty()
 
       playersExport[playerId] = {
         lifeTotal: player.lifeTotal,
@@ -578,14 +583,7 @@ export class Game {
   // ============================================================================
 
   private exportManaPool(manaPool: ManaPool): ManaPoolExport {
-    return {
-      W: manaPool.W,
-      U: manaPool.U,
-      B: manaPool.B,
-      R: manaPool.R,
-      G: manaPool.G,
-      C: manaPool.C,
-    }
+    return manaPool.toSnapshot()
   }
 
   private exportZone(zone: Zone, controllerId: string): ZoneExport {
@@ -642,26 +640,23 @@ export class Game {
   }
 
   private exportCreatureState(
-    creatureId: string,
-    state: CreatureState,
+    _creatureId: string,
+    state: CreatureStateVO,
   ): CreatureStateExport {
-    // Convert Map<CounterType, number> to Record<CounterTypeExport, number>
-    const countersRecord: Record<CounterTypeExport, number> = {
-      PLUS_ONE_PLUS_ONE: state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0,
-    }
+    const snapshot = state.toExport()
 
     return {
-      isTapped: state.isTapped,
-      isAttacking: state.isAttacking,
-      hasAttackedThisTurn: state.hasAttackedThisTurn,
-      hasSummoningSickness: state.hasSummoningSickness,
-      // Reuse existing power/toughness calculation methods to avoid duplication
-      power: this.getCurrentPower(creatureId),
-      toughness: this.getCurrentToughness(creatureId),
-      counters: countersRecord,
-      damageMarkedThisTurn: state.damageMarkedThisTurn,
-      blockingCreatureId: state.blockingCreatureId,
-      blockedBy: state.blockedBy,
+      isTapped: snapshot.isTapped,
+      isAttacking: snapshot.isAttacking,
+      hasAttackedThisTurn: snapshot.hasAttackedThisTurn,
+      hasSummoningSickness: snapshot.hasSummoningSickness,
+      // Use calculated power/toughness from VO
+      power: state.getCurrentPower(),
+      toughness: state.getCurrentToughness(),
+      counters: snapshot.counters,
+      damageMarkedThisTurn: snapshot.damageMarkedThisTurn,
+      blockingCreatureId: snapshot.blockingCreatureId,
+      blockedBy: snapshot.blockedBy,
     }
   }
 
@@ -730,7 +725,7 @@ export class Game {
    */
   getCounters(creatureId: string, counterType: CounterType): number {
     const state = this.getCreatureStateOrThrow(creatureId)
-    return state.counters.get(counterType) ?? 0
+    return state.getCounters(counterType)
   }
 
   /**
@@ -749,8 +744,7 @@ export class Game {
     this.assertValidCounterAmount(amount)
 
     const state = this.getCreatureStateOrThrow(creatureId)
-    const currentCount = state.counters.get(counterType) ?? 0
-    state.counters.set(counterType, currentCount + amount)
+    this.creatureStates.set(creatureId, state.addCounters(counterType, amount))
   }
 
   /**
@@ -771,14 +765,10 @@ export class Game {
     this.assertValidCounterAmount(amount)
 
     const state = this.getCreatureStateOrThrow(creatureId)
-    const currentCount = state.counters.get(counterType) ?? 0
-    const newCount = Math.max(0, currentCount - amount)
-
-    if (newCount === 0) {
-      state.counters.delete(counterType)
-    } else {
-      state.counters.set(counterType, newCount)
-    }
+    this.creatureStates.set(
+      creatureId,
+      state.removeCounters(counterType, amount),
+    )
   }
 
   /**
@@ -800,9 +790,7 @@ export class Game {
    */
   getCurrentPower(creatureId: string): number {
     const state = this.getCreatureStateOrThrow(creatureId)
-    let power = state.basePower
-    power += state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0
-    return power
+    return state.getCurrentPower()
   }
 
   /**
@@ -825,9 +813,7 @@ export class Game {
    */
   getCurrentToughness(creatureId: string): number {
     const state = this.getCreatureStateOrThrow(creatureId)
-    let toughness = state.baseToughness
-    toughness += state.counters.get("PLUS_ONE_PLUS_ONE") ?? 0
-    return toughness
+    return state.getCurrentToughness()
   }
 
   // ============================================================================
@@ -839,8 +825,7 @@ export class Game {
     if (!pool) {
       throw new PlayerNotFoundError(playerId)
     }
-    // Return a copy to prevent mutation
-    return { ...pool }
+    return pool.toSnapshot()
   }
 
   // ============================================================================
@@ -873,28 +858,20 @@ export class Game {
 
   tapPermanent(permanentId: string): void {
     const state = this.getCreatureStateOrThrow(permanentId)
-    state.isTapped = true
+    this.creatureStates.set(permanentId, state.withTapped(true))
   }
 
   untapPermanent(permanentId: string): void {
     const state = this.getCreatureStateOrThrow(permanentId)
-    state.isTapped = false
+    this.creatureStates.set(permanentId, state.withTapped(false))
   }
 
   initializeCreatureStateIfNeeded(card: CardInstance): void {
     if (this.isCreature(card)) {
-      this.creatureStates.set(card.instanceId, {
-        isTapped: false,
-        isAttacking: false,
-        hasAttackedThisTurn: false,
-        hasSummoningSickness: true,
-        basePower: card.definition.power ?? DEFAULT_CREATURE_POWER,
-        baseToughness: card.definition.toughness ?? DEFAULT_CREATURE_TOUGHNESS,
-        counters: new Map(),
-        damageMarkedThisTurn: 0,
-        blockingCreatureId: null,
-        blockedBy: null,
-      })
+      this.creatureStates.set(
+        card.instanceId,
+        CreatureStateVO.forCreature(card),
+      )
     }
   }
 
@@ -912,12 +889,12 @@ export class Game {
       throw new InvalidManaAmountError(amount)
     }
 
-    const pool = this.manaPools.get(playerId)
-    if (!pool) {
+    if (!this.hasPlayer(playerId)) {
       throw new PlayerNotFoundError(playerId)
     }
 
-    pool[color] += amount
+    const pool = this.manaPools.get(playerId) ?? ManaPool.empty()
+    this.manaPools.set(playerId, pool.add(color, amount))
   }
 
   /**
@@ -935,16 +912,26 @@ export class Game {
       throw new InvalidManaAmountError(amount)
     }
 
-    const pool = this.manaPools.get(playerId)
-    if (!pool) {
+    if (!this.hasPlayer(playerId)) {
       throw new PlayerNotFoundError(playerId)
     }
 
-    if (pool[color] < amount) {
-      throw new InsufficientManaError(playerId, color, amount, pool[color])
-    }
+    const pool = this.manaPools.get(playerId) ?? ManaPool.empty()
 
-    pool[color] -= amount
+    try {
+      this.manaPools.set(playerId, pool.spend(color, amount))
+    } catch (error) {
+      if (error instanceof ManaPoolInsufficientManaError) {
+        // Re-throw as Game's InsufficientManaError for backward compatibility
+        throw new InsufficientManaError(
+          playerId,
+          color,
+          amount,
+          pool.get(color),
+        )
+      }
+      throw error
+    }
   }
 
   /**
@@ -954,13 +941,11 @@ export class Game {
    * @throws PlayerNotFoundError if player doesn't exist
    */
   clearManaPool(playerId: string): void {
-    const pool = this.manaPools.get(playerId)
-    if (!pool) {
+    if (!this.hasPlayer(playerId)) {
       throw new PlayerNotFoundError(playerId)
     }
 
-    // Reset all colors to 0 using Object.assign for cleaner code
-    Object.assign(pool, Game.createEmptyManaPool())
+    this.manaPools.set(playerId, ManaPool.empty())
   }
 
   /**
@@ -972,8 +957,8 @@ export class Game {
    * TODO: For MVP we clear at CLEANUP only to keep behavior deterministic.
    */
   clearAllManaPools(): void {
-    for (const playerId of this.turnOrder) {
-      this.clearManaPool(playerId)
+    for (const playerId of this.manaPools.keys()) {
+      this.manaPools.set(playerId, ManaPool.empty())
     }
   }
 
@@ -1256,7 +1241,7 @@ export class Game {
       throw new PermanentNotFoundError(action.creatureId)
     }
 
-    const creatureState = this.getCreatureState(action.creatureId)
+    let creatureState = this.getCreatureStateOrThrow(action.creatureId)
 
     // Verify creature does not have summoning sickness (unless it has Haste)
     if (
@@ -1277,14 +1262,18 @@ export class Game {
     }
 
     // Mark creature as attacking
-    creatureState.isAttacking = true
-    creatureState.hasAttackedThisTurn = true
+    creatureState = creatureState
+      .withAttacking(true)
+      .withHasAttackedThisTurn(true)
 
     // Tap the creature unless it has Vigilance
     // MVP static abilities: consultative keywords that modify rule checks only
     if (!this.hasStaticAbility(creature, StaticAbilities.VIGILANCE)) {
-      creatureState.isTapped = true
+      creatureState = creatureState.withTapped(true)
     }
+
+    // Store the updated state
+    this.creatureStates.set(action.creatureId, creatureState)
 
     // Emit creature declared attacker event and evaluate triggers
     this.evaluateTriggers({
@@ -1321,7 +1310,7 @@ export class Game {
       throw new PermanentNotFoundError(action.blockerId)
     }
 
-    const blockerState = this.getCreatureState(action.blockerId)
+    let blockerState = this.getCreatureStateOrThrow(action.blockerId)
 
     // Verify blocker is not tapped
     if (blockerState.isTapped) {
@@ -1334,7 +1323,7 @@ export class Game {
     }
 
     // Find the attacker and verify it's actually attacking
-    const attackerState = this.creatureStates.get(action.attackerId)
+    let attackerState = this.creatureStates.get(action.attackerId)
     if (!attackerState) {
       throw new PermanentNotFoundError(action.attackerId)
     }
@@ -1376,8 +1365,12 @@ export class Game {
     }
 
     // Establish blocking relationship (1-to-1 in MVP)
-    blockerState.blockingCreatureId = action.attackerId
-    attackerState.blockedBy = action.blockerId
+    blockerState = blockerState.withBlockingCreatureId(action.attackerId)
+    attackerState = attackerState.withBlockedBy(action.blockerId)
+
+    // Store the updated states
+    this.creatureStates.set(action.blockerId, blockerState)
+    this.creatureStates.set(action.attackerId, attackerState)
 
     // TODO: Emit CREATURE_DECLARED_BLOCKER event when needed
     // Currently no triggers depend on blocking, so this is deferred
@@ -1435,7 +1428,7 @@ export class Game {
   private payActivationCost(permanentId: string, cost: ActivationCost): void {
     if (cost.type === "TAP") {
       // Check if permanent can be tapped
-      const creatureState = this.creatureStates.get(permanentId)
+      let creatureState = this.creatureStates.get(permanentId)
 
       if (creatureState) {
         // It's a creature - check if already tapped
@@ -1466,7 +1459,8 @@ export class Game {
         }
 
         // Tap the creature
-        creatureState.isTapped = true
+        creatureState = creatureState.withTapped(true)
+        this.creatureStates.set(permanentId, creatureState)
       }
       // If not a creature (artifact, enchantment, land), assume it can be tapped
       // TODO: Track tapped state for all permanents, not just creatures
@@ -1559,8 +1553,10 @@ export class Game {
       if (this.isCreature(card)) {
         const creatureState = this.creatureStates.get(card.instanceId)
         if (creatureState) {
-          creatureState.isTapped = false
-          creatureState.hasSummoningSickness = false
+          this.creatureStates.set(
+            card.instanceId,
+            creatureState.withTapped(false).withSummoningSickness(false),
+          )
         }
       }
     }
@@ -1676,7 +1672,7 @@ export class Game {
    * - With empty stack (and they're active player): they auto-advance through steps
    */
   private assignPriorityTo(playerId: string): void {
-    this.priorityPlayerId = playerId
+    this._priorityPlayerId = playerId
 
     // Reactive auto-pass: if player is in auto-pass mode
     if (this.autoPassPlayers.has(playerId)) {
@@ -1746,27 +1742,17 @@ export class Game {
   }
 
   private clearAttackingState(): void {
-    this.updateAllCreatureStates((state) => {
-      state.isAttacking = false
-      state.blockingCreatureId = null
-      state.blockedBy = null
-    })
+    for (const [creatureId, state] of this.creatureStates.entries()) {
+      this.creatureStates.set(creatureId, state.clearCombatState())
+    }
   }
 
   private resetCreatureStatesForNewTurn(): void {
-    this.updateAllCreatureStates((state) => {
-      state.isAttacking = false
-      state.hasAttackedThisTurn = false
-      state.blockingCreatureId = null
-      state.blockedBy = null
-    })
-  }
-
-  private updateAllCreatureStates(
-    updateFn: (state: CreatureState) => void,
-  ): void {
-    for (const state of this.creatureStates.values()) {
-      updateFn(state)
+    for (const [creatureId, state] of this.creatureStates.entries()) {
+      this.creatureStates.set(
+        creatureId,
+        state.clearCombatState().withHasAttackedThisTurn(false),
+      )
     }
   }
 
@@ -1904,7 +1890,8 @@ export class Game {
     const state = this.creatureStates.get(creatureId)
     if (!state) return // Creature may have left battlefield
 
-    state.damageMarkedThisTurn += damage
+    const newDamage = state.damageMarkedThisTurn + damage
+    this.creatureStates.set(creatureId, state.withDamage(newDamage))
   }
 
   /**
@@ -1925,9 +1912,9 @@ export class Game {
    * This happens at the CLEANUP step.
    */
   private clearDamageOnAllCreatures(): void {
-    this.updateAllCreatureStates((state) => {
-      state.damageMarkedThisTurn = 0
-    })
+    for (const [creatureId, state] of this.creatureStates.entries()) {
+      this.creatureStates.set(creatureId, state.clearDamage())
+    }
   }
 
   /**
@@ -2078,15 +2065,11 @@ export class Game {
   // ============================================================================
 
   private hasPriority(playerId: string): boolean {
-    return playerId === this.priorityPlayerId
+    return new HasPriority().isSatisfiedBy({ game: this, playerId })
   }
 
   private canPlayLand(playerId: string): boolean {
-    return (
-      playerId === this.currentPlayerId &&
-      !this.hasPlayedLandThisTurn() &&
-      this.isMainPhase()
-    )
+    return new CanPlayLand().isSatisfiedBy({ game: this, playerId })
   }
 
   private hasPlayedLandThisTurn(): boolean {
@@ -2113,63 +2096,15 @@ export class Game {
   }
 
   private canCastSpell(playerId: string): boolean {
-    return this.isMainPhase() && this.playerHasSpellInHand(playerId)
+    return new CanCastSpell().isSatisfiedBy({ game: this, playerId })
   }
 
   private canDeclareAttacker(playerId: string): boolean {
-    return (
-      this.currentStep === Step.DECLARE_ATTACKERS &&
-      playerId === this.currentPlayerId &&
-      this.playerHasAttackableCreature(playerId)
-    )
+    return new CanDeclareAttacker().isSatisfiedBy({ game: this, playerId })
   }
 
   private canActivateAbility(playerId: string): boolean {
-    return this.playerHasActivatableAbility(playerId)
-  }
-
-  private playerHasSpellInHand(playerId: string): boolean {
-    const playerState = this.getPlayerState(playerId)
-    return playerState.hand.cards.some((card) => this.isCastable(card))
-  }
-
-  private playerHasAttackableCreature(playerId: string): boolean {
-    const playerState = this.getPlayerState(playerId)
-    return playerState.battlefield.cards.some((card) => {
-      if (!this.isCreature(card)) {
-        return false
-      }
-
-      const state = this.creatureStates.get(card.instanceId)
-      if (!state) {
-        return false
-      }
-
-      return !state.isTapped && !state.hasAttackedThisTurn
-    })
-  }
-
-  private playerHasActivatableAbility(playerId: string): boolean {
-    const playerState = this.getPlayerState(playerId)
-    return playerState.battlefield.cards.some((card) => {
-      // Check if card has an activated ability
-      if (!card.definition.activatedAbility) {
-        return false
-      }
-
-      // Check if the cost can be paid
-      const cost = card.definition.activatedAbility.cost
-      if (cost.type === "TAP") {
-        const state = this.creatureStates.get(card.instanceId)
-        if (!state) {
-          return false
-        }
-        // Can activate if not tapped
-        return !state.isTapped
-      }
-
-      return false
-    })
+    return new CanActivateAbility().isSatisfiedBy({ game: this, playerId })
   }
 
   private isCastable(card: CardInstance): boolean {
@@ -2215,7 +2150,7 @@ export class Game {
   // PRIVATE - ASSERTIONS & HELPERS (Lowest-Level Utilities)
   // ============================================================================
 
-  private getCreatureStateOrThrow(creatureId: string): CreatureState {
+  private getCreatureStateOrThrow(creatureId: string): CreatureStateVO {
     const state = this.creatureStates.get(creatureId)
     if (!state) {
       throw new PermanentNotFoundError(creatureId)

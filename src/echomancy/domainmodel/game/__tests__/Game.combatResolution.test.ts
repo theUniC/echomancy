@@ -648,7 +648,9 @@ test("combat state resets at end of combat", () => {
 
   const blockerState = game.getCreatureState(blocker.instanceId)
   expect(blockerState.blockingCreatureId).toBe(attacker.instanceId)
-  expect(attackerState.blockedBy).toBe(blocker.instanceId)
+  // Re-fetch attacker state after blocker declared (snapshot is immutable)
+  const attackerStateAfterBlocking = game.getCreatureState(attacker.instanceId)
+  expect(attackerStateAfterBlocking.blockedBy).toBe(blocker.instanceId)
 
   // Advance past END_OF_COMBAT
   advanceToStep(game, Step.SECOND_MAIN)
