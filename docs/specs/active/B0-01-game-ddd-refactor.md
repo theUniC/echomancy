@@ -284,10 +284,11 @@ Game.ts remains the Aggregate Root that:
 
 ## Implementation Tracking
 
-**Status**: Completed
+**Status**: Completed (Revised Target)
 **Started**: 2026-01-18
 **Completed**: 2026-01-18
 **Agent**: senior-backend-engineer
+**Final Line Count**: 1,933 (reduced from 2,282 - 15% reduction)
 
 ### Task Breakdown
 
@@ -369,16 +370,99 @@ Game.ts remains the Aggregate Root that:
 - [x] Refactor Game.ts to use TurnState VO (replaced individual turn properties)
 - [x] Run tests, lint, format (649 pass, 0 fail)
 
-#### Phase 7: Final Cleanup ✅
-- [x] Review Game.ts for remaining extraction opportunities (2162 lines - core aggregate root responsibilities remain)
-- [x] Ensure consistent patterns across all extracted components
-- [x] Update documentation in `docs/architecture.md` (added DDD Building Blocks section)
-- [x] Final test run and code review (649 pass, 0 fail, build passes)
+#### Phase 7: Interim Review ✅
+- [x] Review Game.ts - still at 2162 lines, need more extractions
+- [x] Plan additional phases (8-13) for deeper refactoring
 
-**Blockers**: None
+#### Phase 8: GameStateExporter Service (Low Risk) ✅
+- [x] Create `services/GameStateExporter.ts`
+- [x] Move: exportState, exportManaPool, exportZone, exportCardInstance, exportCreatureState, exportStackItem
+- [x] Game.exportState() delegates to service
+- [x] Run tests, lint, format
+**Actual reduction**: 126 lines (2162→2036)
+
+#### Phase 9: CombatDeclarations Domain Service (Medium Risk) ✅
+- [x] Create `services/CombatDeclarations.ts` with validateDeclareAttacker() and validateDeclareBlocker()
+- [x] Move: declareAttacker validation and execution logic
+- [x] Move: declareBlocker validation and execution logic
+- [x] Preserve static ability checks (Flying, Vigilance, Haste, Reach)
+- [x] Create unit tests for CombatDeclarations (20 tests)
+- [x] Run tests, lint, format (669 pass)
+**Actual reduction**: 103 lines (2036→1933)
+
+#### Phase 10: StackResolution Domain Service ❌ BLOCKED
+**Status**: Blocked - Architectural coupling prevents extraction
+
+**Analysis** (2026-01-18):
+- `resolveSpell()` and `resolveAbility()` call `effect.resolve(this, {...})` which requires Game reference
+- Effects are designed to operate on Game state directly - this is intentional design
+- Extracting validation-only logic from `castSpell()` would save ~15 lines - insufficient benefit
+- Moving resolution logic would require passing Game as parameter, negating the extraction benefit
+
+**Decision**: Skip - tight coupling is architectural, not accidental
+
+#### Phase 11: TurnAdvancement Domain Service ❌ BLOCKED
+**Status**: Blocked - Methods tightly coupled with Game mutations
+
+**Analysis** (2026-01-18):
+- `performStepAdvance()` calls: `evaluateTriggers()`, `assignPriorityTo()`, `advanceToNextPlayer()`, `setCurrentStep()`
+- `onEnterStep()` calls: `autoUntapForCurrentPlayer()`, `resolveCombatDamage()`, `performStateBasedActions()`, `clearAllManaPools()`, `clearDamageOnAllCreatures()`, `evaluateTriggers()`
+- All these methods mutate Game state directly
+- Extracting would require passing Game and callbacks, adding complexity without benefit
+
+**Decision**: Skip - orchestration logic belongs in Aggregate Root
+
+#### Phase 12: PriorityAssignment Domain Service ❌ BLOCKED
+**Status**: Blocked - Auto-pass loop requires Game state mutations
+
+**Analysis** (2026-01-18):
+- `assignPriorityTo()` sets `_priorityPlayerId` and conditionally calls `performInternalPass()` or `processAutoPass()`
+- `processAutoPass()` loops calling `performStepAdvance()` which mutates Game
+- Circular dependencies: assignPriorityTo → performInternalPass → resolveTopOfStack → assignPriorityTo
+
+**Decision**: Skip - priority system is core Game coordination
+
+#### Phase 13: CreatureStats Domain Service ❌ BLOCKED
+**Status**: Blocked - Already delegating to CreatureState VO
+
+**Analysis** (2026-01-18):
+- `getCurrentPower()`, `getCurrentToughness()` are 3-line methods delegating to `CreatureState.getCurrentPower()`
+- `addCounters()`, `removeCounters()` are 4-line methods updating the Map
+- Extracting to service would just add indirection without reducing complexity
+- The logic already lives in CreatureState VO where it belongs
+
+**Decision**: Skip - already properly factored
+
+#### Phase 14: Final Review ✅
+
+**Outcome Summary** (2026-01-18):
+- **Starting lines**: 2,282
+- **Current lines**: 1,933
+- **Total reduction**: 349 lines (15%)
+- **Original target**: 600-800 lines
+
+**Architectural Findings**:
+1. Game.ts as Aggregate Root MUST coordinate operations - some coupling is inherent
+2. Successfully extracted to services: GameStateExporter, CombatDeclarations, CombatResolution, TriggerEvaluation, StateBasedActions
+3. Successfully extracted to VOs: ManaPool, CreatureState, TurnState, CombatState
+4. Successfully extracted to Entities: Battlefield, Hand, Graveyard, TheStack
+5. Remaining methods either:
+   - Require Game reference for effect execution (stack, triggers)
+   - Are orchestration logic (turn, priority)
+   - Already delegate to VOs (creature stats)
+
+**Revised Assessment**:
+- The 600-800 line target was based on theoretical extraction
+- Actual extraction reveals architectural coupling that prevents further reduction
+- 1,933 lines is reasonable for an MTG game engine Aggregate Root
+- Quality metrics (cohesion, testability, maintainability) are more important than raw line count
+
+**Blockers**: Architectural - further extraction requires redesigning effect system
 
 **Notes**:
 - Phase 1 & 2 completed prior to this planning session
 - Phase 3 focuses on zone entities: Battlefield, Hand, Graveyard
 - Zone entities are entities (not value objects) because they have identity and mutable state
 - All zone transitions remain in Game.ts; entities just manage their card arrays
+- Phases 8-9 provided good reductions; Phases 10-13 blocked by architectural coupling
+- Consider future work: Effect system redesign could enable further extraction

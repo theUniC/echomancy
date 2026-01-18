@@ -2,7 +2,7 @@ import { match, P } from "ts-pattern"
 import type { ActivationCost } from "../abilities/ActivatedAbility"
 import { StaticAbilities, type StaticAbility } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
-import { type Zone, type ZoneName, ZoneNames } from "../zones/Zone"
+import { type ZoneName, ZoneNames } from "../zones/Zone"
 import { Battlefield } from "./entities/Battlefield"
 import { Graveyard } from "./entities/Graveyard"
 import { Hand } from "./entities/Hand"
@@ -20,16 +20,11 @@ import type {
   PlayLand,
 } from "./GameActions"
 import {
-  AttackerAlreadyBlockedError,
   CannotAddPlayerAfterStartError,
-  CannotBlockFlyingCreatureError,
-  CannotBlockNonAttackingCreatureError,
   CannotPayActivationCostError,
   CardIsNotLandError,
   CardIsNotSpellError,
   CardNotFoundInHandError,
-  CreatureAlreadyAttackedError,
-  CreatureAlreadyBlockingError,
   CreatureHasSummoningSicknessError,
   DuplicatePlayerError,
   GameAlreadyStartedError,
@@ -47,25 +42,24 @@ import {
   PermanentHasNoActivatedAbilityError,
   PermanentNotFoundError,
   PlayerNotFoundError,
-  TappedCreatureCannotAttackError,
-  TappedCreatureCannotBlockError,
 } from "./GameErrors"
 import { type GameEvent, GameEventTypes } from "./GameEvents"
-import type {
-  CardInstanceExport,
-  CreatureStateExport,
-  GameStateExport,
-  ManaPoolExport,
-  PlayerStateExport,
-  StackItemExport,
-  ZoneExport,
-} from "./GameStateExport"
+import type { GameStateExport } from "./GameStateExport"
 import type { Player } from "./Player"
 import type { PlayerState } from "./PlayerState"
 import type { AbilityOnStack, SpellOnStack, StackItem } from "./StackTypes"
 import { advance } from "./StepMachine"
 import { type GameSteps, Step } from "./Steps"
+import {
+  type CombatValidationContext,
+  validateDeclareAttacker,
+  validateDeclareBlocker,
+} from "./services/CombatDeclarations"
 import { CombatResolution } from "./services/CombatResolution"
+import {
+  type ExportableGameContext,
+  exportGameState,
+} from "./services/GameStateExporter"
 import { StateBasedActions } from "./services/StateBasedActions"
 import {
   TriggerEvaluation,
@@ -530,171 +524,67 @@ export class Game {
 
   /**
    * Export the complete game state as a plain data structure.
-   *
-   * This export is:
-   * - Complete (includes all information, even hidden)
-   * - Neutral (not UI-oriented)
-   * - Unfiltered (no visibility rules applied)
-   * - Deterministic (same game state always produces same export)
-   *
-   * Use this as the foundation for:
-   * - UI snapshots (with visibility filtering applied)
-   * - Network serialization
-   * - Game replay
-   * - AI/bot decision making
-   *
-   * @returns A complete export of the current game state
+   * Delegates to GameStateExporter service.
    */
   exportState(): GameStateExport {
-    // Build players export with all their state
-    // Iterate in turnOrder for deterministic, stable export order
-    const playersExport: Record<string, PlayerStateExport> = {}
+    return exportGameState(this.asExportContext())
+  }
 
-    for (const playerId of this.turnOrder) {
-      const player = this.playersById.get(playerId)
-      if (!player) {
-        throw new PlayerNotFoundError(playerId)
-      }
-
-      const playerState = this.getPlayerState(playerId)
-      const manaPool = this.manaPools.get(playerId) ?? ManaPool.empty()
-
-      playersExport[playerId] = {
-        lifeTotal: player.lifeTotal,
-        manaPool: this.exportManaPool(manaPool),
-        playedLandsThisTurn:
-          playerId === this.currentPlayerId ? this.turnState.playedLands : 0,
-        zones: {
-          hand: this.exportZone(playerState.hand, playerId),
-          battlefield: this.exportZone(playerState.battlefield, playerId),
-          graveyard: this.exportZone(playerState.graveyard, playerId),
-        },
-      }
-    }
-
+  /**
+   * Creates the export context interface for GameStateExporter.
+   */
+  private asExportContext(): ExportableGameContext {
     return {
-      gameId: this.id,
-      currentTurnNumber: this.turnState.turnNumber,
+      id: this.id,
       currentPlayerId: this.currentPlayerId,
       currentStep: this.currentStep,
       priorityPlayerId: this._priorityPlayerId,
-      turnOrder: [...this.turnOrder],
-      players: playersExport,
-      stack: this.stack.items.map((item) => this.exportStackItem(item)),
-      scheduledSteps: [...this.scheduledSteps],
+      turnNumber: this.turnState.turnNumber,
+      playedLands: this.turnState.playedLands,
+      turnOrder: this.turnOrder,
+      scheduledSteps: this.scheduledSteps,
       resumeStepAfterScheduled: this.resumeStepAfterScheduled,
+      getPlayer: (playerId: string) => this.playersById.get(playerId),
+      getPlayerState: (playerId: string) => this.getPlayerState(playerId),
+      getManaPool: (playerId: string) =>
+        this.manaPools.get(playerId) ?? ManaPool.empty(),
+      getCreatureState: (instanceId: string) =>
+        this.creatureStates.get(instanceId),
+      getStackItems: () => this.stack.items,
+      isPlaneswalker: (card: CardInstance) => this.isPlaneswalker(card),
+      findCardOnBattlefields: (instanceId: string) =>
+        this.findCardOnBattlefields(instanceId),
     }
   }
 
-  // ============================================================================
-  // EXPORT HELPERS - Private methods for exportState()
-  // ============================================================================
-
-  private exportManaPool(manaPool: ManaPool): ManaPoolExport {
-    return manaPool.toSnapshot()
-  }
-
-  private exportZone(zone: Zone, controllerId: string): ZoneExport {
-    return {
-      cards: zone.cards.map((card) =>
-        this.exportCardInstance(card, controllerId),
-      ),
-    }
-  }
-
-  private exportCardInstance(
-    card: CardInstance,
-    controllerId: string,
-  ): CardInstanceExport {
-    const def = card.definition
-    const exported: CardInstanceExport = {
-      instanceId: card.instanceId,
-      ownerId: card.ownerId,
-      // TODO: If control-changing effects are implemented, controllerId must
-      // come from game state, not zone owner
-      controllerId: controllerId,
-      cardDefinitionId: def.id,
-      types: def.types,
-    }
-
-    // Add static abilities if present
-    if (def.staticAbilities && def.staticAbilities.length > 0) {
-      exported.staticAbilities = def.staticAbilities
-    }
-
-    // Add base power/toughness for creatures
-    if (def.power !== undefined) {
-      exported.power = def.power
-    }
-    if (def.toughness !== undefined) {
-      exported.toughness = def.toughness
-    }
-
-    // Add creature state if this is a creature on the battlefield
-    const creatureState = this.creatureStates.get(card.instanceId)
-    if (creatureState) {
-      exported.creatureState = this.exportCreatureState(
-        card.instanceId,
-        creatureState,
-      )
-    }
-
-    // Planeswalker state is placeholder in MVP
-    if (this.isPlaneswalker(card)) {
-      exported.planeswalkerState = {}
-    }
-
-    return exported
-  }
-
-  private exportCreatureState(
-    _creatureId: string,
-    state: CreatureStateVO,
-  ): CreatureStateExport {
-    const snapshot = state.toExport()
-
-    return {
-      isTapped: snapshot.isTapped,
-      isAttacking: snapshot.isAttacking,
-      hasAttackedThisTurn: snapshot.hasAttackedThisTurn,
-      hasSummoningSickness: snapshot.hasSummoningSickness,
-      // Use calculated power/toughness from VO
-      power: state.getCurrentPower(),
-      toughness: state.getCurrentToughness(),
-      counters: snapshot.counters,
-      damageMarkedThisTurn: snapshot.damageMarkedThisTurn,
-      blockingCreatureId: snapshot.blockingCreatureId,
-      blockedBy: snapshot.blockedBy,
-    }
-  }
-
-  private exportStackItem(item: StackItem): StackItemExport {
-    if (item.kind === "SPELL") {
-      return {
-        kind: "SPELL",
-        sourceCardInstanceId: item.card.instanceId,
-        sourceCardDefinitionId: item.card.definition.id,
-        controllerId: item.controllerId,
-        targets: item.targets.map((t) => t.playerId),
-      }
-    }
-
-    // ABILITY - need to find the source card to get definition ID
-    // Search all battlefields for the source card
-    let sourceCard: CardInstance | undefined
+  /**
+   * Find a card on any player's battlefield by instance ID.
+   */
+  private findCardOnBattlefields(instanceId: string): CardInstance | undefined {
     for (const playerState of this.playerStates.values()) {
-      sourceCard = playerState.battlefield.cards.find(
-        (c) => c.instanceId === item.sourceId,
+      const card = playerState.battlefield.cards.find(
+        (c) => c.instanceId === instanceId,
       )
-      if (sourceCard) break
+      if (card) return card
     }
+    return undefined
+  }
 
+  /**
+   * Creates the combat validation context interface for CombatManager.
+   */
+  private asCombatValidationContext(): CombatValidationContext {
     return {
-      kind: "ACTIVATED_ABILITY",
-      sourceCardInstanceId: item.sourceId,
-      sourceCardDefinitionId: sourceCard?.definition.id ?? "unknown",
-      controllerId: item.controllerId,
-      targets: item.targets.map((t) => t.playerId),
+      currentStep: this.currentStep,
+      currentPlayerId: this.currentPlayerId,
+      getOpponentOf: (playerId: string) => this.getOpponentOf(playerId),
+      getBattlefieldCards: (playerId: string) =>
+        this.getPlayerState(playerId).battlefield.cards,
+      isCreature: (card: CardInstance) => this.isCreature(card),
+      hasStaticAbility: (card: CardInstance, ability) =>
+        this.hasStaticAbility(card, ability),
+      getCreatureState: (instanceId: string) =>
+        this.creatureStates.get(instanceId),
     }
   }
 
@@ -1230,155 +1120,36 @@ export class Game {
   private declareAttacker(action: DeclareAttacker): void {
     this.assertIsCurrentPlayer(action.playerId, "DECLARE_ATTACKER")
 
-    // Verify it's DECLARE_ATTACKERS step
-    if (this.currentStep !== Step.DECLARE_ATTACKERS) {
-      throw new InvalidPlayerActionError(action.playerId, "DECLARE_ATTACKER")
-    }
-
-    // Verify creature exists on battlefield and is controlled by player
-    const playerState = this.getPlayerState(action.playerId)
-    const creature = playerState.battlefield.cards.find(
-      (card) => card.instanceId === action.creatureId,
+    // Validate and get state changes from CombatManager
+    const result = validateDeclareAttacker(
+      this.asCombatValidationContext(),
+      action.playerId,
+      action.creatureId,
     )
 
-    if (!creature) {
-      throw new PermanentNotFoundError(action.creatureId)
-    }
-
-    if (!this.isCreature(creature)) {
-      throw new PermanentNotFoundError(action.creatureId)
-    }
-
-    let creatureState = this.getCreatureStateOrThrow(action.creatureId)
-
-    // Verify creature does not have summoning sickness (unless it has Haste)
-    if (
-      creatureState.hasSummoningSickness &&
-      !this.hasStaticAbility(creature, StaticAbilities.HASTE)
-    ) {
-      throw new CreatureHasSummoningSicknessError(action.creatureId)
-    }
-
-    // Verify creature is not tapped
-    if (creatureState.isTapped) {
-      throw new TappedCreatureCannotAttackError(action.creatureId)
-    }
-
-    // Verify creature has not attacked this turn
-    if (creatureState.hasAttackedThisTurn) {
-      throw new CreatureAlreadyAttackedError(action.creatureId)
-    }
-
-    // Mark creature as attacking
-    creatureState = creatureState
-      .withAttacking(true)
-      .withHasAttackedThisTurn(true)
-
-    // Tap the creature unless it has Vigilance
-    // MVP static abilities: consultative keywords that modify rule checks only
-    if (!this.hasStaticAbility(creature, StaticAbilities.VIGILANCE)) {
-      creatureState = creatureState.withTapped(true)
-    }
-
-    // Store the updated state
-    this.creatureStates.set(action.creatureId, creatureState)
+    // Apply state changes
+    this.creatureStates.set(action.creatureId, result.newCreatureState)
 
     // Emit creature declared attacker event and evaluate triggers
     this.evaluateTriggers({
       type: GameEventTypes.CREATURE_DECLARED_ATTACKER,
-      creature: creature,
+      creature: result.creature,
       controllerId: action.playerId,
     })
   }
 
   private declareBlocker(action: DeclareBlocker): void {
-    // Verify it's DECLARE_BLOCKERS step
-    if (this.currentStep !== Step.DECLARE_BLOCKERS) {
-      throw new InvalidPlayerActionError(action.playerId, "DECLARE_BLOCKER")
-    }
-
-    // Verify the acting player is the defending player (not the active player)
-    // MVP: In a 2-player game, the defending player is the opponent of the active player
-    const defendingPlayer = this.getOpponentOf(this.currentPlayerId)
-    if (action.playerId !== defendingPlayer) {
-      throw new InvalidPlayerActionError(action.playerId, "DECLARE_BLOCKER")
-    }
-
-    // Find the blocker on the defending player's battlefield
-    const defenderState = this.getPlayerState(action.playerId)
-    const blocker = defenderState.battlefield.cards.find(
-      (card) => card.instanceId === action.blockerId,
+    // Validate and get state changes from CombatManager
+    const result = validateDeclareBlocker(
+      this.asCombatValidationContext(),
+      action.playerId,
+      action.blockerId,
+      action.attackerId,
     )
 
-    if (!blocker) {
-      throw new PermanentNotFoundError(action.blockerId)
-    }
-
-    if (!this.isCreature(blocker)) {
-      throw new PermanentNotFoundError(action.blockerId)
-    }
-
-    let blockerState = this.getCreatureStateOrThrow(action.blockerId)
-
-    // Verify blocker is not tapped
-    if (blockerState.isTapped) {
-      throw new TappedCreatureCannotBlockError(action.blockerId)
-    }
-
-    // Verify blocker is not already blocking
-    if (blockerState.blockingCreatureId !== null) {
-      throw new CreatureAlreadyBlockingError(action.blockerId)
-    }
-
-    // Find the attacker and verify it's actually attacking
-    let attackerState = this.creatureStates.get(action.attackerId)
-    if (!attackerState) {
-      throw new PermanentNotFoundError(action.attackerId)
-    }
-
-    if (!attackerState.isAttacking) {
-      throw new CannotBlockNonAttackingCreatureError(action.attackerId)
-    }
-
-    // MVP: Only one blocker per attacker allowed
-    if (attackerState.blockedBy !== null) {
-      throw new AttackerAlreadyBlockedError(action.attackerId)
-    }
-
-    // Find the attacker card instance to check for flying
-    // MVP assumption: In 2-player games, attackers are always controlled by the active player (currentPlayerId)
-    // We search only the active player's battlefield
-    const activePlayer = this.getPlayerState(this.currentPlayerId)
-    const attacker = activePlayer.battlefield.cards.find(
-      (card) => card.instanceId === action.attackerId,
-    )
-
-    if (!attacker) {
-      throw new PermanentNotFoundError(action.attackerId)
-    }
-
-    // MVP static abilities: Flying/Reach blocking restriction
-    // A creature with Flying can only be blocked by creatures with Flying or Reach
-    if (this.hasStaticAbility(attacker, StaticAbilities.FLYING)) {
-      const blockerHasFlyingOrReach =
-        this.hasStaticAbility(blocker, StaticAbilities.FLYING) ||
-        this.hasStaticAbility(blocker, StaticAbilities.REACH)
-
-      if (!blockerHasFlyingOrReach) {
-        throw new CannotBlockFlyingCreatureError(
-          action.blockerId,
-          action.attackerId,
-        )
-      }
-    }
-
-    // Establish blocking relationship (1-to-1 in MVP)
-    blockerState = blockerState.withBlockingCreatureId(action.attackerId)
-    attackerState = attackerState.withBlockedBy(action.blockerId)
-
-    // Store the updated states
-    this.creatureStates.set(action.blockerId, blockerState)
-    this.creatureStates.set(action.attackerId, attackerState)
+    // Apply state changes
+    this.creatureStates.set(action.blockerId, result.newBlockerState)
+    this.creatureStates.set(action.attackerId, result.newAttackerState)
 
     // TODO: Emit CREATURE_DECLARED_BLOCKER event when needed
     // Currently no triggers depend on blocking, so this is deferred
