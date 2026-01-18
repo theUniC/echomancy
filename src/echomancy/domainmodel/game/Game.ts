@@ -2,7 +2,6 @@ import { match, P } from "ts-pattern"
 import type { ActivationCost } from "../abilities/ActivatedAbility"
 import { StaticAbilities, type StaticAbility } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
-import type { EffectContext } from "../effects/EffectContext"
 import { type Zone, type ZoneName, ZoneNames } from "../zones/Zone"
 import { Battlefield } from "./entities/Battlefield"
 import { Graveyard } from "./entities/Graveyard"
@@ -66,7 +65,12 @@ import type { PlayerState } from "./PlayerState"
 import type { AbilityOnStack, SpellOnStack, StackItem } from "./StackTypes"
 import { advance } from "./StepMachine"
 import { type GameSteps, Step } from "./Steps"
+import { CombatResolution } from "./services/CombatResolution"
 import { StateBasedActions } from "./services/StateBasedActions"
+import {
+  TriggerEvaluation,
+  type TriggeredAbilityInfo,
+} from "./services/TriggerEvaluation"
 
 // Re-export stack types for backward compatibility
 export type { AbilityOnStack, SpellOnStack, StackItem }
@@ -110,14 +114,13 @@ export type { CounterType } from "./valueobjects/CreatureState"
 // Import CreatureState VO (renamed to avoid conflict with backward compat export)
 import {
   type CounterType,
-  type CreatureStateSnapshot,
   CreatureState as CreatureStateVO,
 } from "./valueobjects/CreatureState"
 
 /**
  * Creature state for external use (backward compatibility).
  *
- * This is the snapshot type exported by Game.getCreatureState().
+ * This is the export type returned by Game.getCreatureState().
  * Internally, Game.ts uses CreatureStateVO instances.
  *
  * MVP supports:
@@ -139,7 +142,20 @@ import {
  * @see Power/Toughness + Counters MVP Contract
  * @see Combat Resolution MVP Contract
  */
-export type CreatureState = CreatureStateSnapshot
+export type CreatureState = {
+  isTapped: boolean
+  isAttacking: boolean
+  hasAttackedThisTurn: boolean
+  hasSummoningSickness: boolean
+  basePower: number
+  baseToughness: number
+  currentPower: number
+  currentToughness: number
+  counters: Record<string, number>
+  damageMarkedThisTurn: number
+  blockingCreatureId: string | null
+  blockedBy: string | null
+}
 
 /**
  * Planeswalker state (MVP - placeholder only)
@@ -170,31 +186,37 @@ import {
   InsufficientManaError as ManaPoolInsufficientManaError,
   type ManaPoolSnapshot,
 } from "./valueobjects/ManaPool"
+import { TurnState } from "./valueobjects/TurnState"
 
-type PermanentOnBattlefield = {
-  permanent: CardInstance
-  controllerId: string
-}
-
-type TriggeredAbility = {
-  effect: (game: Game, context: EffectContext) => void
-  controllerId: string
-  source: CardInstance
-}
+// PermanentOnBattlefield and TriggeredAbilityInfo types are now in TriggerEvaluation service
 
 export class Game {
   public readonly id: string
   private readonly playersById: Map<string, Player> = new Map()
   private turnOrder: string[] = []
-  public currentPlayerId: string = ""
-  public currentStep: GameSteps = Step.UNTAP
+
+  // Turn state is managed by the TurnState value object
+  private turnState: TurnState = TurnState.initial("")
+
+  // Public getters for turn state (delegating to TurnState VO)
+  get currentPlayerId(): string {
+    return this.turnState.currentPlayerId
+  }
+  get currentStep(): GameSteps {
+    return this.turnState.currentStep
+  }
+  get playedLandsThisTurn(): number {
+    return this.turnState.playedLands
+  }
+
   private lifecycleState: GameLifecycleState = GameLifecycleState.CREATED
-  private currentTurnNumber: number = 1
-  private playedLands: number = 0
+  private _priorityPlayerId: string | null = null
+  get priorityPlayerId(): string | null {
+    return this._priorityPlayerId
+  }
   private playerStates: Map<string, PlayerState> = new Map()
   private manaPools: Map<string, ManaPool> = new Map()
   private stack: TheStack = TheStack.empty()
-  private priorityPlayerId: string | null = null
   private playersWhoPassedPriority: Set<string> = new Set()
   private autoPassPlayers: Set<string> = new Set()
   private scheduledSteps: GameSteps[] = []
@@ -303,11 +325,8 @@ export class Game {
     }
 
     // Initialize Magic rules state
-    this.currentPlayerId = startingPlayerId
-    this.currentStep = Step.UNTAP
-    this.priorityPlayerId = startingPlayerId
-    this.currentTurnNumber = 1
-    this.playedLands = 0
+    this.turnState = TurnState.initial(startingPlayerId)
+    this._priorityPlayerId = startingPlayerId
 
     // LIFECYCLE TRANSITION: CREATED → STARTED
     // From this point forward, all Magic rules are active
@@ -470,7 +489,7 @@ export class Game {
    * Get the current turn number.
    */
   getCurrentTurnNumber(): number {
-    return this.currentTurnNumber
+    return this.turnState.turnNumber
   }
 
   /**
@@ -544,7 +563,7 @@ export class Game {
         lifeTotal: player.lifeTotal,
         manaPool: this.exportManaPool(manaPool),
         playedLandsThisTurn:
-          playerId === this.currentPlayerId ? this.playedLands : 0,
+          playerId === this.currentPlayerId ? this.turnState.playedLands : 0,
         zones: {
           hand: this.exportZone(playerState.hand, playerId),
           battlefield: this.exportZone(playerState.battlefield, playerId),
@@ -555,10 +574,10 @@ export class Game {
 
     return {
       gameId: this.id,
-      currentTurnNumber: this.currentTurnNumber,
+      currentTurnNumber: this.turnState.turnNumber,
       currentPlayerId: this.currentPlayerId,
       currentStep: this.currentStep,
-      priorityPlayerId: this.priorityPlayerId,
+      priorityPlayerId: this._priorityPlayerId,
       turnOrder: [...this.turnOrder],
       players: playersExport,
       stack: this.stack.items.map((item) => this.exportStackItem(item)),
@@ -1154,7 +1173,7 @@ export class Game {
     // Use enterBattlefield to ensure consistent ETB handling
     this.enterBattlefield(card, action.playerId)
 
-    this.playedLands += 1
+    this.turnState = this.turnState.withLandPlayed()
   }
 
   private castSpell(action: CastSpell): void {
@@ -1499,7 +1518,7 @@ export class Game {
   }
 
   private setCurrentStep(nextStep: GameSteps): void {
-    this.currentStep = nextStep
+    this.turnState = this.turnState.withStep(nextStep)
     this.onEnterStep(nextStep)
   }
 
@@ -1558,12 +1577,14 @@ export class Game {
     }
 
     const nextIndex = (currentIndex + 1) % this.turnOrder.length
-    this.currentPlayerId = this.turnOrder[nextIndex]
-    this.playedLands = 0
+    const nextPlayerId = this.turnOrder[nextIndex]
+
+    // Use TurnState.forNewTurn() to handle player change and reset lands
+    this.turnState = this.turnState.forNewTurn(nextPlayerId)
 
     // Increment turn number when we wrap around to the first player
     if (nextIndex === 0) {
-      this.currentTurnNumber += 1
+      this.turnState = this.turnState.withIncrementedTurnNumber()
     }
 
     // Reset creature states when turn changes
@@ -1661,7 +1682,7 @@ export class Game {
    * - With empty stack (and they're active player): they auto-advance through steps
    */
   private assignPriorityTo(playerId: string): void {
-    this.priorityPlayerId = playerId
+    this._priorityPlayerId = playerId
 
     // Reactive auto-pass: if player is in auto-pass mode
     if (this.autoPassPlayers.has(playerId)) {
@@ -1773,59 +1794,10 @@ export class Game {
    * - Multiple blockers per attacker (TODO: implement after MVP)
    */
   private resolveCombatDamage(): void {
-    const defendingPlayer = this.getOpponentOf(this.currentPlayerId)
+    // Calculate damage assignments using domain service
+    const damageAssignments = CombatResolution.calculateDamageAssignments(this)
 
-    // PHASE 1: Collect all damage assignments
-    const damageAssignments: Array<{
-      targetId: string
-      amount: number
-      isPlayer: boolean
-    }> = []
-
-    for (const [attackerId, attackerState] of this.creatureStates.entries()) {
-      if (!attackerState.isAttacking) continue
-
-      // Check if attacker still exists (may have been removed by instant/ability)
-      const attackerPower = this.getCreaturePowerSafe(attackerId)
-      if (attackerPower === null) continue // Attacker no longer exists, skip
-
-      if (attackerState.blockedBy === null) {
-        // Unblocked attacker: damage to defending player
-        damageAssignments.push({
-          targetId: defendingPlayer,
-          amount: attackerPower,
-          isPlayer: true,
-        })
-      } else {
-        // Blocked attacker: damage to blocker
-        const blockerId = attackerState.blockedBy
-
-        // Check if blocker still exists
-        const blockerPower = this.getCreaturePowerSafe(blockerId)
-        if (blockerPower === null) {
-          // Blocker disappeared - attacker deals no damage (combat trick scenario)
-          // This is deterministic: if your blocker is removed, the attacker doesn't
-          // suddenly deal damage to the player (MVP: no trample)
-          continue
-        }
-
-        // Attacker damages blocker
-        damageAssignments.push({
-          targetId: blockerId,
-          amount: attackerPower,
-          isPlayer: false,
-        })
-
-        // Blocker damages attacker
-        damageAssignments.push({
-          targetId: attackerId,
-          amount: blockerPower,
-          isPlayer: false,
-        })
-      }
-    }
-
-    // PHASE 2: Apply all damage simultaneously
+    // Apply all damage simultaneously
     for (const assignment of damageAssignments) {
       if (assignment.isPlayer) {
         this.dealDamageToPlayer(assignment.targetId, assignment.amount)
@@ -1840,11 +1812,12 @@ export class Game {
    *
    * This handles the case where a creature was removed before combat damage resolution
    * (e.g., via instant-speed removal or ability activation).
+   * Used by domain services (e.g., CombatResolution).
    *
    * @param creatureId - The instance ID of the creature
    * @returns The creature's current power, or null if it no longer exists
    */
-  private getCreaturePowerSafe(creatureId: string): number | null {
+  getCreaturePowerSafe(creatureId: string): number | null {
     const state = this.creatureStates.get(creatureId)
     if (!state) return null
 
@@ -1947,67 +1920,12 @@ export class Game {
    * See ABILITY_CONTRACT_MVP.md for complete evaluation rules.
    */
   private evaluateTriggers(event: GameEvent): void {
-    const permanents = this.collectPermanentsFromBattlefield()
-    const triggersToExecute = this.collectMatchingTriggers(event, permanents)
+    // Use TriggerEvaluation service to find matching triggers
+    const triggersToExecute = TriggerEvaluation.findMatchingTriggers(
+      this,
+      event,
+    )
     this.executeTriggeredAbilities(triggersToExecute)
-  }
-
-  /**
-   * Collects all permanents from all players' battlefields.
-   *
-   * @returns Array of permanents with their controller IDs
-   */
-  private collectPermanentsFromBattlefield(): PermanentOnBattlefield[] {
-    const permanents: PermanentOnBattlefield[] = []
-
-    for (const [playerId, playerState] of this.playerStates.entries()) {
-      for (const permanent of playerState.battlefield.cards) {
-        permanents.push({ permanent, controllerId: playerId })
-      }
-    }
-
-    return permanents
-  }
-
-  /**
-   * Collects triggers that match the given event.
-   *
-   * Filters permanents to find triggers that:
-   * 1. Watch for this event type
-   * 2. Have their condition met
-   *
-   * @param event - The game event
-   * @param permanents - Permanents to check for triggers
-   * @returns Array of triggered abilities ready to execute
-   */
-  private collectMatchingTriggers(
-    event: GameEvent,
-    permanents: PermanentOnBattlefield[],
-  ): TriggeredAbility[] {
-    const triggersToExecute: TriggeredAbility[] = []
-
-    for (const { permanent, controllerId } of permanents) {
-      const triggers = permanent.definition.triggers
-      if (!triggers) continue
-
-      for (const trigger of triggers) {
-        // Skip if event type doesn't match (avoid evaluating condition unnecessarily)
-        if (trigger.eventType !== event.type) continue
-
-        // Evaluate condition only for matching event types
-        const isConditionMet = trigger.condition(this, event, permanent)
-
-        if (isConditionMet) {
-          triggersToExecute.push({
-            effect: trigger.effect,
-            controllerId,
-            source: permanent,
-          })
-        }
-      }
-    }
-
-    return triggersToExecute
   }
 
   /**
@@ -2023,7 +1941,7 @@ export class Game {
    * See ABILITY_CONTRACT_MVP.md for complete contract.
    */
   private executeTriggeredAbilities(
-    triggeredAbilities: TriggeredAbility[],
+    triggeredAbilities: TriggeredAbilityInfo[],
   ): void {
     for (const ability of triggeredAbilities) {
       ability.effect(this, {
@@ -2039,7 +1957,7 @@ export class Game {
   // ============================================================================
 
   private hasPriority(playerId: string): boolean {
-    return playerId === this.priorityPlayerId
+    return playerId === this._priorityPlayerId
   }
 
   private canPlayLand(playerId: string): boolean {
@@ -2051,14 +1969,11 @@ export class Game {
   }
 
   private hasPlayedLandThisTurn(): boolean {
-    return this.playedLands > 0
+    return this.turnState.hasPlayedLand()
   }
 
   private isMainPhase(): boolean {
-    return (
-      this.currentStep === Step.FIRST_MAIN ||
-      this.currentStep === Step.SECOND_MAIN
-    )
+    return this.turnState.isMainPhase()
   }
 
   private hasSpellsOnStack(): boolean {
@@ -2214,7 +2129,12 @@ export class Game {
     }
   }
 
-  private getOpponentOf(playerId: string): string {
+  /**
+   * Gets the opponent of a player.
+   * In a 2-player game, returns the other player.
+   * Used by domain services (e.g., CombatResolution) for damage targeting.
+   */
+  getOpponentOf(playerId: string): string {
     const opponentId = this.turnOrder.find((id) => id !== playerId)
     if (!opponentId) {
       throw new PlayerNotFoundError(playerId)

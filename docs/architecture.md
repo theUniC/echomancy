@@ -68,6 +68,55 @@ The critical rule: always use `game.enterBattlefield()` to put permanents on the
 
 Each player has isolated zones: hand, battlefield, and graveyard. The library and exile zones also exist but are less frequently accessed in the MVP.
 
+## DDD Building Blocks
+
+The domain model uses standard DDD building blocks:
+
+### Value Objects (`domainmodel/game/valueobjects/`)
+
+Immutable objects with equality by value:
+
+- **ManaPool**: Manages mana of all colors, with `add()`, `spend()`, `clear()` returning new instances
+- **CreatureState**: Tracks P/T, damage, counters, summoning sickness, combat state
+- **TurnState**: Groups turn-related state (current player, step, turn number, lands played)
+- **CombatState**: Tracks attacker declarations and blocker assignments
+
+### Entities (`domainmodel/game/entities/`)
+
+Objects with identity and mutable state:
+
+- **Battlefield**: Manages permanents on a player's battlefield
+- **Hand**: Manages cards in a player's hand
+- **Graveyard**: Manages cards in a player's graveyard
+- **TheStack**: LIFO stack for spells and abilities awaiting resolution
+
+### Domain Services (`domainmodel/game/services/`)
+
+Stateless operations that don't belong to a single entity:
+
+- **CombatResolution**: Calculates damage assignments during combat
+- **TriggerEvaluation**: Finds triggered abilities matching game events
+- **StateBasedActions**: Identifies creatures to destroy (lethal damage, 0 toughness)
+
+### Specifications (`domainmodel/game/specifications/`)
+
+Encapsulate business rules as composable predicates:
+
+- **CanPlayLand**: Validates land play conditions
+- **CanCastSpell**: Validates spell casting conditions
+- **CanDeclareAttacker**: Validates creature can attack
+- **CanDeclareBlocker**: Validates creature can block
+- **CanActivateAbility**: Validates ability activation
+- **HasPriority**: Checks if player has priority
+
+### Aggregate Root
+
+**Game** remains the Aggregate Root that:
+- Owns all state
+- Coordinates operations between building blocks
+- Enforces invariants
+- Exposes public API (`apply()`, `exportState()`, `getAllowedActionsFor()`)
+
 ## Error Handling
 
 Domain-specific errors extend a base GameError class. Each error type corresponds to a specific rule violation:
