@@ -214,7 +214,7 @@ test("trigger condition can inspect game state", () => {
   // Reset and try again with existing creature
   triggerExecuted = false
   const battlefield = game.getPlayerState(player1.id).battlefield
-  battlefield.cards = [] // Clear battlefield
+  battlefield.cards.length = 0 // Clear battlefield
 
   // Add a different creature first
   addCreatureToBattlefield(game, player1.id, createTestCreature(player1.id))

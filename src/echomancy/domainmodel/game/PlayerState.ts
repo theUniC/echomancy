@@ -1,7 +1,9 @@
-import type { Zone } from "../zones/Zone"
+import type { Battlefield } from "./entities/Battlefield"
+import type { Graveyard } from "./entities/Graveyard"
+import type { Hand } from "./entities/Hand"
 
 export type PlayerState = {
-  hand: Zone
-  battlefield: Zone
-  graveyard: Zone
+  hand: Hand
+  battlefield: Battlefield
+  graveyard: Graveyard
 }

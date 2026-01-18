@@ -4,6 +4,10 @@ import { StaticAbilities, type StaticAbility } from "../cards/CardDefinition"
 import type { CardInstance } from "../cards/CardInstance"
 import type { EffectContext } from "../effects/EffectContext"
 import { type Zone, type ZoneName, ZoneNames } from "../zones/Zone"
+import { Battlefield } from "./entities/Battlefield"
+import { Graveyard } from "./entities/Graveyard"
+import { Hand } from "./entities/Hand"
+import { TheStack } from "./entities/TheStack"
 import type {
   Actions,
   ActivateAbility,
@@ -62,11 +66,7 @@ import type { PlayerState } from "./PlayerState"
 import type { AbilityOnStack, SpellOnStack, StackItem } from "./StackTypes"
 import { advance } from "./StepMachine"
 import { type GameSteps, Step } from "./Steps"
-import { CanActivateAbility } from "./specifications/CanActivateAbility"
-import { CanCastSpell } from "./specifications/CanCastSpell"
-import { CanDeclareAttacker } from "./specifications/CanDeclareAttacker"
-import { CanPlayLand } from "./specifications/CanPlayLand"
-import { HasPriority } from "./specifications/HasPriority"
+import { StateBasedActions } from "./services/StateBasedActions"
 
 // Re-export stack types for backward compatibility
 export type { AbilityOnStack, SpellOnStack, StackItem }
@@ -171,10 +171,6 @@ import {
   type ManaPoolSnapshot,
 } from "./valueobjects/ManaPool"
 
-type Stack = {
-  items: StackItem[]
-}
-
 type PermanentOnBattlefield = {
   permanent: CardInstance
   controllerId: string
@@ -197,24 +193,9 @@ export class Game {
   private playedLands: number = 0
   private playerStates: Map<string, PlayerState> = new Map()
   private manaPools: Map<string, ManaPool> = new Map()
-  private stack: Stack = { items: [] }
-  private _priorityPlayerId: string | null = null
+  private stack: TheStack = TheStack.empty()
+  private priorityPlayerId: string | null = null
   private playersWhoPassedPriority: Set<string> = new Set()
-
-  /**
-   * Returns the player ID who currently has priority, or null if no one has priority.
-   */
-  get priorityPlayerId(): string | null {
-    return this._priorityPlayerId
-  }
-
-  /**
-   * Returns the number of lands the current player has played this turn.
-   */
-  get playedLandsThisTurn(): number {
-    return this.playedLands
-  }
-
   private autoPassPlayers: Set<string> = new Set()
   private scheduledSteps: GameSteps[] = []
   private resumeStepAfterScheduled?: GameSteps = undefined
@@ -274,11 +255,11 @@ export class Game {
     // Add player to turn order
     this.turnOrder.push(player.id)
 
-    // Initialize player state with empty zones
+    // Initialize player state with empty zone entities
     this.playerStates.set(player.id, {
-      hand: { cards: [] },
-      battlefield: { cards: [] },
-      graveyard: { cards: [] },
+      hand: Hand.empty(),
+      battlefield: Battlefield.empty(),
+      graveyard: Graveyard.empty(),
     })
 
     // Initialize mana pool
@@ -324,7 +305,7 @@ export class Game {
     // Initialize Magic rules state
     this.currentPlayerId = startingPlayerId
     this.currentStep = Step.UNTAP
-    this._priorityPlayerId = startingPlayerId
+    this.priorityPlayerId = startingPlayerId
     this.currentTurnNumber = 1
     this.playedLands = 0
 
@@ -455,6 +436,14 @@ export class Game {
 
   getStack(): readonly StackItem[] {
     return [...this.stack.items]
+  }
+
+  /**
+   * Gets all creature IDs with their states.
+   * Used by domain services (e.g., StateBasedActions) to iterate over creatures.
+   */
+  getCreatureEntries(): ReadonlyArray<[string, CreatureStateVO]> {
+    return Array.from(this.creatureStates.entries())
   }
 
   getGraveyard(playerId: string): readonly CardInstance[] {
@@ -1672,7 +1661,7 @@ export class Game {
    * - With empty stack (and they're active player): they auto-advance through steps
    */
   private assignPriorityTo(playerId: string): void {
-    this._priorityPlayerId = playerId
+    this.priorityPlayerId = playerId
 
     // Reactive auto-pass: if player is in auto-pass mode
     if (this.autoPassPlayers.has(playerId)) {
@@ -1928,27 +1917,12 @@ export class Game {
    * - Indestructible not supported (TODO: implement indestructible check)
    * - Player loss condition not checked (TODO: implement player loss at 0 life)
    * - Legend rule not implemented (TODO: implement legendary uniqueness check)
+   *
+   * @see StateBasedActions service for detection logic
    */
   private performStateBasedActions(): void {
-    // Collect creatures to destroy (can't modify map while iterating)
-    const creaturesToDestroy: string[] = []
+    const creaturesToDestroy = StateBasedActions.findCreaturesToDestroy(this)
 
-    for (const [creatureId, creatureState] of this.creatureStates.entries()) {
-      const currentToughness = this.getCurrentToughness(creatureId)
-
-      // Check for lethal damage
-      if (creatureState.damageMarkedThisTurn >= currentToughness) {
-        creaturesToDestroy.push(creatureId)
-        continue
-      }
-
-      // Check for 0 or less toughness
-      if (currentToughness <= 0) {
-        creaturesToDestroy.push(creatureId)
-      }
-    }
-
-    // Destroy all creatures that failed state-based checks
     for (const creatureId of creaturesToDestroy) {
       this.movePermanentToGraveyard(creatureId, GraveyardReason.STATE_BASED)
     }
@@ -2065,11 +2039,15 @@ export class Game {
   // ============================================================================
 
   private hasPriority(playerId: string): boolean {
-    return new HasPriority().isSatisfiedBy({ game: this, playerId })
+    return playerId === this.priorityPlayerId
   }
 
   private canPlayLand(playerId: string): boolean {
-    return new CanPlayLand().isSatisfiedBy({ game: this, playerId })
+    return (
+      playerId === this.currentPlayerId &&
+      !this.hasPlayedLandThisTurn() &&
+      this.isMainPhase()
+    )
   }
 
   private hasPlayedLandThisTurn(): boolean {
@@ -2096,15 +2074,63 @@ export class Game {
   }
 
   private canCastSpell(playerId: string): boolean {
-    return new CanCastSpell().isSatisfiedBy({ game: this, playerId })
+    return this.isMainPhase() && this.playerHasSpellInHand(playerId)
   }
 
   private canDeclareAttacker(playerId: string): boolean {
-    return new CanDeclareAttacker().isSatisfiedBy({ game: this, playerId })
+    return (
+      this.currentStep === Step.DECLARE_ATTACKERS &&
+      playerId === this.currentPlayerId &&
+      this.playerHasAttackableCreature(playerId)
+    )
   }
 
   private canActivateAbility(playerId: string): boolean {
-    return new CanActivateAbility().isSatisfiedBy({ game: this, playerId })
+    return this.playerHasActivatableAbility(playerId)
+  }
+
+  private playerHasSpellInHand(playerId: string): boolean {
+    const playerState = this.getPlayerState(playerId)
+    return playerState.hand.cards.some((card) => this.isCastable(card))
+  }
+
+  private playerHasAttackableCreature(playerId: string): boolean {
+    const playerState = this.getPlayerState(playerId)
+    return playerState.battlefield.cards.some((card) => {
+      if (!this.isCreature(card)) {
+        return false
+      }
+
+      const state = this.creatureStates.get(card.instanceId)
+      if (!state) {
+        return false
+      }
+
+      return !state.isTapped && !state.hasAttackedThisTurn
+    })
+  }
+
+  private playerHasActivatableAbility(playerId: string): boolean {
+    const playerState = this.getPlayerState(playerId)
+    return playerState.battlefield.cards.some((card) => {
+      // Check if card has an activated ability
+      if (!card.definition.activatedAbility) {
+        return false
+      }
+
+      // Check if the cost can be paid
+      const cost = card.definition.activatedAbility.cost
+      if (cost.type === "TAP") {
+        const state = this.creatureStates.get(card.instanceId)
+        if (!state) {
+          return false
+        }
+        // Can activate if not tapped
+        return !state.isTapped
+      }
+
+      return false
+    })
   }
 
   private isCastable(card: CardInstance): boolean {

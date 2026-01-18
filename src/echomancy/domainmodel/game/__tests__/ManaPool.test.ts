@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { InsufficientManaError, ManaPool } from "../valueobjects/ManaPool"
 
 describe("ManaPool Value Object", () => {

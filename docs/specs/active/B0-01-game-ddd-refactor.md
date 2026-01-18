@@ -279,3 +279,102 @@ Game.ts remains the Aggregate Root that:
 - Clear domain language in code (Battlefield, ManaPool, TheStack)
 - No "Manager", "Handler", "System" names
 - All existing tests pass
+
+---
+
+## Implementation Tracking
+
+**Status**: In Progress
+**Started**: 2026-01-18
+**Completed**:
+**Agent**: senior-backend-engineer
+
+### Task Breakdown
+
+#### Phase 1: Value Objects (Low Risk) ✅
+- [x] Create `valueobjects/ManaPool.ts` with immutable operations
+- [x] Create `valueobjects/CreatureState.ts` with P/T calculation
+- [x] Refactor Game.ts to use ManaPool VO
+- [x] Refactor Game.ts to use CreatureState VO
+- [x] Run tests, lint, format
+
+#### Phase 2: Specifications (Low Risk) ✅
+- [x] Create `specifications/Specification.ts` interface
+- [x] Create `specifications/CanPlayLand.ts`
+- [x] Create `specifications/CanCastSpell.ts`
+- [x] Create `specifications/CanDeclareAttacker.ts`
+- [x] Create remaining specs (HasPriority, CanActivateAbility, etc.)
+- [x] Refactor Game.ts to use specifications
+- [x] Run tests, lint, format
+
+#### Phase 3: Zone Entities (Medium Risk) ✅
+- [x] Create `entities/Battlefield.ts` with permanent management
+- [x] Create `entities/Hand.ts`
+- [x] Create `entities/Graveyard.ts`
+- [x] Refactor PlayerState to use zone entities
+- [x] Run tests, lint, format
+
+##### Phase 3 Detailed Breakdown:
+
+###### Phase 3.1: Battlefield Entity (Medium) ✅
+- [x] Create `entities/Battlefield.ts` with addPermanent, removePermanent, findPermanent methods
+- [x] Create unit tests for Battlefield entity
+- [x] Update PlayerState type to use Battlefield entity
+- [x] Refactor Game.ts enterBattlefield() and movePermanentToGraveyard() to use entity
+
+###### Phase 3.2: Hand Entity (Small) ✅
+- [x] Create `entities/Hand.ts` with addCard, removeCard, findCard methods
+- [x] Create unit tests for Hand entity
+- [x] Update PlayerState to use Hand entity
+- [x] Refactor Game.ts playLand() and castSpell() to use entity
+
+###### Phase 3.3: Graveyard Entity (Small) ✅
+- [x] Create `entities/Graveyard.ts` with addCard, getAllCards, count methods
+- [x] Create unit tests for Graveyard entity
+- [x] Update PlayerState to use Graveyard entity
+- [x] Refactor Game.ts getGraveyard() to use entity
+
+###### Phase 3.4: Integration & Verification (Medium) ✅
+- [x] Update exportZone() helper in Game.ts (works with entities via duck typing)
+- [x] Update test helpers to work with new zone entities (entities expose mutable `cards` getter)
+- [x] Run full test suite, fix any issues (561 pass, 0 fail)
+- [x] Run lint and format
+- [x] Zone entities integrated - backward compatible via mutable `cards` getter
+
+#### Phase 4: TheStack Entity (Medium Risk) ✅
+- [x] Create `entities/TheStack.ts` with push, pop, peek, isEmpty, hasItems methods
+- [x] Create unit tests for TheStack entity (22 tests)
+- [x] Stack types remain in StackTypes.ts (no need to move - already well-organized)
+- [x] Refactor Game.ts to use TheStack (backward compatible via mutable `items` getter)
+- [x] Run tests, lint, format (583 pass, 0 fail)
+
+#### Phase 5: Domain Services (Higher Risk) 🔄
+- [ ] Create `services/CombatResolution.ts`
+- [ ] Create `services/TriggerEvaluation.ts`
+- [x] Create `services/StateBasedActions.ts` with `findCreaturesToDestroy(game)` function
+- [x] Add `getCreatureEntries()` public method to Game.ts for service access
+- [x] Refactor `performStateBasedActions()` to use StateBasedActions service
+- [x] Run tests, lint, format (591 pass, 0 fail)
+
+**Note**: CombatResolution and TriggerEvaluation require more Game internals exposed.
+Pattern established with StateBasedActions - remaining services can follow same approach.
+
+#### Phase 6: TurnState & CombatState VOs (Medium Risk) ⏳
+- [ ] Create `valueobjects/TurnState.ts`
+- [ ] Create `valueobjects/CombatState.ts`
+- [ ] Refactor Game.ts to use these VOs
+- [ ] Run tests, lint, format
+
+#### Phase 7: Final Cleanup ⏳
+- [ ] Review Game.ts for remaining extraction opportunities
+- [ ] Ensure consistent patterns across all extracted components
+- [ ] Update documentation in `docs/architecture.md`
+- [ ] Final test run and code review
+
+**Blockers**: None
+
+**Notes**:
+- Phase 1 & 2 completed prior to this planning session
+- Phase 3 focuses on zone entities: Battlefield, Hand, Graveyard
+- Zone entities are entities (not value objects) because they have identity and mutable state
+- All zone transitions remain in Game.ts; entities just manage their card arrays
