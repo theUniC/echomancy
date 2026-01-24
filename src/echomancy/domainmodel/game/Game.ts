@@ -40,9 +40,12 @@ import {
   InvalidPlayLandStepError,
   InvalidStartingPlayerError,
   LandLimitExceededError,
+  NotMainPhaseError,
+  NotYourTurnError,
   PermanentHasNoActivatedAbilityError,
   PermanentNotFoundError,
   PlayerNotFoundError,
+  StackNotEmptyError,
 } from "./GameErrors"
 import { type GameEvent, GameEventTypes } from "./GameEvents"
 import type { GameStateExport } from "./GameStateExport"
@@ -62,6 +65,7 @@ import {
   exportGameState,
 } from "./services/GameStateExporter"
 import { ManaPaymentService } from "./services/ManaPaymentService"
+import { SpellTimingService } from "./services/SpellTiming"
 import { StateBasedActions } from "./services/StateBasedActions"
 import {
   TriggerEvaluation,
@@ -1267,9 +1271,6 @@ export class Game {
    * @throws StackNotEmptyError if sorcery-speed spell with non-empty stack
    */
   private validateSpellTiming(playerId: string, card: CardInstance): void {
-    // Import SpellTimingService here to avoid circular dependency
-    const { SpellTimingService } = require("./services/SpellTiming")
-
     // Instant-speed spells can be cast any time player has priority
     if (SpellTimingService.isInstantSpeed(card)) {
       return
@@ -1280,19 +1281,16 @@ export class Game {
 
     // Check turn ownership
     if (this.currentPlayerId !== playerId) {
-      const { NotYourTurnError } = require("./GameErrors")
       throw new NotYourTurnError(isCreature)
     }
 
     // Check phase
     if (!this.isMainPhase()) {
-      const { NotMainPhaseError } = require("./GameErrors")
       throw new NotMainPhaseError(isCreature)
     }
 
     // Check stack state
     if (this.stack.items.length > 0) {
-      const { StackNotEmptyError } = require("./GameErrors")
       throw new StackNotEmptyError(isCreature)
     }
   }
