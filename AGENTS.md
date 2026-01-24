@@ -163,6 +163,18 @@ playerState.battlefield.cards.push(creature)
 
 > **Why**: Helpers ensure consistent setup and use `enterBattlefield()` internally.
 
+### Use vitest for test imports (NOT bun:test)
+
+```typescript
+// CORRECT - CI uses vitest
+import { describe, expect, test } from "vitest"
+
+// WRONG - breaks CI (bun:test only works locally)
+import { describe, expect, test } from "bun:test"
+```
+
+> **Why**: CI runs `vitest` via `bun run test`. While `bun test` accepts both import styles locally, vitest does not understand `bun:test` imports, causing CI failures.
+
 ### Resolve the stack before asserting
 
 ```typescript
@@ -230,6 +242,7 @@ If you see yourself doing any of these, stop and reconsider:
 | `battlefield.cards.push(...)` | Use `enterBattlefield()` |
 | `hand.cards.splice(...)` | Use `game.apply()` with appropriate action |
 | `new Game(...)` in tests | Use `createStartedGame()` |
+| `import from "bun:test"` | Use `import from "vitest"` (CI uses vitest) |
 | `npm install` without trying bun first | Try `bun install` first, npm only as fallback |
 | Using `any` type | Find or create proper type |
 | Skipping `resolveStack()` | Always resolve before asserting effects |
