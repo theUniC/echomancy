@@ -113,12 +113,11 @@ export enum GraveyardReason {
 // CREATURE STATE TYPES
 // ============================================================================
 
-// Re-export CounterType from CreatureState VO for backward compatibility
-export type { CounterType } from "./valueobjects/CreatureState"
+// Re-export CounterType from PermanentState VO for backward compatibility
+export type { CounterType } from "./valueobjects/PermanentState"
 
-// Import CreatureState VO (renamed to avoid conflict with backward compat export)
-import type { CounterType } from "./valueobjects/CreatureState"
-import { PermanentState } from "./valueobjects/PermanentState"
+// Import PermanentState VO
+import { type CounterType, PermanentState } from "./valueobjects/PermanentState"
 
 /**
  * Creature state for external use (backward compatibility).

@@ -77,7 +77,7 @@ The domain model uses standard DDD building blocks:
 Immutable objects with equality by value:
 
 - **ManaPool**: Manages mana of all colors, with `add()`, `spend()`, `clear()` returning new instances
-- **CreatureState**: Tracks P/T, damage, counters, summoning sickness, combat state
+- **PermanentState**: Tracks state for all permanents (tap state, counters). Optional creature sub-state for P/T, damage, summoning sickness, combat
 - **TurnState**: Groups turn-related state (current player, step, turn number, lands played)
 - **CombatState**: Tracks attacker declarations and blocker assignments
 

@@ -18,6 +18,20 @@
 import type { CardInstance } from "../../cards/CardInstance"
 
 /**
+ * Known counter types in MTG.
+ * Using string allows any counter type while providing autocomplete for common ones.
+ */
+export type CounterType =
+  | "PLUS_ONE_PLUS_ONE"
+  | "MINUS_ONE_MINUS_ONE"
+  | "LOYALTY"
+  | "CHARGE"
+  | "LORE"
+  | "TIME"
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | (string & {}) // Allow any string for custom counters
+
+/**
  * Creature-specific state (combat, summoning sickness, P/T, damage).
  * This is optional and only present for creatures.
  */
