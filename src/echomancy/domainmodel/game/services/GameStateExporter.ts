@@ -71,6 +71,7 @@ export function exportGameState(ctx: ExportableGameContext): GameStateExport {
         hand: exportZone(ctx, playerState.hand, playerId),
         battlefield: exportZone(ctx, playerState.battlefield, playerId),
         graveyard: exportZone(ctx, playerState.graveyard, playerId),
+        library: exportZone(ctx, playerState.library, playerId),
       },
     }
   }

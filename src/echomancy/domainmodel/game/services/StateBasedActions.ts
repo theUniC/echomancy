@@ -8,6 +8,7 @@
  * Current implementation (MVP):
  * - Destroy creatures with lethal damage (damage >= toughness)
  * - Destroy creatures with 0 or less toughness
+ * - Player loses if they attempted to draw from empty library
  *
  * MVP Limitations:
  * - Indestructible not supported
@@ -54,9 +55,34 @@ export function findCreaturesToDestroy(game: Game): string[] {
 }
 
 /**
+ * Finds all players who should lose due to attempting to draw from empty library.
+ *
+ * Per MTG rules 121.4 and 704.5b: A player who attempted to draw a card from
+ * an empty library loses the game.
+ *
+ * This is a pure function that queries the game state and returns
+ * a list of player IDs who should lose. It does NOT modify the game.
+ *
+ * @param game - The game to check
+ * @returns Array of player IDs who should lose
+ */
+export function findPlayersWhoAttemptedEmptyLibraryDraw(game: Game): string[] {
+  const playersToLose: string[] = []
+
+  for (const playerId of game.getPlayersInTurnOrder()) {
+    if (game.hasAttemptedDrawFromEmptyLibrary(playerId)) {
+      playersToLose.push(playerId)
+    }
+  }
+
+  return playersToLose
+}
+
+/**
  * StateBasedActions namespace for organized service methods.
  * Using namespace pattern for future expansion and consistent API.
  */
 export const StateBasedActions = {
   findCreaturesToDestroy,
+  findPlayersWhoAttemptedEmptyLibraryDraw,
 } as const

@@ -26,6 +26,11 @@ export type DeclareBlocker = {
   blockerId: string
   attackerId: string
 }
+export type DrawCard = {
+  type: "DRAW_CARD"
+  playerId: string
+  amount: number
+}
 
 export type Actions =
   | AdvanceStep
@@ -36,5 +41,6 @@ export type Actions =
   | DeclareAttacker
   | DeclareBlocker
   | ActivateAbility
+  | DrawCard
 
 export type AllowedAction = Actions["type"]
