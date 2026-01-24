@@ -54,14 +54,18 @@ export function calculateDamageAssignments(game: Game): DamageAssignment[] {
   const damageAssignments: DamageAssignment[] = []
   const defendingPlayer = game.getOpponentOf(game.currentPlayerId)
 
-  for (const [attackerId, attackerState] of game.getCreatureEntries()) {
-    if (!attackerState.isAttacking) continue
+  for (const [attackerId, permanentState] of game.getCreatureEntries()) {
+    // getCreatureEntries() only returns permanents with creature state
+    if (!permanentState.creatureState) continue
+
+    const creatureState = permanentState.creatureState
+    if (!creatureState.isAttacking) continue
 
     // Check if attacker still exists (may have been removed by instant/ability)
     const attackerPower = game.getCreaturePowerSafe(attackerId)
     if (attackerPower === null) continue // Attacker no longer exists, skip
 
-    if (attackerState.blockedBy === null) {
+    if (creatureState.blockedBy === null) {
       // Unblocked attacker: damage to defending player
       damageAssignments.push({
         targetId: defendingPlayer,
@@ -70,7 +74,7 @@ export function calculateDamageAssignments(game: Game): DamageAssignment[] {
       })
     } else {
       // Blocked attacker: damage to blocker
-      const blockerId = attackerState.blockedBy
+      const blockerId = creatureState.blockedBy
 
       // Check if blocker still exists
       const blockerPower = game.getCreaturePowerSafe(blockerId)

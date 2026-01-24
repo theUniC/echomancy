@@ -20,8 +20,8 @@ import type { Player } from "../Player"
 import type { PlayerState } from "../PlayerState"
 import type { StackItem } from "../StackTypes"
 import type { GameSteps } from "../Steps"
-import type { CreatureState as CreatureStateVO } from "../valueobjects/CreatureState"
 import type { ManaPool } from "../valueobjects/ManaPool"
+import type { PermanentState } from "../valueobjects/PermanentState"
 
 /**
  * Read-only context interface for exporting game state.
@@ -41,7 +41,7 @@ export type ExportableGameContext = {
   getPlayer(playerId: string): Player | undefined
   getPlayerState(playerId: string): PlayerState
   getManaPool(playerId: string): ManaPool
-  getCreatureState(instanceId: string): CreatureStateVO | undefined
+  getCreatureState(instanceId: string): PermanentState | undefined
   getStackItems(): readonly StackItem[]
   isPlaneswalker(card: CardInstance): boolean
   findCardOnBattlefields(instanceId: string): CardInstance | undefined
@@ -131,9 +131,9 @@ function exportCardInstance(
     exported.toughness = def.toughness
   }
 
-  const creatureState = ctx.getCreatureState(card.instanceId)
-  if (creatureState) {
-    exported.creatureState = exportCreatureState(creatureState)
+  const permanentState = ctx.getCreatureState(card.instanceId)
+  if (permanentState?.creatureState) {
+    exported.creatureState = exportCreatureState(permanentState)
   }
 
   if (ctx.isPlaneswalker(card)) {
@@ -143,20 +143,25 @@ function exportCardInstance(
   return exported
 }
 
-function exportCreatureState(state: CreatureStateVO): CreatureStateExport {
-  const snapshot = state.toExport()
+function exportCreatureState(state: PermanentState): CreatureStateExport {
+  // PermanentState must have creature sub-state to be exported as creature
+  if (!state.creatureState) {
+    throw new Error("Cannot export creature state for non-creature permanent")
+  }
+
+  const cs = state.creatureState
 
   return {
-    isTapped: snapshot.isTapped,
-    isAttacking: snapshot.isAttacking,
-    hasAttackedThisTurn: snapshot.hasAttackedThisTurn,
-    hasSummoningSickness: snapshot.hasSummoningSickness,
+    isTapped: state.isTapped,
+    isAttacking: cs.isAttacking,
+    hasAttackedThisTurn: cs.hasAttackedThisTurn,
+    hasSummoningSickness: cs.hasSummoningSickness,
     power: state.getCurrentPower(),
     toughness: state.getCurrentToughness(),
-    counters: snapshot.counters,
-    damageMarkedThisTurn: snapshot.damageMarkedThisTurn,
-    blockingCreatureId: snapshot.blockingCreatureId,
-    blockedBy: snapshot.blockedBy,
+    counters: Object.fromEntries(state.counters),
+    damageMarkedThisTurn: cs.damageMarkedThisTurn,
+    blockingCreatureId: cs.blockingCreatureId,
+    blockedBy: cs.blockedBy,
   }
 }
 

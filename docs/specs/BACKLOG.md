@@ -17,7 +17,7 @@ This is the **single source of truth** for project status and prioritized work.
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Core Engine | Partial | Missing: mana costs, win/lose, spell timing |
+| Core Engine | Partial | Missing: win/lose, game setup. Refactor: PermanentState |
 | UI | In Progress | Basic display done, interactions partially done |
 | MVP Complete | No | Blocked by core engine gaps |
 
@@ -35,11 +35,12 @@ Work items in order of implementation. **Always take the first `TODO` item.**
 
 ### Priority 0: Foundation (Blocking)
 
-This refactor is foundational and should be done before other backlog items.
+These refactors are foundational and improve maintainability.
 
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
 | 0 | B0-01 | Game.ts DDD Refactor (2,282 → ~600-800 lines) | DONE | - |
+| 0b | R-01 | CreatureState → PermanentState (unified permanent state) | DONE | - |
 
 ### Priority 1: Core Engine Fixes (Parallel)
 
@@ -110,6 +111,7 @@ These enable real game flow. Must be done in order.
 - Static keywords: Flying, Reach, Vigilance (consultative)
 - +1/+1 counters
 - Creature P/T calculation
+- PermanentState - unified state for all permanents (R-01)
 
 ### UI (Done)
 
@@ -128,14 +130,15 @@ These enable real game flow. Must be done in order.
 
 These are intentional simplifications for MVP:
 
-| Limitation | Reason |
-|------------|--------|
-| Triggers execute immediately (not on stack) | Complexity - proper trigger stacking is complex |
-| 1 blocker per attacker | Simplifies damage assignment |
-| Only player targets | Creature/permanent targeting requires more work |
-| No mana abilities | Auto-tap lands for now |
-| Mana empties only at Cleanup | MTG rule says each phase, but simplified |
-| No 7-layer system | Only needed for continuous effects (lords, etc.) |
+| Limitation | Reason | Fix |
+|------------|--------|-----|
+| Triggers execute immediately (not on stack) | Complexity - proper trigger stacking is complex | - |
+| 1 blocker per attacker | Simplifies damage assignment | - |
+| Only player targets | Creature/permanent targeting requires more work | - |
+| No mana abilities | Auto-tap lands for now | - |
+| Mana empties only at Cleanup | MTG rule says each phase, but simplified | - |
+| No 7-layer system | Only needed for continuous effects (lords, etc.) | - |
+| Only creatures have state (tap, counters) | CreatureState only tracks creatures | R-01 ✓ |
 
 ---
 

@@ -3,7 +3,7 @@ import type { StaticAbility } from "../../../cards/CardDefinition"
 import { StaticAbilities } from "../../../cards/CardDefinition"
 import type { CardInstance } from "../../../cards/CardInstance"
 import { Step } from "../../Steps"
-import { CreatureState } from "../../valueobjects/CreatureState"
+import { PermanentState } from "../../valueobjects/PermanentState"
 import {
   type CombatValidationContext,
   validateDeclareAttacker,
@@ -46,7 +46,7 @@ function createMockCreature(
   }
 }
 
-function createCreatureState(
+function createPermanentState(
   overrides: Partial<{
     isTapped: boolean
     isAttacking: boolean
@@ -55,9 +55,9 @@ function createCreatureState(
     blockingCreatureId: string | null
     blockedBy: string | null
   }> = {},
-): CreatureState {
+): PermanentState {
   const creature = createMockCreature("test")
-  let state = CreatureState.forCreature(creature)
+  let state = PermanentState.forCreature(creature)
   // Default summoning sickness is true, so clear it unless specified
   if (!overrides.hasSummoningSickness) {
     state = state.withSummoningSickness(false)
@@ -125,7 +125,7 @@ describe("CombatManager Service", () => {
 
     test("throws if creature has summoning sickness without Haste", () => {
       const creature = createMockCreature("creature-1")
-      const creatureState = createCreatureState({ hasSummoningSickness: true })
+      const creatureState = createPermanentState({ hasSummoningSickness: true })
       const ctx = createMockContext({
         getBattlefieldCards: () => [creature],
         getCreatureState: () => creatureState,
@@ -138,7 +138,7 @@ describe("CombatManager Service", () => {
 
     test("allows attack if creature has Haste despite summoning sickness", () => {
       const creature = createMockCreature("creature-1", [StaticAbilities.HASTE])
-      const creatureState = createCreatureState({ hasSummoningSickness: true })
+      const creatureState = createPermanentState({ hasSummoningSickness: true })
       const ctx = createMockContext({
         getBattlefieldCards: () => [creature],
         getCreatureState: () => creatureState,
@@ -147,12 +147,12 @@ describe("CombatManager Service", () => {
 
       const result = validateDeclareAttacker(ctx, "player1", "creature-1")
 
-      expect(result.newCreatureState.isAttacking).toBe(true)
+      expect(result.newCreatureState.creatureState?.isAttacking).toBe(true)
     })
 
     test("throws if creature is tapped", () => {
       const creature = createMockCreature("creature-1")
-      const creatureState = createCreatureState({ isTapped: true })
+      const creatureState = createPermanentState({ isTapped: true })
       const ctx = createMockContext({
         getBattlefieldCards: () => [creature],
         getCreatureState: () => creatureState,
@@ -165,7 +165,7 @@ describe("CombatManager Service", () => {
 
     test("throws if creature already attacked this turn", () => {
       const creature = createMockCreature("creature-1")
-      const creatureState = createCreatureState({ hasAttackedThisTurn: true })
+      const creatureState = createPermanentState({ hasAttackedThisTurn: true })
       const ctx = createMockContext({
         getBattlefieldCards: () => [creature],
         getCreatureState: () => creatureState,
@@ -178,7 +178,7 @@ describe("CombatManager Service", () => {
 
     test("returns valid result with creature tapped for normal attacker", () => {
       const creature = createMockCreature("creature-1")
-      const creatureState = createCreatureState()
+      const creatureState = createPermanentState()
       const ctx = createMockContext({
         getBattlefieldCards: () => [creature],
         getCreatureState: () => creatureState,
@@ -187,8 +187,10 @@ describe("CombatManager Service", () => {
       const result = validateDeclareAttacker(ctx, "player1", "creature-1")
 
       expect(result.creature).toBe(creature)
-      expect(result.newCreatureState.isAttacking).toBe(true)
-      expect(result.newCreatureState.hasAttackedThisTurn).toBe(true)
+      expect(result.newCreatureState.creatureState?.isAttacking).toBe(true)
+      expect(result.newCreatureState.creatureState?.hasAttackedThisTurn).toBe(
+        true,
+      )
       expect(result.newCreatureState.isTapped).toBe(true)
     })
 
@@ -196,7 +198,7 @@ describe("CombatManager Service", () => {
       const creature = createMockCreature("creature-1", [
         StaticAbilities.VIGILANCE,
       ])
-      const creatureState = createCreatureState()
+      const creatureState = createPermanentState()
       const ctx = createMockContext({
         getBattlefieldCards: () => [creature],
         getCreatureState: () => creatureState,
@@ -206,7 +208,7 @@ describe("CombatManager Service", () => {
 
       const result = validateDeclareAttacker(ctx, "player1", "creature-1")
 
-      expect(result.newCreatureState.isAttacking).toBe(true)
+      expect(result.newCreatureState.creatureState?.isAttacking).toBe(true)
       expect(result.newCreatureState.isTapped).toBe(false)
     })
   })
@@ -247,9 +249,9 @@ describe("CombatManager Service", () => {
     test("throws if blocker is tapped", () => {
       const blocker = createMockCreature("blocker-1")
       blocker.ownerId = "player2"
-      const blockerState = createCreatureState({ isTapped: true })
+      const blockerState = createPermanentState({ isTapped: true })
       const attacker = createMockCreature("attacker-1")
-      const attackerState = createCreatureState({ isAttacking: true })
+      const attackerState = createPermanentState({ isAttacking: true })
 
       const ctx = createMockContext({
         currentStep: Step.DECLARE_BLOCKERS,
@@ -269,11 +271,11 @@ describe("CombatManager Service", () => {
     test("throws if blocker is already blocking", () => {
       const blocker = createMockCreature("blocker-1")
       blocker.ownerId = "player2"
-      const blockerState = createCreatureState({
+      const blockerState = createPermanentState({
         blockingCreatureId: "other-attacker",
       })
       const attacker = createMockCreature("attacker-1")
-      const attackerState = createCreatureState({ isAttacking: true })
+      const attackerState = createPermanentState({ isAttacking: true })
 
       const ctx = createMockContext({
         currentStep: Step.DECLARE_BLOCKERS,
@@ -293,9 +295,9 @@ describe("CombatManager Service", () => {
     test("throws if attacker is not attacking", () => {
       const blocker = createMockCreature("blocker-1")
       blocker.ownerId = "player2"
-      const blockerState = createCreatureState()
+      const blockerState = createPermanentState()
       const attacker = createMockCreature("attacker-1")
-      const attackerState = createCreatureState() // Not attacking
+      const attackerState = createPermanentState() // Not attacking
 
       const ctx = createMockContext({
         currentStep: Step.DECLARE_BLOCKERS,
@@ -315,9 +317,9 @@ describe("CombatManager Service", () => {
     test("throws if attacker is already blocked", () => {
       const blocker = createMockCreature("blocker-1")
       blocker.ownerId = "player2"
-      const blockerState = createCreatureState()
+      const blockerState = createPermanentState()
       const attacker = createMockCreature("attacker-1")
-      const attackerState = createCreatureState({
+      const attackerState = createPermanentState({
         isAttacking: true,
         blockedBy: "other-blocker",
       })
@@ -340,11 +342,11 @@ describe("CombatManager Service", () => {
     test("throws if attacker has Flying and blocker lacks Flying or Reach", () => {
       const blocker = createMockCreature("blocker-1")
       blocker.ownerId = "player2"
-      const blockerState = createCreatureState()
+      const blockerState = createPermanentState()
       const attacker = createMockCreature("attacker-1", [
         StaticAbilities.FLYING,
       ])
-      const attackerState = createCreatureState({ isAttacking: true })
+      const attackerState = createPermanentState({ isAttacking: true })
 
       const ctx = createMockContext({
         currentStep: Step.DECLARE_BLOCKERS,
@@ -367,11 +369,11 @@ describe("CombatManager Service", () => {
     test("allows blocker with Reach to block flyer", () => {
       const blocker = createMockCreature("blocker-1", [StaticAbilities.REACH])
       blocker.ownerId = "player2"
-      const blockerState = createCreatureState()
+      const blockerState = createPermanentState()
       const attacker = createMockCreature("attacker-1", [
         StaticAbilities.FLYING,
       ])
-      const attackerState = createCreatureState({ isAttacking: true })
+      const attackerState = createPermanentState({ isAttacking: true })
 
       const ctx = createMockContext({
         currentStep: Step.DECLARE_BLOCKERS,
@@ -403,16 +405,18 @@ describe("CombatManager Service", () => {
         "attacker-1",
       )
 
-      expect(result.newBlockerState.blockingCreatureId).toBe("attacker-1")
-      expect(result.newAttackerState.blockedBy).toBe("blocker-1")
+      expect(result.newBlockerState.creatureState?.blockingCreatureId).toBe(
+        "attacker-1",
+      )
+      expect(result.newAttackerState.creatureState?.blockedBy).toBe("blocker-1")
     })
 
     test("returns valid result with blocking relationship established", () => {
       const blocker = createMockCreature("blocker-1")
       blocker.ownerId = "player2"
-      const blockerState = createCreatureState()
+      const blockerState = createPermanentState()
       const attacker = createMockCreature("attacker-1")
-      const attackerState = createCreatureState({ isAttacking: true })
+      const attackerState = createPermanentState({ isAttacking: true })
 
       const ctx = createMockContext({
         currentStep: Step.DECLARE_BLOCKERS,
@@ -433,8 +437,10 @@ describe("CombatManager Service", () => {
 
       expect(result.blocker).toBe(blocker)
       expect(result.attacker).toBe(attacker)
-      expect(result.newBlockerState.blockingCreatureId).toBe("attacker-1")
-      expect(result.newAttackerState.blockedBy).toBe("blocker-1")
+      expect(result.newBlockerState.creatureState?.blockingCreatureId).toBe(
+        "attacker-1",
+      )
+      expect(result.newAttackerState.creatureState?.blockedBy).toBe("blocker-1")
     })
   })
 })

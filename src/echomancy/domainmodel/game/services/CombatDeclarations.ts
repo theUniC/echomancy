@@ -22,7 +22,7 @@ import {
 } from "../GameErrors"
 import type { GameSteps } from "../Steps"
 import { Step } from "../Steps"
-import type { CreatureState } from "../valueobjects/CreatureState"
+import type { PermanentState } from "../valueobjects/PermanentState"
 
 /**
  * Read-only context interface for combat validation.
@@ -36,7 +36,7 @@ export type CombatValidationContext = {
   getBattlefieldCards(playerId: string): readonly CardInstance[]
   isCreature(card: CardInstance): boolean
   hasStaticAbility(card: CardInstance, ability: StaticAbility): boolean
-  getCreatureState(instanceId: string): CreatureState | undefined
+  getCreatureState(instanceId: string): PermanentState | undefined
 }
 
 /**
@@ -44,7 +44,7 @@ export type CombatValidationContext = {
  */
 export type DeclareAttackerResult = {
   creature: CardInstance
-  newCreatureState: CreatureState
+  newCreatureState: PermanentState
 }
 
 /**
@@ -53,8 +53,8 @@ export type DeclareAttackerResult = {
 export type DeclareBlockerResult = {
   blocker: CardInstance
   attacker: CardInstance
-  newBlockerState: CreatureState
-  newAttackerState: CreatureState
+  newBlockerState: PermanentState
+  newAttackerState: PermanentState
 }
 
 /**
@@ -90,31 +90,31 @@ export function validateDeclareAttacker(
     throw new PermanentNotFoundError(creatureId)
   }
 
-  const creatureState = ctx.getCreatureState(creatureId)
-  if (!creatureState) {
+  const permanentState = ctx.getCreatureState(creatureId)
+  if (!permanentState || !permanentState.creatureState) {
     throw new PermanentNotFoundError(creatureId)
   }
 
   // Verify creature does not have summoning sickness (unless it has Haste)
   if (
-    creatureState.hasSummoningSickness &&
+    permanentState.creatureState.hasSummoningSickness &&
     !ctx.hasStaticAbility(creature, StaticAbilities.HASTE)
   ) {
     throw new CreatureHasSummoningSicknessError(creatureId)
   }
 
   // Verify creature is not tapped
-  if (creatureState.isTapped) {
+  if (permanentState.isTapped) {
     throw new TappedCreatureCannotAttackError(creatureId)
   }
 
   // Verify creature has not attacked this turn
-  if (creatureState.hasAttackedThisTurn) {
+  if (permanentState.creatureState.hasAttackedThisTurn) {
     throw new CreatureAlreadyAttackedError(creatureId)
   }
 
   // Calculate new state
-  let newCreatureState = creatureState
+  let newCreatureState = permanentState
     .withAttacking(true)
     .withHasAttackedThisTurn(true)
 
@@ -165,33 +165,33 @@ export function validateDeclareBlocker(
     throw new PermanentNotFoundError(blockerId)
   }
 
-  const blockerState = ctx.getCreatureState(blockerId)
-  if (!blockerState) {
+  const blockerPermanentState = ctx.getCreatureState(blockerId)
+  if (!blockerPermanentState || !blockerPermanentState.creatureState) {
     throw new PermanentNotFoundError(blockerId)
   }
 
   // Verify blocker is not tapped
-  if (blockerState.isTapped) {
+  if (blockerPermanentState.isTapped) {
     throw new TappedCreatureCannotBlockError(blockerId)
   }
 
   // Verify blocker is not already blocking
-  if (blockerState.blockingCreatureId !== null) {
+  if (blockerPermanentState.creatureState.blockingCreatureId !== null) {
     throw new CreatureAlreadyBlockingError(blockerId)
   }
 
   // Find the attacker and verify it's actually attacking
-  const attackerState = ctx.getCreatureState(attackerId)
-  if (!attackerState) {
+  const attackerPermanentState = ctx.getCreatureState(attackerId)
+  if (!attackerPermanentState || !attackerPermanentState.creatureState) {
     throw new PermanentNotFoundError(attackerId)
   }
 
-  if (!attackerState.isAttacking) {
+  if (!attackerPermanentState.creatureState.isAttacking) {
     throw new CannotBlockNonAttackingCreatureError(attackerId)
   }
 
   // MVP: Only one blocker per attacker allowed
-  if (attackerState.blockedBy !== null) {
+  if (attackerPermanentState.creatureState.blockedBy !== null) {
     throw new AttackerAlreadyBlockedError(attackerId)
   }
 
@@ -219,8 +219,9 @@ export function validateDeclareBlocker(
   }
 
   // Calculate new states
-  const newBlockerState = blockerState.withBlockingCreatureId(attackerId)
-  const newAttackerState = attackerState.withBlockedBy(blockerId)
+  const newBlockerState =
+    blockerPermanentState.withBlockingCreatureId(attackerId)
+  const newAttackerState = attackerPermanentState.withBlockedBy(blockerId)
 
   return {
     blocker,

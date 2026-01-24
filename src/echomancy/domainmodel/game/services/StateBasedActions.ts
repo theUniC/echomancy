@@ -36,11 +36,14 @@ import type { Game } from "../Game"
 export function findCreaturesToDestroy(game: Game): string[] {
   const creaturesToDestroy: string[] = []
 
-  for (const [creatureId, creatureState] of game.getCreatureEntries()) {
+  for (const [creatureId, permanentState] of game.getCreatureEntries()) {
+    // getCreatureEntries() only returns permanents with creature state
+    if (!permanentState.creatureState) continue
+
     const currentToughness = game.getCurrentToughness(creatureId)
 
     // Check for lethal damage (damage marked >= toughness)
-    if (creatureState.damageMarkedThisTurn >= currentToughness) {
+    if (permanentState.creatureState.damageMarkedThisTurn >= currentToughness) {
       creaturesToDestroy.push(creatureId)
       continue
     }

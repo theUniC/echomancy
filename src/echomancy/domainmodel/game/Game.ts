@@ -117,10 +117,8 @@ export enum GraveyardReason {
 export type { CounterType } from "./valueobjects/CreatureState"
 
 // Import CreatureState VO (renamed to avoid conflict with backward compat export)
-import {
-  type CounterType,
-  CreatureState as CreatureStateVO,
-} from "./valueobjects/CreatureState"
+import type { CounterType } from "./valueobjects/CreatureState"
+import { PermanentState } from "./valueobjects/PermanentState"
 
 /**
  * Creature state for external use (backward compatibility).
@@ -226,7 +224,7 @@ export class Game {
   private autoPassPlayers: Set<string> = new Set()
   private scheduledSteps: GameSteps[] = []
   private resumeStepAfterScheduled?: GameSteps = undefined
-  private creatureStates: Map<string, CreatureStateVO> = new Map()
+  private permanentStates: Map<string, PermanentState> = new Map()
   private playersWhoAttemptedEmptyLibraryDraw: Set<string> = new Set()
 
   // Specifications for business rule validation
@@ -530,8 +528,11 @@ export class Game {
    * Gets all creature IDs with their states.
    * Used by domain services (e.g., StateBasedActions) to iterate over creatures.
    */
-  getCreatureEntries(): ReadonlyArray<[string, CreatureStateVO]> {
-    return Array.from(this.creatureStates.entries())
+  getCreatureEntries(): ReadonlyArray<[string, PermanentState]> {
+    // Filter only permanents that have creature state
+    return Array.from(this.permanentStates.entries()).filter(
+      ([_, state]) => state.creatureState !== undefined,
+    )
   }
 
   getGraveyard(playerId: string): readonly CardInstance[] {
@@ -593,8 +594,41 @@ export class Game {
   }
 
   getCreatureState(creatureId: string): CreatureState {
-    const state = this.getCreatureStateOrThrow(creatureId)
-    return state.toExport()
+    const permanentState = this.getPermanentStateOrThrow(creatureId)
+
+    // Verify it's a creature
+    if (!permanentState.creatureState) {
+      throw new PermanentNotFoundError(creatureId)
+    }
+
+    // Convert PermanentState to legacy CreatureState export format
+    const cs = permanentState.creatureState
+    return {
+      isTapped: permanentState.isTapped,
+      isAttacking: cs.isAttacking,
+      hasAttackedThisTurn: cs.hasAttackedThisTurn,
+      hasSummoningSickness: cs.hasSummoningSickness,
+      basePower: cs.basePower,
+      baseToughness: cs.baseToughness,
+      currentPower: permanentState.getCurrentPower(),
+      currentToughness: permanentState.getCurrentToughness(),
+      counters: Object.fromEntries(permanentState.counters),
+      damageMarkedThisTurn: cs.damageMarkedThisTurn,
+      blockingCreatureId: cs.blockingCreatureId,
+      blockedBy: cs.blockedBy,
+    }
+  }
+
+  /**
+   * Get the permanent state for any permanent on the battlefield.
+   * This works for all permanent types: creatures, artifacts, enchantments, lands.
+   *
+   * @param permanentId - The instance ID of the permanent
+   * @returns The PermanentState value object
+   * @throws PermanentNotFoundError if permanent doesn't exist
+   */
+  getPermanentState(permanentId: string): PermanentState {
+    return this.getPermanentStateOrThrow(permanentId)
   }
 
   /**
@@ -624,7 +658,7 @@ export class Game {
       getManaPool: (playerId: string) =>
         this.manaPools.get(playerId) ?? ManaPool.empty(),
       getCreatureState: (instanceId: string) =>
-        this.creatureStates.get(instanceId),
+        this.permanentStates.get(instanceId),
       getStackItems: () => this.stack.items,
       isPlaneswalker: (card: CardInstance) => this.isPlaneswalker(card),
       findCardOnBattlefields: (instanceId: string) =>
@@ -659,7 +693,7 @@ export class Game {
       hasStaticAbility: (card: CardInstance, ability) =>
         this.hasStaticAbility(card, ability),
       getCreatureState: (instanceId: string) =>
-        this.creatureStates.get(instanceId),
+        this.permanentStates.get(instanceId),
     }
   }
 
@@ -674,8 +708,11 @@ export class Game {
    * @returns The base power value (before counters or modifiers)
    */
   getBasePower(creatureId: string): number {
-    const state = this.getCreatureStateOrThrow(creatureId)
-    return state.basePower
+    const state = this.getPermanentStateOrThrow(creatureId)
+    if (!state.creatureState) {
+      throw new PermanentNotFoundError(creatureId)
+    }
+    return state.creatureState.basePower
   }
 
   /**
@@ -685,8 +722,11 @@ export class Game {
    * @returns The base toughness value (before counters or modifiers)
    */
   getBaseToughness(creatureId: string): number {
-    const state = this.getCreatureStateOrThrow(creatureId)
-    return state.baseToughness
+    const state = this.getPermanentStateOrThrow(creatureId)
+    if (!state.creatureState) {
+      throw new PermanentNotFoundError(creatureId)
+    }
+    return state.creatureState.baseToughness
   }
 
   /**
@@ -697,7 +737,7 @@ export class Game {
    * @returns The number of counters (0 if none exist)
    */
   getCounters(creatureId: string, counterType: CounterType): number {
-    const state = this.getCreatureStateOrThrow(creatureId)
+    const state = this.getPermanentStateOrThrow(creatureId)
     return state.getCounters(counterType)
   }
 
@@ -716,8 +756,8 @@ export class Game {
   ): void {
     this.assertValidCounterAmount(amount)
 
-    const state = this.getCreatureStateOrThrow(creatureId)
-    this.creatureStates.set(creatureId, state.addCounters(counterType, amount))
+    const state = this.getPermanentStateOrThrow(creatureId)
+    this.permanentStates.set(creatureId, state.addCounters(counterType, amount))
   }
 
   /**
@@ -737,8 +777,8 @@ export class Game {
   ): void {
     this.assertValidCounterAmount(amount)
 
-    const state = this.getCreatureStateOrThrow(creatureId)
-    this.creatureStates.set(
+    const state = this.getPermanentStateOrThrow(creatureId)
+    this.permanentStates.set(
       creatureId,
       state.removeCounters(counterType, amount),
     )
@@ -762,7 +802,7 @@ export class Game {
    * @returns The current power value
    */
   getCurrentPower(creatureId: string): number {
-    const state = this.getCreatureStateOrThrow(creatureId)
+    const state = this.getPermanentStateOrThrow(creatureId)
     return state.getCurrentPower()
   }
 
@@ -785,7 +825,7 @@ export class Game {
    * @returns The current toughness value
    */
   getCurrentToughness(creatureId: string): number {
-    const state = this.getCreatureStateOrThrow(creatureId)
+    const state = this.getPermanentStateOrThrow(creatureId)
     return state.getCurrentToughness()
   }
 
@@ -868,21 +908,30 @@ export class Game {
   }
 
   tapPermanent(permanentId: string): void {
-    const state = this.getCreatureStateOrThrow(permanentId)
-    this.creatureStates.set(permanentId, state.withTapped(true))
+    const state = this.getPermanentStateOrThrow(permanentId)
+    this.permanentStates.set(permanentId, state.withTapped(true))
   }
 
   untapPermanent(permanentId: string): void {
-    const state = this.getCreatureStateOrThrow(permanentId)
-    this.creatureStates.set(permanentId, state.withTapped(false))
+    const state = this.getPermanentStateOrThrow(permanentId)
+    this.permanentStates.set(permanentId, state.withTapped(false))
   }
 
-  initializeCreatureStateIfNeeded(card: CardInstance): void {
+  /**
+   * Initialize permanent state for any permanent entering the battlefield.
+   * This replaces initializeCreatureStateIfNeeded and works for ALL permanent types.
+   *
+   * @param card - The permanent card instance
+   */
+  initializePermanentState(card: CardInstance): void {
     if (this.isCreature(card)) {
-      this.creatureStates.set(
+      this.permanentStates.set(
         card.instanceId,
-        CreatureStateVO.forCreature(card),
+        PermanentState.forCreature(card),
       )
+    } else if (this.isPermanent(card)) {
+      // For non-creature permanents (artifacts, enchantments, lands)
+      this.permanentStates.set(card.instanceId, PermanentState.forNonCreature())
     }
   }
 
@@ -1062,8 +1111,8 @@ export class Game {
     const controllerState = this.getPlayerState(controllerId)
     controllerState.battlefield.cards.push(permanent)
 
-    // 2. Initialize creature state if needed
-    this.initializeCreatureStateIfNeeded(permanent)
+    // 2. Initialize permanent state (for all permanent types)
+    this.initializePermanentState(permanent)
 
     // 3. Emit zone change event and evaluate triggers
     // NOTE: fromZone defaults to STACK for backward compatibility
@@ -1132,9 +1181,9 @@ export class Game {
     const ownerState = this.getPlayerState(permanent.ownerId)
     ownerState.graveyard.cards.push(permanent)
 
-    // 4. Clean up creature state if needed
-    if (this.creatureStates.has(permanentId)) {
-      this.creatureStates.delete(permanentId)
+    // 4. Clean up permanent state
+    if (this.permanentStates.has(permanentId)) {
+      this.permanentStates.delete(permanentId)
     }
 
     // 5. Emit zone change event and evaluate triggers
@@ -1319,7 +1368,7 @@ export class Game {
     )
 
     // Apply state changes
-    this.creatureStates.set(action.creatureId, result.newCreatureState)
+    this.permanentStates.set(action.creatureId, result.newCreatureState)
 
     // Emit creature declared attacker event and evaluate triggers
     this.evaluateTriggers({
@@ -1339,8 +1388,8 @@ export class Game {
     )
 
     // Apply state changes
-    this.creatureStates.set(action.blockerId, result.newBlockerState)
-    this.creatureStates.set(action.attackerId, result.newAttackerState)
+    this.permanentStates.set(action.blockerId, result.newBlockerState)
+    this.permanentStates.set(action.attackerId, result.newAttackerState)
 
     // TODO: Emit CREATURE_DECLARED_BLOCKER event when needed
     // Currently no triggers depend on blocking, so this is deferred
@@ -1398,42 +1447,47 @@ export class Game {
   private payActivationCost(permanentId: string, cost: ActivationCost): void {
     if (cost.type === "TAP") {
       // Check if permanent can be tapped
-      let creatureState = this.creatureStates.get(permanentId)
+      let permanentState = this.permanentStates.get(permanentId)
 
-      if (creatureState) {
-        // It's a creature - check if already tapped
-        if (creatureState.isTapped) {
+      if (permanentState) {
+        // Check if already tapped
+        if (permanentState.isTapped) {
           throw new CannotPayActivationCostError(
             permanentId,
             "permanent is already tapped",
           )
         }
 
-        // Find the creature card to check for Haste
-        // Search all battlefields for the permanent
-        let permanent: CardInstance | undefined
-        for (const playerState of this.playerStates.values()) {
-          permanent = playerState.battlefield.cards.find(
-            (card) => card.instanceId === permanentId,
-          )
-          if (permanent) break
+        // If it's a creature, check for summoning sickness
+        if (permanentState.creatureState) {
+          // Find the creature card to check for Haste
+          // Search all battlefields for the permanent
+          let permanent: CardInstance | undefined
+          for (const playerState of this.playerStates.values()) {
+            permanent = playerState.battlefield.cards.find(
+              (card) => card.instanceId === permanentId,
+            )
+            if (permanent) break
+          }
+
+          // Check for summoning sickness (unless has Haste)
+          if (
+            permanentState.creatureState.hasSummoningSickness &&
+            permanent &&
+            !this.hasStaticAbility(permanent, StaticAbilities.HASTE)
+          ) {
+            throw new CreatureHasSummoningSicknessError(permanentId)
+          }
         }
 
-        // Check for summoning sickness (unless has Haste)
-        if (
-          creatureState.hasSummoningSickness &&
-          permanent &&
-          !this.hasStaticAbility(permanent, StaticAbilities.HASTE)
-        ) {
-          throw new CreatureHasSummoningSicknessError(permanentId)
-        }
-
-        // Tap the creature
-        creatureState = creatureState.withTapped(true)
-        this.creatureStates.set(permanentId, creatureState)
+        // Tap the permanent
+        permanentState = permanentState.withTapped(true)
+        this.permanentStates.set(permanentId, permanentState)
       }
-      // If not a creature (artifact, enchantment, land), assume it can be tapped
-      // TODO: Track tapped state for all permanents, not just creatures
+      // If permanent state doesn't exist, it's not on the battlefield
+      else {
+        throw new PermanentNotFoundError(permanentId)
+      }
     }
   }
 
@@ -1528,15 +1582,22 @@ export class Game {
   private autoUntapForCurrentPlayer(): void {
     const playerState = this.getPlayerState(this.currentPlayerId)
 
-    // Untap only creatures controlled by the current player
-    // Also clear summoning sickness for creatures controlled by the current player
+    // Untap all permanents controlled by the current player
+    // Also clear summoning sickness for creatures
     for (const card of playerState.battlefield.cards) {
-      if (this.isCreature(card)) {
-        const creatureState = this.creatureStates.get(card.instanceId)
-        if (creatureState) {
-          this.creatureStates.set(
+      const permanentState = this.permanentStates.get(card.instanceId)
+      if (permanentState) {
+        if (this.isCreature(card)) {
+          // Creatures: untap and clear summoning sickness
+          this.permanentStates.set(
             card.instanceId,
-            creatureState.withTapped(false).withSummoningSickness(false),
+            permanentState.withTapped(false).withSummoningSickness(false),
+          )
+        } else {
+          // Non-creatures: just untap
+          this.permanentStates.set(
+            card.instanceId,
+            permanentState.withTapped(false),
           )
         }
       }
@@ -1725,17 +1786,21 @@ export class Game {
   }
 
   private clearAttackingState(): void {
-    for (const [creatureId, state] of this.creatureStates.entries()) {
-      this.creatureStates.set(creatureId, state.clearCombatState())
+    for (const [permanentId, state] of this.permanentStates.entries()) {
+      if (state.creatureState) {
+        this.permanentStates.set(permanentId, state.clearCombatState())
+      }
     }
   }
 
   private resetCreatureStatesForNewTurn(): void {
-    for (const [creatureId, state] of this.creatureStates.entries()) {
-      this.creatureStates.set(
-        creatureId,
-        state.clearCombatState().withHasAttackedThisTurn(false),
-      )
+    for (const [permanentId, state] of this.permanentStates.entries()) {
+      if (state.creatureState) {
+        this.permanentStates.set(
+          permanentId,
+          state.clearCombatState().withHasAttackedThisTurn(false),
+        )
+      }
     }
   }
 
@@ -1791,7 +1856,7 @@ export class Game {
    * @returns The creature's current power, or null if it no longer exists
    */
   getCreaturePowerSafe(creatureId: string): number | null {
-    const state = this.creatureStates.get(creatureId)
+    const state = this.permanentStates.get(creatureId)
     if (!state) return null
 
     // Verify the creature is actually on the battlefield
@@ -1822,11 +1887,11 @@ export class Game {
    * Damage accumulates in damageMarkedThisTurn.
    */
   private markDamageOnCreature(creatureId: string, damage: number): void {
-    const state = this.creatureStates.get(creatureId)
-    if (!state) return // Creature may have left battlefield
+    const state = this.permanentStates.get(creatureId)
+    if (!state || !state.creatureState) return // Creature may have left battlefield
 
-    const newDamage = state.damageMarkedThisTurn + damage
-    this.creatureStates.set(creatureId, state.withDamage(newDamage))
+    const newDamage = state.creatureState.damageMarkedThisTurn + damage
+    this.permanentStates.set(creatureId, state.withDamage(newDamage))
   }
 
   /**
@@ -1847,8 +1912,10 @@ export class Game {
    * This happens at the CLEANUP step.
    */
   private clearDamageOnAllCreatures(): void {
-    for (const [creatureId, state] of this.creatureStates.entries()) {
-      this.creatureStates.set(creatureId, state.clearDamage())
+    for (const [permanentId, state] of this.permanentStates.entries()) {
+      if (state.creatureState) {
+        this.permanentStates.set(permanentId, state.clearDamage())
+      }
     }
   }
 
@@ -1991,6 +2058,7 @@ export class Game {
       "ARTIFACT",
       "ENCHANTMENT",
       "PLANESWALKER",
+      "LAND",
     ]
     return card.definition.types.some((type) => permanentTypes.includes(type))
   }
@@ -2024,10 +2092,10 @@ export class Game {
   // PRIVATE - ASSERTIONS & HELPERS (Lowest-Level Utilities)
   // ============================================================================
 
-  private getCreatureStateOrThrow(creatureId: string): CreatureStateVO {
-    const state = this.creatureStates.get(creatureId)
+  private getPermanentStateOrThrow(permanentId: string): PermanentState {
+    const state = this.permanentStates.get(permanentId)
     if (!state) {
-      throw new PermanentNotFoundError(creatureId)
+      throw new PermanentNotFoundError(permanentId)
     }
     return state
   }
