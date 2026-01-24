@@ -17,7 +17,7 @@ This is the **single source of truth** for project status and prioritized work.
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Core Engine | Partial | Missing: library, mana costs, win/lose, summoning sickness |
+| Core Engine | Partial | Missing: mana costs, win/lose, spell timing |
 | UI | In Progress | Basic display done, interactions partially done |
 | MVP Complete | No | Blocked by core engine gaps |
 
@@ -39,7 +39,7 @@ This refactor is foundational and should be done before other backlog items.
 
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
-| 0 | B0-01 | Game.ts DDD Refactor (2,282 → ~600-800 lines) | IN PROGRESS | - |
+| 0 | B0-01 | Game.ts DDD Refactor (2,282 → ~600-800 lines) | DONE | - |
 
 ### Priority 1: Core Engine Fixes (Parallel)
 
@@ -57,9 +57,9 @@ These enable real game flow. Must be done in order.
 
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
-| 4 | B1-01 | Library zone + drawCards() | TODO | - |
-| 5 | B1-02 | Game setup (deck loading, shuffle, draw 7) | BLOCKED | B1-01 |
-| 6 | B1-03 | Win/lose conditions (life <= 0, empty library) | BLOCKED | B1-01 |
+| 4 | B1-01 | Library zone + drawCards() | DONE | - |
+| 5 | B1-02 | Game setup (deck loading, shuffle, draw 7) | TODO | B1-01 ✓ |
+| 6 | B1-03 | Win/lose conditions (life <= 0, empty library) | TODO | B1-01 ✓ |
 
 ### Priority 3: Combat UI (Sequential)
 
@@ -98,7 +98,9 @@ These enable real game flow. Must be done in order.
 
 - Turns and phases (12 steps, 5 phases)
 - Priority and stack (LIFO resolution, priority passing)
-- Zones: Hand, Battlefield, Graveyard (NOT Library)
+- Zones: Hand, Battlefield, Graveyard, Library
+- Library zone + drawCards() (B1-01)
+- Game.ts DDD Refactor - Specifications, Value Objects, Services (B0-01)
 - ETB triggers (execute immediately, not on stack)
 - Combat: declare attackers/blockers, damage, cleanup
 - Mana pool (add/spend/clear) - exists but not used for spell costs

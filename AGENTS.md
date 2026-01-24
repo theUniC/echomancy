@@ -11,8 +11,19 @@
 1. Open `docs/specs/BACKLOG.md`
 2. Find the first item with status `TODO` in the backlog tables
 3. The spec file is in `docs/specs/backlog/` with the spec ID (e.g., `B1-04` → `B1-04-summoning-sickness.md`)
-4. When starting work: change status to `IN PROGRESS` and move spec to `docs/specs/active/`
-5. When done: change status to `DONE` and move spec to `docs/specs/done/`
+
+**When starting work:**
+1. Update `docs/specs/BACKLOG.md`: change item status to `IN PROGRESS`
+2. Move spec file from `docs/specs/backlog/` to `docs/specs/active/`
+
+**When completing work (MANDATORY):**
+1. Update `docs/specs/BACKLOG.md`:
+   - Change item status from `IN PROGRESS` to `DONE`
+   - Update any `BLOCKED` items that depended on this to `TODO`
+   - Add to "Completed Work" section if significant
+2. Move spec file from `docs/specs/active/` to `docs/specs/done/`
+
+> **Why**: BACKLOG.md is the single source of truth for project status. If it's not updated, the next task will be unclear.
 
 > **Why**: The backlog is prioritized. Working on items out of order may create dependency issues or waste effort on lower-priority features.
 
