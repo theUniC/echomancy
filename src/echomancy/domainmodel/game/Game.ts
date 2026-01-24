@@ -31,7 +31,6 @@ import {
   GameAlreadyStartedError,
   GameNotStartedError,
   InsufficientManaError,
-  InvalidCastSpellStepError,
   InvalidCounterAmountError,
   InvalidEndTurnError,
   InvalidManaAmountError,
@@ -1177,19 +1176,7 @@ export class Game {
   private castSpell(action: CastSpell): void {
     this.assertHasPriority(action.playerId, "CAST_SPELL")
 
-    if (!this.isMainPhase()) {
-      throw new InvalidCastSpellStepError()
-    }
-
-    // Validate targets
-    for (const target of action.targets) {
-      if (target.kind === "PLAYER") {
-        if (!this.hasPlayer(target.playerId)) {
-          throw new InvalidPlayerActionError(action.playerId, "CAST_SPELL")
-        }
-      }
-    }
-
+    // Get the card from hand BEFORE timing validation (so we know what we're validating)
     const playerState = this.getPlayerState(action.playerId)
     const { card, cardIndex } = this.findCardInHandByInstanceId(
       playerState,
@@ -1201,6 +1188,19 @@ export class Game {
       throw new CardIsNotSpellError(action.cardId)
     }
 
+    // TIMING VALIDATION - must happen BEFORE mana payment and targets
+    this.validateSpellTiming(action.playerId, card)
+
+    // Validate targets
+    for (const target of action.targets) {
+      if (target.kind === "PLAYER") {
+        if (!this.hasPlayer(target.playerId)) {
+          throw new InvalidPlayerActionError(action.playerId, "CAST_SPELL")
+        }
+      }
+    }
+
+    // All validations passed - remove from hand and add to stack
     playerState.hand.cards.splice(cardIndex, 1)
     this.stack.items.push({
       kind: "SPELL",
@@ -1210,6 +1210,52 @@ export class Game {
     })
 
     this.givePriorityToOpponentOf(action.playerId)
+  }
+
+  /**
+   * Validates timing restrictions for casting a spell.
+   *
+   * Checks:
+   * - Turn ownership (for sorcery-speed)
+   * - Phase restrictions (for sorcery-speed)
+   * - Stack state (for sorcery-speed)
+   *
+   * Instant-speed spells (instants and cards with Flash) can be cast any time
+   * the player has priority.
+   *
+   * @throws NotYourTurnError if sorcery-speed spell on opponent's turn
+   * @throws NotMainPhaseError if sorcery-speed spell outside main phase
+   * @throws StackNotEmptyError if sorcery-speed spell with non-empty stack
+   */
+  private validateSpellTiming(playerId: string, card: CardInstance): void {
+    // Import SpellTimingService here to avoid circular dependency
+    const { SpellTimingService } = require("./services/SpellTiming")
+
+    // Instant-speed spells can be cast any time player has priority
+    if (SpellTimingService.isInstantSpeed(card)) {
+      return
+    }
+
+    // Sorcery-speed spells require specific timing
+    const isCreature = card.definition.types.includes("CREATURE")
+
+    // Check turn ownership
+    if (this.currentPlayerId !== playerId) {
+      const { NotYourTurnError } = require("./GameErrors")
+      throw new NotYourTurnError(isCreature)
+    }
+
+    // Check phase
+    if (!this.isMainPhase()) {
+      const { NotMainPhaseError } = require("./GameErrors")
+      throw new NotMainPhaseError(isCreature)
+    }
+
+    // Check stack state
+    if (this.stack.items.length > 0) {
+      const { StackNotEmptyError } = require("./GameErrors")
+      throw new StackNotEmptyError(isCreature)
+    }
   }
 
   private passPriority(action: PassPriority): void {

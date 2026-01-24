@@ -245,3 +245,55 @@ export class InvalidPlayerIdError extends GameError {
     super(`Invalid player id: '${playerId}' is not a valid UUID`)
   }
 }
+
+// ============================================================================
+// Spell Timing Errors
+// ============================================================================
+
+/**
+ * Base error for sorcery-speed timing violations.
+ * Sorceries and creatures (without Flash) require specific timing windows.
+ */
+export class SorceryTimingError extends GameError {}
+
+/**
+ * Thrown when attempting to cast a sorcery-speed spell on opponent's turn.
+ *
+ * Sorcery-speed spells can only be cast during the active player's turn.
+ */
+export class NotYourTurnError extends SorceryTimingError {
+  constructor(isCreature = false) {
+    const baseMessage =
+      "Can only cast sorceries during your turn in your main phase when the stack is empty"
+    const creatureHint = isCreature ? " (unless they have Flash)" : ""
+    super(`${baseMessage}${creatureHint}`)
+  }
+}
+
+/**
+ * Thrown when attempting to cast a sorcery-speed spell outside main phase.
+ *
+ * Sorcery-speed spells require FIRST_MAIN or SECOND_MAIN phase.
+ */
+export class NotMainPhaseError extends SorceryTimingError {
+  constructor(isCreature = false) {
+    const baseMessage =
+      "Can only cast sorceries during your main phase when the stack is empty"
+    const creatureHint = isCreature ? " (unless they have Flash)" : ""
+    super(`${baseMessage}${creatureHint}`)
+  }
+}
+
+/**
+ * Thrown when attempting to cast a sorcery-speed spell with non-empty stack.
+ *
+ * Sorcery-speed spells require the stack to be empty.
+ */
+export class StackNotEmptyError extends SorceryTimingError {
+  constructor(isCreature = false) {
+    const baseMessage =
+      "Can only cast sorceries when the stack is empty (during your main phase)"
+    const creatureHint = isCreature ? " (unless they have Flash)" : ""
+    super(`${baseMessage}${creatureHint}`)
+  }
+}

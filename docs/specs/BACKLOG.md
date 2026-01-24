@@ -48,7 +48,7 @@ These fix critical bugs and gaps. Can be done in parallel.
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
 | 1 | B1-04 | Summoning sickness + Haste keyword | DONE | - |
-| 2 | B1-05 | Spell timing (instant vs sorcery) + Flash | TODO | B0-01 (Phase 1-2) |
+| 2 | B1-05 | Spell timing (instant vs sorcery) + Flash | DONE | B0-01 ✓ |
 | 3 | B1-06 | Mana cost payment (manaCost field, generic mana) | TODO | B0-01 (Phase 1-2) |
 
 ### Priority 2: Core Engine Foundation (Sequential)
@@ -104,6 +104,7 @@ These enable real game flow. Must be done in order.
 - ETB triggers (execute immediately, not on stack)
 - Combat: declare attackers/blockers, damage, cleanup
 - Mana pool (add/spend/clear) - exists but not used for spell costs
+- Spell timing validation (instant vs sorcery) + Flash keyword (B1-05)
 - Costs: TapSelfCost, SacrificeSelfCost, ManaCost (not wired to spells)
 - Static keywords: Flying, Reach, Vigilance (consultative)
 - +1/+1 counters

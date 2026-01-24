@@ -186,6 +186,37 @@ export function createTestCreature(
 }
 
 /**
+ * Creates a creature with the Flash static ability.
+ * Flash allows a creature to be cast any time you could cast an instant.
+ *
+ * @param ownerId - Player who owns the creature
+ * @param instanceId - Optional unique ID for the creature
+ * @param power - Optional power value
+ * @param toughness - Optional toughness value
+ * @returns CardInstance with FLASH ability
+ */
+export function createCreatureWithFlash(
+  ownerId: string,
+  instanceId?: string,
+  power?: number,
+  toughness?: number,
+): CardInstance {
+  const id = instanceId || `flash-creature-${Math.random()}`
+  return {
+    instanceId: id,
+    definition: {
+      id: "flash-creature-def",
+      name: "Flash Creature",
+      types: ["CREATURE"],
+      power,
+      toughness,
+      staticAbilities: ["FLASH"],
+    },
+    ownerId,
+  }
+}
+
+/**
  * Creates a creature with a simple ETB trigger that executes a callback.
  *
  * Useful for testing the trigger system without duplicating trigger definition code.
