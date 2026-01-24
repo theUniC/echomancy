@@ -65,6 +65,11 @@ import {
   TriggerEvaluation,
   type TriggeredAbilityInfo,
 } from "./services/TriggerEvaluation"
+import { CanActivateAbility } from "./specifications/CanActivateAbility"
+import { CanCastSpell } from "./specifications/CanCastSpell"
+import { CanDeclareAttacker } from "./specifications/CanDeclareAttacker"
+import { CanPlayLand } from "./specifications/CanPlayLand"
+import { HasPriority } from "./specifications/HasPriority"
 
 // Re-export stack types for backward compatibility
 export type { AbilityOnStack, SpellOnStack, StackItem }
@@ -216,6 +221,13 @@ export class Game {
   private scheduledSteps: GameSteps[] = []
   private resumeStepAfterScheduled?: GameSteps = undefined
   private creatureStates: Map<string, CreatureStateVO> = new Map()
+
+  // Specifications for business rule validation
+  private readonly hasPrioritySpec = new HasPriority()
+  private readonly canPlayLandSpec = new CanPlayLand()
+  private readonly canCastSpellSpec = new CanCastSpell()
+  private readonly canDeclareAttackerSpec = new CanDeclareAttacker()
+  private readonly canActivateAbilitySpec = new CanActivateAbility()
 
   constructor(id: string) {
     this.id = id
@@ -1728,15 +1740,11 @@ export class Game {
   // ============================================================================
 
   private hasPriority(playerId: string): boolean {
-    return playerId === this._priorityPlayerId
+    return this.hasPrioritySpec.isSatisfiedBy({ game: this, playerId })
   }
 
   private canPlayLand(playerId: string): boolean {
-    return (
-      playerId === this.currentPlayerId &&
-      !this.hasPlayedLandThisTurn() &&
-      this.isMainPhase()
-    )
+    return this.canPlayLandSpec.isSatisfiedBy({ game: this, playerId })
   }
 
   private hasPlayedLandThisTurn(): boolean {
@@ -1760,63 +1768,15 @@ export class Game {
   }
 
   private canCastSpell(playerId: string): boolean {
-    return this.isMainPhase() && this.playerHasSpellInHand(playerId)
+    return this.canCastSpellSpec.isSatisfiedBy({ game: this, playerId })
   }
 
   private canDeclareAttacker(playerId: string): boolean {
-    return (
-      this.currentStep === Step.DECLARE_ATTACKERS &&
-      playerId === this.currentPlayerId &&
-      this.playerHasAttackableCreature(playerId)
-    )
+    return this.canDeclareAttackerSpec.isSatisfiedBy({ game: this, playerId })
   }
 
   private canActivateAbility(playerId: string): boolean {
-    return this.playerHasActivatableAbility(playerId)
-  }
-
-  private playerHasSpellInHand(playerId: string): boolean {
-    const playerState = this.getPlayerState(playerId)
-    return playerState.hand.cards.some((card) => this.isCastable(card))
-  }
-
-  private playerHasAttackableCreature(playerId: string): boolean {
-    const playerState = this.getPlayerState(playerId)
-    return playerState.battlefield.cards.some((card) => {
-      if (!this.isCreature(card)) {
-        return false
-      }
-
-      const state = this.creatureStates.get(card.instanceId)
-      if (!state) {
-        return false
-      }
-
-      return !state.isTapped && !state.hasAttackedThisTurn
-    })
-  }
-
-  private playerHasActivatableAbility(playerId: string): boolean {
-    const playerState = this.getPlayerState(playerId)
-    return playerState.battlefield.cards.some((card) => {
-      // Check if card has an activated ability
-      if (!card.definition.activatedAbility) {
-        return false
-      }
-
-      // Check if the cost can be paid
-      const cost = card.definition.activatedAbility.cost
-      if (cost.type === "TAP") {
-        const state = this.creatureStates.get(card.instanceId)
-        if (!state) {
-          return false
-        }
-        // Can activate if not tapped
-        return !state.isTapped
-      }
-
-      return false
-    })
+    return this.canActivateAbilitySpec.isSatisfiedBy({ game: this, playerId })
   }
 
   private isCastable(card: CardInstance): boolean {
