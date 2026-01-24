@@ -49,7 +49,7 @@ These fix critical bugs and gaps. Can be done in parallel.
 |---|------|-------------|--------|------------|
 | 1 | B1-04 | Summoning sickness + Haste keyword | DONE | - |
 | 2 | B1-05 | Spell timing (instant vs sorcery) + Flash | DONE | B0-01 ✓ |
-| 3 | B1-06 | Mana cost payment (manaCost field, generic mana) | TODO | B0-01 (Phase 1-2) |
+| 3 | B1-06 | Mana cost payment (manaCost field, generic mana) | DONE | B0-01 (Phase 1-2) |
 
 ### Priority 2: Core Engine Foundation (Sequential)
 
@@ -73,7 +73,7 @@ These enable real game flow. Must be done in order.
 
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
-| 10 | 08 | UI: Spell casting with targets | BLOCKED | B1-05, B1-06 |
+| 10 | 08 | UI: Spell casting with targets | TODO | B1-05 ✓, B1-06 ✓ |
 | 11 | 14 | UI: Game end display | BLOCKED | B1-03 |
 
 ### Priority 5: Complementary UI
@@ -105,6 +105,7 @@ These enable real game flow. Must be done in order.
 - Combat: declare attackers/blockers, damage, cleanup
 - Mana pool (add/spend/clear) - exists but not used for spell costs
 - Spell timing validation (instant vs sorcery) + Flash keyword (B1-05)
+- Mana cost payment with auto-pay algorithm (B1-06)
 - Costs: TapSelfCost, SacrificeSelfCost, ManaCost (not wired to spells)
 - Static keywords: Flying, Reach, Vigilance (consultative)
 - +1/+1 counters

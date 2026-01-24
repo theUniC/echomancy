@@ -81,6 +81,38 @@ export function createTestSpell(
   }
 }
 
+/**
+ * Creates a test spell with a mana cost.
+ * This is a convenience helper for testing mana payment during spell casting.
+ *
+ * @param ownerId - Player who owns the spell
+ * @param manaCostString - Mana cost in string format (e.g., "2UU", "BBB", "4")
+ * @param instanceId - Optional custom instance ID
+ * @returns CardInstance with the specified mana cost
+ *
+ * @example
+ * const spell = createTestSpellWithManaCost(player1.id, "2UU")
+ * // Creates a spell costing 2 generic + 2 blue mana
+ */
+export function createTestSpellWithManaCost(
+  ownerId: string,
+  manaCostString: string,
+  instanceId?: string,
+): CardInstance {
+  const { ManaCostParser } = require("../valueobjects/ManaCost")
+  const id = instanceId || `test-spell-${Math.random()}`
+  return {
+    instanceId: id,
+    definition: {
+      id: "test-spell-with-cost",
+      name: "Test Spell With Cost",
+      types: ["INSTANT"],
+      manaCost: ManaCostParser.parse(manaCostString),
+    },
+    ownerId,
+  }
+}
+
 export function createSpell(
   instanceId: string,
   name: string,

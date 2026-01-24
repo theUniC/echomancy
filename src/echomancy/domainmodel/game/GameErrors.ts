@@ -297,3 +297,16 @@ export class StackNotEmptyError extends SorceryTimingError {
     super(`${baseMessage}${creatureHint}`)
   }
 }
+
+// ============================================================================
+// Mana Payment Errors
+// ============================================================================
+
+/**
+ * Thrown when a player attempts to cast a spell without sufficient mana.
+ */
+export class InsufficientManaForSpellError extends GameError {
+  constructor(message: string) {
+    super(`Insufficient mana to cast spell: ${message}`)
+  }
+}

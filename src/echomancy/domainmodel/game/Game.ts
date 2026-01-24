@@ -31,6 +31,7 @@ import {
   GameAlreadyStartedError,
   GameNotStartedError,
   InsufficientManaError,
+  InsufficientManaForSpellError,
   InvalidCounterAmountError,
   InvalidEndTurnError,
   InvalidManaAmountError,
@@ -60,6 +61,7 @@ import {
   type ExportableGameContext,
   exportGameState,
 } from "./services/GameStateExporter"
+import { ManaPaymentService } from "./services/ManaPaymentService"
 import { StateBasedActions } from "./services/StateBasedActions"
 import {
   TriggerEvaluation,
@@ -968,6 +970,40 @@ export class Game {
   }
 
   /**
+   * Pays the mana cost for casting a spell.
+   *
+   * Uses ManaPaymentService for auto-pay logic:
+   * 1. Pay colored requirements first (exact color match)
+   * 2. Pay generic cost with remaining mana (prefer colorless, then colored)
+   *
+   * @param playerId - Player casting the spell
+   * @param card - Card being cast
+   * @throws InsufficientManaForSpellError if the cost cannot be paid
+   * @private
+   */
+  private payManaCostForSpell(playerId: string, card: CardInstance): void {
+    const manaCost = card.definition.manaCost
+
+    // If no mana cost, spell is free
+    if (!manaCost) {
+      return
+    }
+
+    const currentPool = this.manaPools.get(playerId) ?? ManaPool.empty()
+
+    try {
+      const newPool = ManaPaymentService.payForCost(currentPool, manaCost)
+      this.manaPools.set(playerId, newPool)
+    } catch (error) {
+      // Wrap mana pool errors in spell-specific error
+      if (error instanceof Error) {
+        throw new InsufficientManaForSpellError(error.message)
+      }
+      throw error
+    }
+  }
+
+  /**
    * enterBattlefield - Central entry point for all permanents entering the battlefield
    *
    * ⚠️ LOW-LEVEL API - INTERNAL USE ONLY ⚠️
@@ -1199,6 +1235,9 @@ export class Game {
         }
       }
     }
+
+    // MANA PAYMENT - must happen BEFORE spell goes on stack
+    this.payManaCostForSpell(action.playerId, card)
 
     // All validations passed - remove from hand and add to stack
     playerState.hand.cards.splice(cardIndex, 1)

@@ -5,6 +5,7 @@
 
 import type { ActivatedAbility } from "../abilities/ActivatedAbility"
 import type { Effect } from "../effects/Effect"
+import type { ManaCost } from "../game/valueobjects/ManaCost"
 import type { Trigger } from "../triggers/Trigger"
 
 export type CardType =
@@ -82,4 +83,11 @@ export type CardDefinition = {
    * Default: 1 (minimum viable creature)
    */
   readonly toughness?: number
+  /**
+   * Mana cost for spells and permanents.
+   * Lands do not have mana costs.
+   * Format: { generic: number, W?: number, U?: number, ... }
+   * Default: undefined (no mana cost)
+   */
+  readonly manaCost?: ManaCost
 }
