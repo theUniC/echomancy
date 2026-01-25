@@ -40,8 +40,8 @@
 - Final game state remains queryable for UI display
 
 **Feedback mechanisms**:
-- `GameExport` includes `status: "FINISHED"`
-- `GameExport` includes `outcome: { type: "WIN", winner: PlayerId, reason: "LIFE_TOTAL" }`
+- Game state export includes finished status
+- Game state export includes outcome (winner/draw and reason)
 - UI can display winner and reason
 
 ## Game Rules & Mechanics
@@ -73,41 +73,24 @@
 
 ### Game State Transition
 
-**Current state**: `ACTIVE` (game in progress)
-**New state**: `FINISHED` (game terminated)
+**Current state**: ACTIVE (game in progress)
+**New state**: FINISHED (game terminated)
 
-**Status values**:
-```typescript
-type GameStatus = "ACTIVE" | "FINISHED"
-```
-
-**Outcome structure**:
-```typescript
-type GameOutcome =
-  | { type: "WIN"; winner: PlayerId; reason: WinReason }
-  | { type: "DRAW"; reason: DrawReason }
-  | null // Game not finished
-
-type WinReason = "LIFE_TOTAL" // MVP only
-type DrawReason = "SIMULTANEOUS_LOSS" // MVP only
-```
+**Outcome types**:
+- WIN: One player wins, includes winner ID and reason (e.g., "LIFE_TOTAL")
+- DRAW: No winner, includes reason (e.g., "SIMULTANEOUS_LOSS")
 
 ### Rejecting Actions in FINISHED State
 
 **Rule**: Once a game is FINISHED, all action submissions are rejected.
 
-**Implementation requirement**:
-- `game.submitAction()` checks game status
-- If status is FINISHED, throw error: "Cannot submit actions to a finished game"
-- This prevents:
-  - Priority passing
-  - Spell casting
-  - Attacking
-  - Any other game actions
+**Behavior**:
+- Any attempt to submit an action to a finished game should fail
+- This includes: priority passing, spell casting, attacking, and all other game actions
 
 ### State Export in FINISHED State
 
-**Rule**: `game.exportState()` continues to work after game ends.
+**Rule**: Game state remains queryable after game ends.
 
 **Why**: The UI needs to display:
 - Final board state
@@ -151,22 +134,14 @@ type DrawReason = "SIMULTANEOUS_LOSS" // MVP only
 - [ ] No winner is declared
 
 **Action Rejection**:
-- [ ] `game.submitAction()` throws error if status is FINISHED
-- [ ] Error message is clear: "Cannot submit actions to a finished game"
+- [ ] Submitting actions to a finished game fails with clear error
 - [ ] All action types are rejected (pass priority, cast spell, etc.)
 
 **State Export**:
-- [ ] `game.exportState()` works after game ends
-- [ ] Export includes `status: "FINISHED"`
-- [ ] Export includes `outcome` with winner/draw information
+- [ ] Game state remains queryable after game ends
+- [ ] Export includes finished status
+- [ ] Export includes outcome with winner/draw information
 - [ ] Final board state is visible in export
-
-**Test Coverage**:
-- [ ] Unit test: Player loses due to life total
-- [ ] Unit test: Both players lose simultaneously (draw)
-- [ ] Unit test: Actions rejected after game ends
-- [ ] Unit test: State export works in FINISHED state
-- [ ] Integration test: Full game ending scenario
 
 ## Out of Scope
 
@@ -191,23 +166,10 @@ type DrawReason = "SIMULTANEOUS_LOSS" // MVP only
 **Required before implementation**:
 - State-based actions system (already implemented)
 - Player life tracking (already implemented)
-- `GameExport` structure (already implemented)
+- Game state export (already implemented)
 
 **Enables after implementation**:
 - Spec 14: UI Game End Display
 - Future: Match results API
 - Future: Rematch system
 
-## Technical Notes for Implementation Team
-
-**Recommended location**: `src/echomancy/core/game/Game.ts`
-
-**Key implementation points**:
-1. Add `status: GameStatus` field to Game class
-2. Add `outcome: GameOutcome | null` field to Game class
-3. In state-based actions logic, check life totals and set outcome
-4. In `submitAction()`, check status and reject if FINISHED
-5. In `exportState()`, include status and outcome
-6. Write tests for all win/lose scenarios
-
-**No HOW details**: Implementation team decides exact code structure, method names, and internal architecture.

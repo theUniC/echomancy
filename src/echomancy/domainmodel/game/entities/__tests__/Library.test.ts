@@ -261,4 +261,204 @@ describe("Library", () => {
       expect(library.peekTop(1)).toHaveLength(1)
     })
   })
+
+  describe("shuffle()", () => {
+    test("returns a new Library instance", () => {
+      const cards: CardInstance[] = [
+        {
+          instanceId: "card-1",
+          definition: { id: "def-1", name: "Card 1", types: ["INSTANT"] },
+          ownerId: "player-1",
+        },
+        {
+          instanceId: "card-2",
+          definition: { id: "def-2", name: "Card 2", types: ["CREATURE"] },
+          ownerId: "player-1",
+        },
+        {
+          instanceId: "card-3",
+          definition: { id: "def-3", name: "Card 3", types: ["LAND"] },
+          ownerId: "player-1",
+        },
+      ]
+      const library = Library.fromCards(cards)
+
+      const shuffled = library.shuffle()
+
+      expect(shuffled).toBeInstanceOf(Library)
+      expect(shuffled).not.toBe(library)
+    })
+
+    test("shuffled library has same number of cards", () => {
+      const cards: CardInstance[] = Array.from({ length: 5 }, (_, i) => ({
+        instanceId: `card-${i + 1}`,
+        definition: { id: `def-${i}`, name: `Card ${i}`, types: ["INSTANT"] },
+        ownerId: "player-1",
+      }))
+      const library = Library.fromCards(cards)
+
+      const shuffled = library.shuffle()
+
+      expect(shuffled.count()).toBe(5)
+    })
+
+    test("shuffled library contains same cards", () => {
+      const cards: CardInstance[] = [
+        {
+          instanceId: "card-1",
+          definition: { id: "def-1", name: "Card 1", types: ["INSTANT"] },
+          ownerId: "player-1",
+        },
+        {
+          instanceId: "card-2",
+          definition: { id: "def-2", name: "Card 2", types: ["CREATURE"] },
+          ownerId: "player-1",
+        },
+        {
+          instanceId: "card-3",
+          definition: { id: "def-3", name: "Card 3", types: ["LAND"] },
+          ownerId: "player-1",
+        },
+      ]
+      const library = Library.fromCards(cards)
+
+      const shuffled = library.shuffle()
+      const originalIds = new Set(cards.map((c) => c.instanceId))
+      const shuffledIds = new Set(shuffled.getAll().map((c) => c.instanceId))
+
+      expect(shuffledIds).toEqual(originalIds)
+    })
+
+    test("shuffle with seed produces deterministic results", () => {
+      const cards: CardInstance[] = Array.from({ length: 20 }, (_, i) => ({
+        instanceId: `card-${i + 1}`,
+        definition: { id: `def-${i}`, name: `Card ${i}`, types: ["INSTANT"] },
+        ownerId: "player-1",
+      }))
+      const library = Library.fromCards(cards)
+
+      const seed = 12345
+      const shuffled1 = library.shuffle(seed)
+      const shuffled2 = library.shuffle(seed)
+
+      const order1 = shuffled1.getAll().map((c) => c.instanceId)
+      const order2 = shuffled2.getAll().map((c) => c.instanceId)
+
+      expect(order1).toEqual(order2)
+    })
+
+    test("shuffle without seed produces random results", () => {
+      const cards: CardInstance[] = Array.from({ length: 60 }, (_, i) => ({
+        instanceId: `card-${i + 1}`,
+        definition: { id: `def-${i}`, name: `Card ${i}`, types: ["INSTANT"] },
+        ownerId: "player-1",
+      }))
+      const library = Library.fromCards(cards)
+
+      const shuffled1 = library.shuffle()
+      const shuffled2 = library.shuffle()
+
+      const order1 = shuffled1.getAll().map((c) => c.instanceId)
+      const order2 = shuffled2.getAll().map((c) => c.instanceId)
+
+      // Very unlikely to be the same order
+      // For a 60-card deck, probability is 1/60! which is effectively 0
+      expect(order1).not.toEqual(order2)
+    })
+
+    test("shuffle with different seeds produces different results", () => {
+      const cards: CardInstance[] = Array.from({ length: 20 }, (_, i) => ({
+        instanceId: `card-${i + 1}`,
+        definition: { id: `def-${i}`, name: `Card ${i}`, types: ["INSTANT"] },
+        ownerId: "player-1",
+      }))
+      const library = Library.fromCards(cards)
+
+      const shuffled1 = library.shuffle(12345)
+      const shuffled2 = library.shuffle(54321)
+
+      const order1 = shuffled1.getAll().map((c) => c.instanceId)
+      const order2 = shuffled2.getAll().map((c) => c.instanceId)
+
+      expect(order1).not.toEqual(order2)
+    })
+
+    test("shuffling empty library returns empty library", () => {
+      const library = Library.empty()
+
+      const shuffled = library.shuffle()
+
+      expect(shuffled.isEmpty()).toBe(true)
+      expect(shuffled.count()).toBe(0)
+    })
+
+    test("shuffling single-card library returns same card", () => {
+      const cards: CardInstance[] = [
+        {
+          instanceId: "only-card",
+          definition: { id: "def-1", name: "Only Card", types: ["INSTANT"] },
+          ownerId: "player-1",
+        },
+      ]
+      const library = Library.fromCards(cards)
+
+      const shuffled = library.shuffle()
+
+      expect(shuffled.count()).toBe(1)
+      expect(shuffled.peekTop(1)[0]?.instanceId).toBe("only-card")
+    })
+
+    test("drawFromTop works after shuffle", () => {
+      const cards: CardInstance[] = [
+        {
+          instanceId: "card-1",
+          definition: { id: "def-1", name: "Card 1", types: ["INSTANT"] },
+          ownerId: "player-1",
+        },
+        {
+          instanceId: "card-2",
+          definition: { id: "def-2", name: "Card 2", types: ["CREATURE"] },
+          ownerId: "player-1",
+        },
+        {
+          instanceId: "card-3",
+          definition: { id: "def-3", name: "Card 3", types: ["LAND"] },
+          ownerId: "player-1",
+        },
+      ]
+      const library = Library.fromCards(cards)
+      const shuffled = library.shuffle(12345)
+
+      const { card, newLibrary } = shuffled.drawFromTop()
+
+      expect(card).toBeDefined()
+      expect(newLibrary.count()).toBe(2)
+    })
+
+    test("peekTop works after shuffle", () => {
+      const cards: CardInstance[] = [
+        {
+          instanceId: "card-1",
+          definition: { id: "def-1", name: "Card 1", types: ["INSTANT"] },
+          ownerId: "player-1",
+        },
+        {
+          instanceId: "card-2",
+          definition: { id: "def-2", name: "Card 2", types: ["CREATURE"] },
+          ownerId: "player-1",
+        },
+        {
+          instanceId: "card-3",
+          definition: { id: "def-3", name: "Card 3", types: ["LAND"] },
+          ownerId: "player-1",
+        },
+      ]
+      const library = Library.fromCards(cards)
+      const shuffled = library.shuffle(12345)
+
+      const topCards = shuffled.peekTop(2)
+
+      expect(topCards).toHaveLength(2)
+    })
+  })
 })

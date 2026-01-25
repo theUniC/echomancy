@@ -105,4 +105,51 @@ export class Library {
   getAll(): CardInstance[] {
     return [...this._cards]
   }
+
+  /**
+   * Shuffles the library using the Fisher-Yates algorithm.
+   *
+   * Returns a new Library instance with cards in randomized order.
+   * The original library is unchanged (immutable pattern).
+   *
+   * @param seed - Optional seed for deterministic shuffling (for testing)
+   * @returns A new Library instance with shuffled cards
+   */
+  shuffle(seed?: number): Library {
+    // Create a copy of the cards array to shuffle
+    const shuffledCards = [...this._cards]
+
+    // Use seeded RNG if seed provided, otherwise use Math.random
+    const rng = seed !== undefined ? createSeededRNG(seed) : Math.random
+
+    // Fisher-Yates shuffle algorithm
+    for (let i = shuffledCards.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1))
+      // Swap elements at i and j
+      ;[shuffledCards[i], shuffledCards[j]] = [
+        shuffledCards[j],
+        shuffledCards[i],
+      ]
+    }
+
+    return new Library(shuffledCards)
+  }
+}
+
+/**
+ * Creates a seeded pseudo-random number generator.
+ *
+ * Uses a simple Linear Congruential Generator (LCG) algorithm.
+ * Good enough for deterministic testing, not for cryptographic purposes.
+ *
+ * @param seed - The seed value
+ * @returns A function that returns pseudo-random numbers in [0, 1)
+ */
+function createSeededRNG(seed: number): () => number {
+  let state = seed
+  return () => {
+    // LCG parameters (same as glibc)
+    state = (state * 1103515245 + 12345) & 0x7fffffff
+    return state / 0x7fffffff
+  }
 }

@@ -314,11 +314,20 @@ export class Game {
    * and addPlayer() have been called).
    *
    * @param startingPlayerId - The ID of the player who goes first
+   * @param options - Optional game setup configuration
+   * @param options.decks - Map of player IDs to their deck configurations
+   * @param options.shuffleSeed - Optional seed for deterministic shuffling (for testing)
    * @throws GameAlreadyStartedError if game has already started
    * @throws InvalidPlayerCountError if insufficient players (minimum 2)
    * @throws InvalidStartingPlayerError if starting player not in game
    */
-  start(startingPlayerId: string): void {
+  start(
+    startingPlayerId: string,
+    options?: {
+      decks?: Record<string, CardInstance[]>
+      shuffleSeed?: number
+    },
+  ): void {
     // Enforce lifecycle invariant: must be in CREATED state
     if (this.lifecycleState !== GameLifecycleState.CREATED) {
       throw new GameAlreadyStartedError()
@@ -333,6 +342,27 @@ export class Game {
     // Validate starting player exists in the game
     if (!this.playersById.has(startingPlayerId)) {
       throw new InvalidStartingPlayerError(startingPlayerId)
+    }
+
+    // Load decks if provided
+    if (options?.decks) {
+      for (const playerId of this.playersById.keys()) {
+        const deck = options.decks[playerId]
+        if (deck) {
+          // Load deck into library
+          const library = Library.fromCards(deck)
+          // Shuffle library
+          const shuffled = library.shuffle(options.shuffleSeed)
+          // Set player's library
+          const playerState = this.getPlayerState(playerId)
+          playerState.library = shuffled
+        }
+      }
+
+      // Draw 7-card opening hands for all players
+      for (const playerId of this.playersById.keys()) {
+        this.drawCards(playerId, 7)
+      }
     }
 
     // Initialize Magic rules state
