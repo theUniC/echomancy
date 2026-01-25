@@ -1,67 +1,60 @@
 # Effect System
 
-Effects are the executable part of abilities - what actually happens when an ability resolves.
+The executable part of abilities - what actually happens when an ability resolves.
 
-## Overview
+## Key Concepts
 
-When an ability resolves (from the stack for activated abilities, or immediately for MVP triggers), its Effect executes. Effects receive the game state and an execution context, then use Game methods to produce the desired outcome.
+- **Effect Interface** - Single `resolve(game, context)` method
+- **EffectContext** - Provides controllerId, source, targets to effect
+- **Last Known Information** - Source captured at activation/trigger time
+- **Game Methods Only** - Effects use Game methods, never direct mutation
+- **Stateless** - Effects don't store instance variables or maintain lifecycle
 
-## Effect Interface
+## How It Works
 
-All effects implement a single method: `resolve(game, context)`. This method is called when the ability resolves and is responsible for carrying out the effect's action.
+### Effect Execution
 
-## Effect Context
+When ability resolves (from stack for activated, immediately for MVP triggers), its Effect executes. Receives game state and execution context, then uses Game methods to produce outcome.
 
-The EffectContext provides all information needed to execute an effect:
+### EffectContext
 
-- **controllerId**: The player who controls this ability (always present)
-- **source**: The card with this ability (may be undefined if it left the battlefield)
-- **targets**: Selected targets (always empty in MVP - no targeting system yet)
+Provides all information needed to execute effect:
+
+- **controllerId** - Player who controls this ability (always present)
+- **source** - Card with this ability (may be undefined if left battlefield)
+- **targets** - Selected targets (always empty in MVP - no targeting system)
 
 ### Last Known Information
 
-The source field uses Last Known Information semantics. It captures the card state when the ability was activated or triggered. This means:
-- The information remains valid even if the source leaves the battlefield
-- The source may be undefined if the card no longer exists in any zone
-- For triggered abilities, it reflects the state at trigger time
+Source field uses Last Known Information semantics. Captures card state when ability activated/triggered. This means:
+- Information remains valid even if source leaves battlefield
+- Source may be undefined if card no longer exists
+- For triggers, reflects state at trigger time
 
-### Important Behaviors
+**Important**: ETB abilities don't reuse spell targets - permanent entering is new object with own identity.
 
-- ETB (enter the battlefield) abilities do not reuse spell targets - the permanent entering is a new object with its own identity
-- The controllerId is always present and should be used to identify the controlling player
-- Targets are always empty in the MVP since no targeting system is implemented
+### Available Game Methods
 
-## Implementation Rules
+Effects can use:
+- `drawCards(playerId, count)` - Draw from library
+- `enterBattlefield(card, controllerId)` - Put permanent onto battlefield
+- `spendMana(playerId, manaPayment)` - Spend mana from pool
 
-Effects must follow strict rules to maintain game integrity:
+See `src/echomancy/domainmodel/game/Game.ts` for full list.
+
+### Effect Location
+
+New effects go in `src/echomancy/domainmodel/effects/impl/`.
+
+## Rules
 
 **Must do:**
 - Use Game methods for all mutations (drawCards, enterBattlefield, etc.)
-- Use context.controllerId to identify the controlling player
+- Use context.controllerId to identify controlling player
+- Keep effects stateless
 
 **Must not do:**
-- Mutate state directly (no pushing to arrays, no property assignment)
-- Use game.apply() - that's for player actions, not effect resolution
+- Mutate state directly (no array pushes, no property assignment)
+- Use `game.apply()` (reserved for player actions, not effect resolution)
 - Subscribe to events or access external state
-- Store instance variables or maintain lifecycle (effects are stateless)
-
-## Effect Location
-
-New effect implementations should be placed in the effects/impl/ directory.
-
-## Available Game Methods
-
-Effects can use these Game methods:
-- drawCards(playerId, count) - Draw cards from library
-- enterBattlefield(card, controllerId) - Put permanent onto battlefield
-- Future: dealDamage, adjustLifeTotal, createToken, etc.
-
-## MVP Limitations
-
-The following effect features are not supported:
-- Targeting - the targets array is always empty
-- Duration tracking - no "until end of turn" effects
-- Modal effects - no "Choose one" abilities
-- Damage dealing - no damage system yet
-- Token creation - not implemented
-- Counter manipulation - not implemented
+- Store instance variables or maintain lifecycle

@@ -41,6 +41,7 @@ These refactors are foundational and improve maintainability.
 |---|------|-------------|--------|------------|
 | 0 | B0-01 | Game.ts DDD Refactor (2,282 → ~600-800 lines) | DONE | - |
 | 0b | R-01 | CreatureState → PermanentState (unified permanent state) | DONE | - |
+| 0c | R-02 | Documentation refactor (2,875 → 1,503 lines, -48%) | DONE | - |
 
 ### Priority 1: Core Engine Fixes (Parallel)
 
@@ -151,18 +152,43 @@ Features explicitly deferred beyond MVP:
 - Trample
 - Deathtouch
 - Indestructible
+- Regeneration
 
 ### Counters
 - -1/-1 counters
 - Poison counters
 - Loyalty counters
 
+### Mana & Costs
+- X costs (variable mana)
+- Hybrid mana costs
+- Phyrexian mana costs
+- Alternative costs
+- Cost reductions/modifications
+- Snow mana
+- Conditional mana
+
+### Effects & Abilities
+- Duration tracking ("until end of turn")
+- Modal effects ("Choose one")
+- Prevention effects
+- APNAP ordering for simultaneous triggers
+- Ability gain/loss ("creature gains flying")
+- Token creation
+- Split second
+
+### Targeting
+- Creature/permanent targeting
+- Target validation on resolution
+
 ### Advanced Rules
-- Multiple blockers
+- Multiple blockers + damage assignment order
 - Replacement effects
 - Continuous effects / lords
 - 7-layer system
 - Hexproof / Shroud / Protection
+- Full state-based actions (0-toughness, legend rule, etc.)
+- Discard to hand size (cleanup step)
 
 ### Game Modes
 - Mulligan system

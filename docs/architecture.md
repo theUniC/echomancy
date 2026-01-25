@@ -1,38 +1,34 @@
 # Architecture
 
-This document describes the core architectural principles and design decisions of the Echomancy game engine.
+Domain-Driven Design (DDD) approach to modeling Magic: The Gathering rules as a rich domain model.
 
-## Design Philosophy
+## Key Concepts
 
-Echomancy follows Domain-Driven Design (DDD) principles, modeling Magic: The Gathering's rules as a rich domain model. The engine prioritizes:
+- **Game as Aggregate Root** - Single source of truth for all game state
+- **Abilities are Declarative** - Cards declare behavior; Game evaluates at explicit points
+- **Command Pattern** - All actions through `game.apply()`
+- **Value Objects** - Immutable state (ManaPool, PermanentState, TurnState)
+- **Domain Services** - Stateless operations (CombatResolution, TriggerEvaluation)
+- **Specifications** - Composable business rules (CanPlayLand, CanCastSpell)
+
+## How It Works
+
+### Design Priorities
 
 1. **Correctness** over performance
 2. **Explicitness** over convenience
 3. **Testability** over flexibility
 4. **Type safety** throughout
 
-## Core Principles
+### Game is the Single Authority
 
-### 1. Abilities are Declarative
+The Game class is the only component that evaluates triggers, activates abilities, puts items on the stack, resolves abilities, and mutates game state. All state changes flow through Game methods.
 
-Abilities are declarations of "when X happens, do Y". They do not subscribe to events, maintain listeners, or execute automatically outside defined evaluation points. Cards declare what their abilities do; the Game evaluates them at specific points.
+**Critical rule**: Always use `game.enterBattlefield()` to put permanents on the battlefield, never push directly to arrays. Direct manipulation bypasses ETB trigger system.
 
-This means abilities are data structures describing behavior, not active code that runs on its own.
+### Evaluation Points are Explicit
 
-### 2. Game is the Single Authority
-
-The Game class is the only component that:
-- Evaluates triggers
-- Activates abilities
-- Puts items on the stack
-- Resolves abilities
-- Mutates game state
-
-All state changes flow through the Game. Player actions go through `game.apply()`, and effect execution uses specific Game methods like `drawCards()` or `enterBattlefield()`.
-
-### 3. Evaluation Points are Explicit
-
-Triggered abilities are checked only at specific points:
+Triggered abilities are checked only at specific points after game actions:
 
 | Game Action | Event Produced |
 |-------------|----------------|
@@ -41,133 +37,50 @@ Triggered abilities are checked only at specific points:
 | Spell resolves | SPELL_RESOLVED |
 | Step/phase transitions | STEP_STARTED, COMBAT_ENDED |
 
-Abilities are never evaluated continuously or reactively. The Game explicitly checks for triggers after each action that could produce an event.
+Abilities are never evaluated continuously or reactively. No global event bus exists.
 
-### 4. No Global Event System
+### DDD Building Blocks
 
-There is no event bus or publish/subscribe system. Events are data structures that the Game uses internally to evaluate triggers, not messages to be consumed by external subscribers.
+Implementation organized by DDD patterns:
 
-This keeps the engine deterministic, testable, and free of hidden dependencies.
+**Value Objects** (`domainmodel/game/valueobjects/`)
+- ManaPool - Immutable mana management
+- PermanentState - Permanent state (tap, counters, creature stats)
+- TurnState - Turn tracking (player, step, turn number)
+- CombatState - Attacker/blocker assignments
 
-## Command Pattern
+**Entities** (`domainmodel/game/entities/`)
+- Battlefield, Hand, Graveyard - Zone management
+- TheStack - LIFO stack for spells/abilities
 
-All player actions use the command pattern via `game.apply()`. This ensures:
-- All actions are validated before execution
-- Game rules are enforced consistently
-- State changes are traceable
+**Domain Services** (`domainmodel/game/services/`)
+- CombatResolution - Damage calculation
+- TriggerEvaluation - Match triggers to events
+- StateBasedActions - Identify creatures to destroy
 
-## State Management
+**Specifications** (`domainmodel/game/specifications/`)
+- CanPlayLand, CanCastSpell - Validation rules
+- CanDeclareAttacker, CanDeclareBlocker - Combat rules
+- CanActivateAbility, HasPriority - Activation rules
 
-### Immutable Queries, Controlled Mutations
+### State Management
 
-Query methods return readonly views of state. Mutations only happen through defined Game methods. Effects use Game methods, never direct state mutation.
+- **Immutable queries** - Query methods return readonly views
+- **Controlled mutations** - Only through Game methods
+- **Player isolation** - Each player has isolated zones (hand, battlefield, graveyard)
 
-The critical rule: always use `game.enterBattlefield()` to put permanents on the battlefield, never push directly to the battlefield array. Direct manipulation bypasses the ETB (enter the battlefield) trigger system.
+### Error Handling
 
-### Player State Structure
+Domain errors extend GameError class. Each type corresponds to specific rule violations (invalid step, resource limits, card not found, state violations).
 
-Each player has isolated zones: hand, battlefield, and graveyard. The library and exile zones also exist but are less frequently accessed in the MVP.
+See `src/domainmodel/game/errors/` for implementation.
 
-## DDD Building Blocks
+## Rules
 
-The domain model uses standard DDD building blocks:
+- Game is the only entity that mutates state
+- Abilities are data structures, not active code
+- All player actions use command pattern via `game.apply()`
+- Effects use Game methods (`drawCards()`, `enterBattlefield()`), never direct state mutation
+- Evaluation points are explicit and deterministic
+- No global event system or pub/sub
 
-### Value Objects (`domainmodel/game/valueobjects/`)
-
-Immutable objects with equality by value:
-
-- **ManaPool**: Manages mana of all colors, with `add()`, `spend()`, `clear()` returning new instances
-- **PermanentState**: Tracks state for all permanents (tap state, counters). Optional creature sub-state for P/T, damage, summoning sickness, combat
-- **TurnState**: Groups turn-related state (current player, step, turn number, lands played)
-- **CombatState**: Tracks attacker declarations and blocker assignments
-
-### Entities (`domainmodel/game/entities/`)
-
-Objects with identity and mutable state:
-
-- **Battlefield**: Manages permanents on a player's battlefield
-- **Hand**: Manages cards in a player's hand
-- **Graveyard**: Manages cards in a player's graveyard
-- **TheStack**: LIFO stack for spells and abilities awaiting resolution
-
-### Domain Services (`domainmodel/game/services/`)
-
-Stateless operations that don't belong to a single entity:
-
-- **CombatResolution**: Calculates damage assignments during combat
-- **TriggerEvaluation**: Finds triggered abilities matching game events
-- **StateBasedActions**: Identifies creatures to destroy (lethal damage, 0 toughness)
-
-### Specifications (`domainmodel/game/specifications/`)
-
-Encapsulate business rules as composable predicates:
-
-- **CanPlayLand**: Validates land play conditions
-- **CanCastSpell**: Validates spell casting conditions
-- **CanDeclareAttacker**: Validates creature can attack
-- **CanDeclareBlocker**: Validates creature can block
-- **CanActivateAbility**: Validates ability activation
-- **HasPriority**: Checks if player has priority
-
-### Aggregate Root
-
-**Game** remains the Aggregate Root that:
-- Owns all state
-- Coordinates operations between building blocks
-- Enforces invariants
-- Exposes public API (`apply()`, `exportState()`, `getAllowedActionsFor()`)
-
-## Error Handling
-
-Domain-specific errors extend a base GameError class. Each error type corresponds to a specific rule violation:
-
-- Invalid step for an action (playing land outside main phase)
-- Resource limits exceeded (second land in a turn)
-- Card not found in expected zone
-- Creature state violations (tapped creature attacking)
-
-## MVP Limitations
-
-The following are explicitly out of scope for the MVP:
-
-**Ability Types Not Supported:**
-- Continuous effects / lords (static abilities that affect other permanents)
-- Replacement effects
-- Prevention effects
-- Mana abilities
-
-**Static Abilities (Partial Support):**
-- ✅ Consultative keywords implemented (Flying, Reach, Vigilance)
-- ❌ Full 7-layer system (deferred)
-- ❌ Ability gain/loss ("creature gains flying until end of turn")
-- ❌ Continuous effects ("other creatures get +1/+1")
-
-See `docs/static-abilities.md` for the consultative keywords implementation.
-
-**Features Not Supported:**
-- Mana costs (mana pool exists but cost evaluation not implemented)
-- Targeting system (basic targeting for spells exists but incomplete)
-- Duration tracking ("until end of turn" effects)
-- APNAP ordering for simultaneous triggers
-- Choice-based or optional abilities
-
-**Critical MVP Limitation:**
-Triggered abilities currently execute immediately instead of going on the stack. In the full rules, triggered abilities should be put on the stack and players can respond to them. This is a simplification for the MVP.
-
-## Future Direction
-
-To expand the engine while preserving these principles:
-
-1. Implement triggered abilities on stack
-2. Add targeting support
-3. Implement APNAP ordering
-4. Add more cost types (mana, sacrifice, etc.)
-5. Implement duration tracking
-6. Implement full 7-layer system for static abilities
-7. Add continuous effects and lords
-
-The key invariants to preserve:
-- Game as single source of truth
-- Abilities remain declarative
-- Stack is the only execution mechanism (except mana abilities)
-- Evaluation points remain explicit and deterministic

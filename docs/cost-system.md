@@ -1,117 +1,43 @@
 # Cost System
 
-The cost system models the payment requirements for casting spells and activating abilities in Echomancy.
+The cost system models payment requirements for casting spells and activating abilities.
 
-## Overview
+## Key Concepts
 
-Costs are domain objects that represent resources a player must pay to perform game actions. The cost system provides explicit validation and atomic payment mechanisms, ensuring costs are either fully paid or not paid at all.
+- **Cost Interface** - All costs implement `canPay()` and `pay()` methods
+- **Cost Context** - Minimal info needed to evaluate costs (playerId, sourceId)
+- **Atomic Payment** - Multiple costs are fully paid or not paid at all
+- **Side-Effect Free Validation** - `canPay()` never mutates state
 
-## Core Concepts
+## How It Works
 
-### Cost Interface
+See `src/echomancy/domainmodel/costs/` for implementations.
 
-All costs implement a common interface with two methods:
+**Cost Types**:
+- **ManaCost**: Pay mana from player's pool. Validates sufficient mana exists, then removes it.
+- **TapSelfCost**: Tap the source permanent. Validates untapped and controlled, then marks tapped.
+- **SacrificeSelfCost**: Sacrifice the source permanent. Validates on battlefield and controlled, then moves to graveyard (fires "dies" triggers).
 
-- **canPay**: Validates whether a cost can be paid given the current game state. This method must be side-effect free and never mutate state.
-- **pay**: Executes the cost payment, mutating game state. This method assumes canPay has returned true.
+**Payment Flow**:
+1. Call `canPayAllCosts()` to validate all costs can be paid
+2. If all valid, call `payAllCosts()` to execute payment in sequence
+3. No partial payment (all-or-nothing)
+4. After costs paid, effects execute
 
-### Cost Context
+**Separation from Effects**: Costs are paid first, then effects occur. This matches Magic's rules.
 
-The CostContext provides the minimal information needed to evaluate and pay costs:
+## Rules
 
-- **playerId**: The player who is paying the cost
-- **sourceId**: The card or ability that requires the cost
+- `canPay()` must be pure (no side effects)
+- `pay()` assumes `canPay()` returned true
+- Multiple costs are validated before any are paid
+- Payment is atomic (all costs paid or none)
+- Costs are paid before effects execute
 
-### Atomic Payment
+**Testing**: See `Game.costs.test.ts` for comprehensive test coverage.
 
-Multiple costs can be combined on a single spell or ability. The system ensures atomicity through two helper functions:
-
-- **canPayAllCosts**: Validates that all costs can be paid before paying any
-- **payAllCosts**: Pays all costs in sequence
-
-If any cost cannot be paid, nothing happens - no partial payment occurs.
-
-## Supported Cost Types
-
-### Mana Cost
-
-Pay mana from the player's mana pool.
-
-**Example**: A cost of `{ G: 2, W: 1 }` requires 2 green mana and 1 white mana.
-
-**Validation**: Checks that the player has sufficient mana of each required color in their pool.
-
-**Payment**: Removes the specified mana amounts from the player's pool.
-
-### Tap Self Cost
-
-Tap the permanent that has the ability being activated.
-
-**Validation**: Checks that:
-- The permanent exists on the battlefield
-- The permanent is untapped
-- The permanent is controlled by the player
-
-**Payment**: Marks the permanent as tapped.
-
-**MVP Limitation**: Only creatures track tapped state. Non-creatures are assumed to always be untapped. This will be expanded in the future to track tap state for all permanents.
-
-### Sacrifice Self Cost
-
-Sacrifice the permanent that has the ability being activated.
-
-**Validation**: Checks that:
-- The permanent exists on the battlefield
-- The permanent is controlled by the player
-
-**Payment**: Moves the permanent from the battlefield to the graveyard, emits ZONE_CHANGED event, and evaluates triggered abilities (enabling "dies" triggers).
-
-## Integration with Abilities
-
-Costs are separate from effects. When a player activates an ability or casts a spell:
-
-1. All costs are validated using canPay
-2. If all costs can be paid, they are paid using pay
-3. After all costs are paid, effects execute
-
-This separation ensures costs are always paid before effects occur, matching Magic's rules.
-
-## Error Handling
-
-The cost system uses specific domain errors:
-
-- **PermanentNotFoundError**: The permanent referenced in the cost does not exist
-- **PermanentAlreadyTappedError**: Attempting to tap a permanent that is already tapped
-- **PermanentNotControlledError**: The player does not control the permanent being used for the cost
-- **InsufficientManaError**: The player does not have enough mana to pay the cost
-
-These errors provide clear feedback about why a cost cannot be paid.
-
-## MVP Limitations
-
-The following cost features are not supported in the current implementation:
-
-**Not Supported:**
-- Alternative costs
-- Cost reductions or cost modification effects
-- X costs (variable costs)
-- Hybrid mana costs
-- Phyrexian mana costs
-- Costs that tap or sacrifice other permanents (only "self" is supported)
-- Costs that require multiple permanents
-- Conditional costs based on permanent properties
-
-**Simplified:**
-- Only creatures track tap state (artifacts, lands, and enchantments are assumed untapped)
-
-These limitations are documented in the code with TODO comments and will be addressed in future updates.
-
-## Implementation Details
-
-For implementation specifics, see:
-
-- Cost interface: `src/echomancy/domainmodel/costs/Cost.ts`
-- Mana cost: `src/echomancy/domainmodel/costs/impl/ManaCost.ts`
-- Tap cost: `src/echomancy/domainmodel/costs/impl/TapSelfCost.ts`
-- Sacrifice cost: `src/echomancy/domainmodel/costs/impl/SacrificeSelfCost.ts`
-- Test suite: `src/echomancy/domainmodel/game/__tests__/Game.costs.test.ts`
+**Implementation Files**:
+- `src/echomancy/domainmodel/costs/Cost.ts` - Interface
+- `src/echomancy/domainmodel/costs/impl/ManaCost.ts`
+- `src/echomancy/domainmodel/costs/impl/TapSelfCost.ts`
+- `src/echomancy/domainmodel/costs/impl/SacrificeSelfCost.ts`

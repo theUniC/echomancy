@@ -1,136 +1,44 @@
 # Stack and Priority
 
-The stack is Magic's mechanism for resolving spells and abilities. The priority system determines who can act and when.
+The stack resolves spells and abilities in Last In, First Out (LIFO) order. Priority determines who can act and when.
 
-## Stack Overview
+## Key Concepts
 
-The stack operates on Last In, First Out (LIFO) order. Items are added to the top and resolve from the top down.
+- **The Stack** - LIFO queue for spells and abilities awaiting resolution
+- **Priority** - Permission to take actions (cast, activate, or pass)
+- **Priority Flow** - Active player gets priority first, then passes around table
+- **Resolution** - All players passing in succession causes top item to resolve
+- **Last Known Information** - Abilities resolve even if source is destroyed
 
-When the stack resolves:
-1. Top item resolves first
-2. Each player gets priority after resolution
-3. Next item resolves when all players pass priority
-4. Empty stack means the priority round ends
+## How It Works
 
-## Stack Item Types
+See `src/echomancy/domainmodel/game/Game.ts` for implementation.
 
-### Spells on Stack
+**Stack Items**:
+- **Spells**: Card being cast with controller and targets. Resolves by executing effect and moving card to graveyard or battlefield.
+- **Activated Abilities**: Source permanent ID, effect, controller, targets. Uses Last Known Information (resolves even if source leaves battlefield).
+- **Triggered Abilities**: Defined but not yet used in MVP. Triggers currently execute immediately.
 
-When a player casts a spell, it goes on the stack. The stack item contains the card being cast, the controller, and any targets (empty in MVP).
+**Priority Flow**:
+1. Player casts spell or activates ability (item goes on stack)
+2. Active player receives priority
+3. Players can respond or pass
+4. All players pass in succession → top item resolves
+5. Active player receives priority again
+6. Repeat until stack empty and all players pass
 
-When a spell resolves:
-- The spell's effect executes
-- The card moves to graveyard (instants/sorceries) or battlefield (permanents)
-- A SPELL_RESOLVED event emits
-- ETB triggers evaluate for permanents
+**Resolution Order**: Items resolve in reverse order of addition (last added resolves first).
 
-### Abilities on Stack
+**END_TURN Shortcut**: Records auto-pass intent. Player automatically passes priority until turn ends. Opponent can still respond normally. Auto-pass clears at start of next turn (UNTAP step).
 
-When a player activates an ability, it goes on the stack separately from the source permanent. The stack item contains the source permanent's ID, the effect to execute, the controller, and any targets.
+## Rules
 
-Key differences from spells:
-- Not a spell - doesn't trigger "when you cast a spell" effects
-- Uses Last Known Information - resolves even if source leaves battlefield
-- No card movement - just effect execution
+- Stack uses LIFO ordering
+- Both players passing in succession resolves top item
+- Active player always receives priority first after resolution
+- Actions that use stack: CAST_SPELL, ACTIVATE_ABILITY
+- Actions that don't use stack: PLAY_LAND, combat declarations, step advancement, passing priority
+- Last Known Information applies to activated abilities
+- Auto-pass intent is per-player and clears each turn
 
-### Triggered Abilities on Stack (Not Yet Implemented)
-
-A TriggeredAbilityOnStack type is defined but not yet used. In the MVP, triggered abilities execute immediately instead of going on the stack.
-
-Future behavior will:
-- Create a stack item when a trigger fires
-- Add it to the stack before the priority round
-- Implement APNAP ordering for simultaneous triggers
-- Allow players to respond to triggered abilities
-
-## Priority System
-
-Priority determines who can take actions. A player with priority can:
-- Cast spells (if timing allows)
-- Activate abilities
-- Pass priority
-
-### Priority Flow
-
-When a player takes an action that uses the stack:
-1. The item goes on the stack
-2. The active player gets priority first
-3. Each player can respond or pass
-4. When all players pass in succession, the top item resolves
-5. Active player gets priority again
-6. Repeat until stack is empty and all players pass
-
-### Resolution
-
-Both players passing priority in succession causes the top stack item to resolve. After resolution, the active player gets priority again.
-
-## Actions and the Stack
-
-**Actions that use the stack:**
-- Casting spells (CAST_SPELL)
-- Activating abilities (ACTIVATE_ABILITY)
-
-**Actions that don't use the stack:**
-- Playing lands (special action, no stack)
-- Advancing to the next step
-- Ending the turn
-- Passing priority
-- Declaring attackers (combat state change)
-
-## Last Known Information
-
-Activated abilities use Last Known Information. When an ability goes on the stack, it captures information about its source. Even if the source permanent is destroyed before resolution, the ability still resolves using the captured information.
-
-This is different from spells, where the card itself is on the stack.
-
-## Stack Resolution Order
-
-With multiple items on the stack, they resolve in reverse order from how they were added. If Spell A is cast, then Spell B, then Ability C is activated, the resolution order is: Ability C first, then Spell B, then Spell A.
-
-## End Turn Shortcut
-
-The END_TURN action is a **player shortcut**, not a rules action. It expresses the intent: "I will keep passing priority until the turn naturally ends."
-
-### How END_TURN Works
-
-When a player uses END_TURN:
-
-1. The engine records their **auto-pass intent**
-2. The engine does NOT directly advance steps or execute rules
-3. Priority resolution continues normally
-
-### Auto-Pass Behavior
-
-A player in auto-pass mode will automatically pass priority whenever they receive it:
-
-- **With spells on stack**: The player automatically passes, allowing the opponent to respond
-- **With empty stack**: If they are the active player, they advance to the next step
-
-This continues until:
-- The turn ends (reaching the next player's UNTAP step)
-- Something is added to the stack that requires opponent response
-- The auto-pass intent is cleared
-
-### Clearing Auto-Pass Intent
-
-Auto-pass intent clears automatically at the start of each new turn (UNTAP step). This ensures that END_TURN only affects the intended turn and doesn't carry over to future turns.
-
-### Important: Opponent Can Always Respond
-
-Even when a player is in auto-pass mode, their opponent retains full priority windows. The opponent can:
-- Cast spells in response
-- Activate abilities
-- Take any normally allowed action
-
-The auto-pass player will automatically pass back, but the opponent always gets their chance to act.
-
-## MVP Limitations
-
-| Feature | Status |
-|---------|--------|
-| Triggered abilities on stack | Not implemented |
-| APNAP ordering | Not implemented |
-| Mana abilities (don't use stack) | Not implemented |
-| Targeting validation | Not implemented |
-| Counter spells | Structure exists, needs targeting |
-| Split second | Not implemented |
+**Testing**: See `Game.priorityAndStackResolution.test.ts` for comprehensive coverage.

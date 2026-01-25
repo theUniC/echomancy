@@ -1,90 +1,82 @@
 # Zones and Cards
 
-This document describes the zone system and card model in Echomancy.
+The zone system and card model in Echomancy.
 
-## Zones
+## Key Concepts
 
-Zones are areas where cards exist during the game.
+- **Zones** - Areas where cards exist (Hand, Battlefield, Graveyard, Stack, Library, Exile)
+- **CardDefinition** - Shared template/blueprint for all copies of a card
+- **CardInstance** - Specific copy in the game with unique ID and owner
+- **Zone Transitions** - Cards move between zones via game actions
+- **Enter the Battlefield** - Must use `game.enterBattlefield()` to trigger ETB system
+
+## How It Works
 
 ### Zone Types
 
-- **HAND:** Player's hand (private to owner)
-- **BATTLEFIELD:** In play (public, visible to all)
-- **GRAVEYARD:** Discard pile (public)
-- **STACK:** Spells and abilities waiting to resolve
-- **LIBRARY:** Draw pile (private, ordered)
-- **EXILE:** Removed from game zone
+- **HAND** - Player's hand (private to owner)
+- **BATTLEFIELD** - In play (public, visible to all)
+- **GRAVEYARD** - Discard pile (public)
+- **STACK** - Spells and abilities waiting to resolve
+- **LIBRARY** - Draw pile (private, ordered)
+- **EXILE** - Removed from game zone
 
-### Zone Constants
-
-The ZoneNames object provides constants for all zone names. Use these instead of string literals for type safety.
+Constants available in `src/echomancy/domainmodel/game/Game.ts` via ZoneNames object.
 
 ### Player Zones
 
-Each player has their own hand, battlefield, and graveyard. The library and exile zones also exist but are less frequently manipulated in the MVP.
-
-## Cards
+Each player has isolated zones: hand, battlefield, graveyard. Library and exile exist but less frequently used in MVP.
 
 ### Card Definition vs Card Instance
 
-**CardDefinition** is the template or blueprint for a card. It's shared across all copies of that card and contains:
-- Unique identifier
-- Display name
-- Card types (creature, instant, etc.)
-- Optional spell effect
-- Optional activated ability
-- Optional triggered abilities array
+**CardDefinition** is the shared template containing:
+- Unique identifier, display name, card types
+- Optional spell effect, activated ability, triggered abilities array
 
-**CardInstance** is a specific instance of a card in the game. Each instance has:
+**CardInstance** is a specific copy with:
 - Unique instance ID (different each game)
-- Reference to its CardDefinition
-- Owner ID (the player who owns this card)
+- Reference to CardDefinition
+- Owner ID
 
-This separation allows multiple copies of the same card while each maintains its own identity for tracking zones, tapping, etc.
+This separation allows multiple copies while maintaining individual identity for zone tracking, tapping, etc.
 
-### Card Types
+### Supported Card Types
 
-The supported card types are: CREATURE, INSTANT, SORCERY, ARTIFACT, ENCHANTMENT, PLANESWALKER, and LAND.
+CREATURE, INSTANT, SORCERY, ARTIFACT, ENCHANTMENT, PLANESWALKER, LAND.
 
-A card can have multiple types (e.g., Artifact Creature).
+Cards can have multiple types (e.g., Artifact Creature). All permanent types fully supported in MVP (can enter battlefield, have abilities, move between zones, be targeted).
 
-All permanent types (CREATURE, LAND, ARTIFACT, ENCHANTMENT, PLANESWALKER) are fully supported in the MVP. They can all:
-- Enter the battlefield
-- Have triggered and activated abilities
-- Be moved between zones (battlefield, graveyard, etc.)
-- Coexist on the battlefield
-- Be targeted and filtered by type
+**Note**: Planeswalkers have placeholder state only (no loyalty counters or loyalty abilities in MVP).
 
-Note: Planeswalkers currently have placeholder state only (no loyalty counters or loyalty abilities in MVP).
+### Zone Transitions
 
-## Zone Transitions
+**Playing a Land:**
+HAND → BATTLEFIELD directly (doesn't use stack).
 
-### Playing a Land
+**Casting a Spell:**
+HAND → STACK → Resolution:
+- Instants/Sorceries → GRAVEYARD
+- Permanents → BATTLEFIELD
 
-When a land is played, it moves from HAND directly to BATTLEFIELD. This is a special action that doesn't use the stack.
+**Enter the Battlefield:**
+Always use `game.enterBattlefield()`, never push directly to battlefield array. Direct manipulation bypasses ETB trigger system and causes silent bugs.
 
-### Casting a Spell
+See `src/echomancy/domainmodel/game/Game.ts` for implementation.
 
-When a spell is cast, it moves from HAND to STACK. After resolution:
-- Instants and sorceries go to GRAVEYARD
-- Permanents (creatures, artifacts, enchantments, planeswalkers) go to BATTLEFIELD
+### Zone Change Events
 
-### Enter the Battlefield
+ZONE_CHANGED event emitted when cards move. Enables triggers:
+- **ETB** - Destination zone is BATTLEFIELD
+- **Dies** - BATTLEFIELD → GRAVEYARD
+- **Leaves battlefield** - Source zone is BATTLEFIELD
 
-When a permanent enters the battlefield, it must go through the `game.enterBattlefield()` method. This is critical because:
-- It properly initializes creature state (tapped status, attack history)
-- It emits the ZONE_CHANGED event
-- It triggers ETB (enter the battlefield) abilities
+See `docs/game-events.md` for event details.
 
-Never push directly to the battlefield array - this bypasses the ETB system and will cause silent bugs.
+## Rules
 
-## Zone Change Events
-
-When cards change zones, a ZONE_CHANGED event is emitted. This enables triggers like:
-- **ETB:** Fires when destination zone is BATTLEFIELD
-- **Dies:** Fires when moving from BATTLEFIELD to GRAVEYARD
-- **Leaves battlefield:** Fires when source zone is BATTLEFIELD
-
-## Multiple Card Types
-
-A card can have multiple types. To check if a card is a creature, check if the types array includes "CREATURE". A card can be both an Artifact and a Creature simultaneously.
+- Each player has isolated zones (hand, battlefield, graveyard)
+- Cards move between zones via game actions only
+- Use `game.enterBattlefield()` for all battlefield entry
+- CardInstances have unique IDs; CardDefinitions are shared templates
+- Cards can have multiple types simultaneously
+- Zone change events trigger abilities

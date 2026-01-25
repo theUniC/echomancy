@@ -1,65 +1,61 @@
 # Game Events
 
-Game events represent "something that happened" in the game. They are used to evaluate which triggers should fire.
+Internal data structures representing "something that happened" used to evaluate which triggers should fire.
 
-## Conceptual Model
+## Key Concepts
 
-Events are not an event bus or observable system. They are data structures that the Game uses internally. When something happens:
+- **Not an Event Bus** - Events are internal to Game, not pub/sub system
+- **Synchronous Evaluation** - Triggers evaluated immediately after event occurs
+- **Deterministic** - Same state + action always produces same events
+- **Five Event Types** - ZONE_CHANGED, STEP_STARTED, CREATURE_DECLARED_ATTACKER, COMBAT_ENDED, SPELL_RESOLVED
 
-1. Game detects that an action occurred
-2. Game constructs an event object
-3. Game inspects the current game state
-4. Game evaluates which triggers apply to this event
+## How It Works
+
+### Event Flow
+
+1. Game detects an action occurred
+2. Game constructs event object
+3. Game evaluates which triggers apply to this event
+4. Matching triggers fire
 
 Cards declare triggers with conditions and effects. They do not subscribe to events or maintain internal state.
 
-## Event Types
+### Event Types
 
-### ZoneChangedEvent
+**ZoneChangedEvent**
+Emitted when card moves between zones. Foundation for:
+- ETB triggers (entering battlefield from hand/stack)
+- Dies triggers (battlefield → graveyard)
+- Leaves battlefield triggers (battlefield → any zone)
 
-Emitted when a card moves from one zone to another. This is the foundation for:
-- ETB triggers (entering the battlefield from hand or stack)
-- Dies triggers (moving from battlefield to graveyard)
-- Leaves battlefield triggers (moving from battlefield to any other zone)
+Includes: card, origin zone, destination zone, controller.
 
-The event includes the card that moved, the origin zone, the destination zone, and the controller.
-
-### StepStartedEvent
-
-Emitted when a new step or phase begins. This enables:
+**StepStartedEvent**
+Emitted when new step/phase begins. Enables:
 - "At the beginning of your upkeep" triggers
 - "At the beginning of combat" triggers
 - Untap step triggers
 
-The event includes which step started and the active player.
+Includes: step started, active player.
 
-### CreatureDeclaredAttackerEvent
-
-Emitted when a creature is declared as an attacker. This enables:
+**CreatureDeclaredAttackerEvent**
+Emitted when creature declared as attacker. Enables:
 - "Whenever this creature attacks" triggers
 - "Whenever a creature you control attacks" triggers
 
-The event includes the attacking creature and its controller.
+Includes: attacking creature, controller.
 
-### CombatEndedEvent
-
-Emitted when the combat phase ends. Used for:
-- Resetting combat-related states
+**CombatEndedEvent**
+Emitted when combat phase ends. Used for:
+- Resetting combat states
 - "At end of combat" triggers
 
-### SpellResolvedEvent
-
-Emitted after a spell finishes resolving from the stack. This fires after the spell's effect has been applied and the card has been moved to its final zone. Useful for:
-- "Whenever you cast a spell" triggers (post-resolution hooks)
+**SpellResolvedEvent**
+Emitted after spell resolves from stack. Fires after effect applied and card moved to final zone. Useful for:
+- "Whenever you cast a spell" triggers
 - Spell counting effects
 
-## Event Type Constants
-
-The GameEventTypes object provides constants for all event types: ZONE_CHANGED, STEP_STARTED, CREATURE_DECLARED_ATTACKER, COMBAT_ENDED, and SPELL_RESOLVED. Use these instead of string literals.
-
-## Trigger Evaluation Points
-
-Events are emitted at specific points in the Game:
+### Trigger Evaluation Points
 
 | Game Method | Event Emitted |
 |-------------|---------------|
@@ -69,12 +65,18 @@ Events are emitted at specific points in the Game:
 | advanceStep() | STEP_STARTED |
 | endCombat() | COMBAT_ENDED |
 
-## Design Notes
+See `src/domainmodel/game/game.ts` for implementation.
 
-**No Event Bus:** There is no pub/sub system. Events are internal to the Game.
+### Event Type Constants
 
-**Synchronous Evaluation:** Triggers are evaluated synchronously after the event occurs.
+GameEventTypes object provides constants: ZONE_CHANGED, STEP_STARTED, CREATURE_DECLARED_ATTACKER, COMBAT_ENDED, SPELL_RESOLVED.
 
-**Deterministic:** The same game state plus action always produces the same events and trigger evaluations.
+Use these instead of string literals. Located in `src/echomancy/domainmodel/game/GameEvents.ts`.
 
-**MVP Limitation:** Triggered abilities currently execute immediately rather than going on the stack. Players cannot respond to triggers in the MVP.
+## Rules
+
+- Events are internal to Game (no external subscribers)
+- Triggers evaluated synchronously after event occurs
+- Same game state + action = same events (deterministic)
+- Cards declare triggers, don't subscribe to events
+- Use GameEventTypes constants, never string literals

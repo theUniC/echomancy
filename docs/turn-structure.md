@@ -1,10 +1,18 @@
 # Turn Structure
 
-This document describes the phases and steps of a Magic: The Gathering turn as implemented in Echomancy.
+The phases and steps of a Magic: The Gathering turn as implemented in Echomancy.
 
-## Turn Overview
+## Key Concepts
 
-A turn consists of 5 phases containing 12 steps total:
+- **5 Phases, 12 Steps** - Beginning, First Main, Combat, Second Main, Ending
+- **StepMachine** - Handles step progression and turn passing
+- **Turn-Based Actions** - Some steps have automatic actions (untap, draw)
+- **Priority** - Players get priority in most steps (not untap)
+- **Timing Windows** - Specific steps restrict what can be played
+
+## How It Works
+
+### Turn Structure
 
 ```
 BEGINNING PHASE
@@ -30,69 +38,60 @@ ENDING PHASE
 └── Cleanup Step
 ```
 
-## Step Constants
+### Step Constants
 
-The Step constant object provides type-safe references to all steps: UNTAP, UPKEEP, DRAW, FIRST_MAIN, BEGINNING_OF_COMBAT, DECLARE_ATTACKERS, DECLARE_BLOCKERS, COMBAT_DAMAGE, END_OF_COMBAT, SECOND_MAIN, END_STEP, and CLEANUP.
+The Step object provides type-safe references: UNTAP, UPKEEP, DRAW, FIRST_MAIN, BEGINNING_OF_COMBAT, DECLARE_ATTACKERS, DECLARE_BLOCKERS, COMBAT_DAMAGE, END_OF_COMBAT, SECOND_MAIN, END_STEP, CLEANUP.
 
-## Step Progression
+See `src/echomancy/domainmodel/game/Steps.ts`.
 
-The StepMachine handles step advancement. It takes the current step and returns the next step, plus a flag indicating whether the turn should pass to the next player (which happens when transitioning from CLEANUP to UNTAP).
+### Step Progression
 
-## Step Behaviors
+StepMachine advances steps. Returns next step plus a flag indicating whether turn passes to next player (CLEANUP → UNTAP transition).
 
-### Beginning Phase
+See `src/echomancy/domainmodel/game/StepMachine.ts`.
 
-**Untap Step:** Active player's permanents untap. No player gets priority during this step - it's a turn-based action.
+### Step Behaviors
 
-**Upkeep Step:** "At the beginning of your upkeep" triggers check here. Players get priority.
+**Beginning Phase:**
+- **Untap** - Permanents untap (no priority)
+- **Upkeep** - "At the beginning of your upkeep" triggers fire
+- **Draw** - Active player draws one card
 
-**Draw Step:** Active player draws a card. Players get priority after the draw.
+**Main Phases:**
+- Play one land per turn (shared across both main phases)
+- Cast sorcery-speed spells and creatures
+- Full priority for instants and abilities
 
-### Main Phases
+**Combat Phase:**
+- **Beginning of Combat** - Last chance to tap creatures before attacks
+- **Declare Attackers** - Active player chooses attackers (creatures tap unless vigilance)
+- **Declare Blockers** - Defending player assigns blockers
+- **Combat Damage** - Damage dealt
+- **End of Combat** - Combat state resets, COMBAT_ENDED event emits
 
-Both First Main and Second Main work the same way:
-- Player can play one land per turn (across both main phases combined)
-- Player can cast sorcery-speed spells and creatures
-- Full priority available for instants and abilities
+**Ending Phase:**
+- **End Step** - "At the beginning of your end step" triggers fire
+- **Cleanup** - Discard to hand size, "until end of turn" effects expire (normally no priority)
 
-### Combat Phase
-
-**Beginning of Combat:** "At the beginning of combat" triggers fire. Last chance to tap creatures before attacks are declared.
-
-**Declare Attackers:** Active player chooses which creatures attack. Each attacking creature generates a CREATURE_DECLARED_ATTACKER event. Creatures tap when attacking (unless they have vigilance, which is not implemented in MVP).
-
-**Declare Blockers:** Defending player assigns blockers. Not fully implemented in MVP.
-
-**Combat Damage:** Damage is dealt. Damage system not implemented in MVP.
-
-**End of Combat:** "At end of combat" triggers fire. Combat state resets. COMBAT_ENDED event emits.
-
-### Ending Phase
-
-**End Step:** "At the beginning of your end step" triggers fire. Last chance to act before cleanup.
-
-**Cleanup Step:** Discard to hand size (not implemented in MVP). "Until end of turn" effects expire (not implemented). Normally no player gets priority.
-
-## Land Playing Restrictions
-
-Lands can only be played during main phases (FIRST_MAIN or SECOND_MAIN). Attempting to play a land at other times throws an error.
-
-Players can only play one land per turn. The second land attempt in the same turn throws an error.
-
-## Spell Timing
-
-The MVP implements basic timing:
-- Sorceries and creatures can be cast during main phases only
-- Instants can be cast whenever the player has priority (but timing restrictions are simplified in MVP)
-
-## Extra Phases
-
-The engine supports scheduling extra phases. This is used for effects like "take an extra combat phase after this one." Extra steps are inserted into the turn after the current step sequence.
-
-## Events Emitted During Turn
+### Events Emitted During Turn
 
 | Step Transition | Event |
 |-----------------|-------|
 | Any step start | STEP_STARTED |
 | End of combat | COMBAT_ENDED |
 | Creature attacks | CREATURE_DECLARED_ATTACKER |
+
+See `docs/game-events.md` for event details.
+
+### Extra Phases
+
+Engine supports scheduling extra phases for effects like "take an extra combat phase after this one." Extra steps are inserted after current step sequence.
+
+## Rules
+
+- Lands can only be played during main phases (FIRST_MAIN or SECOND_MAIN)
+- One land per turn across both main phases
+- Sorceries and creatures cast during main phases only
+- Instants cast whenever player has priority
+- Untap step has no priority
+- Turn passes to next player on CLEANUP → UNTAP transition
