@@ -63,6 +63,14 @@ When analyzing a project or task, you will:
    - Order tasks to minimize rework and maximize learning
    - **Add Implementation Tracking section to the active spec** (see "Spec Tracking" section below)
 
+4. **Plan the QA Phase**
+   - Define the QA strategy for the implementation
+   - Specify which QA agents to use:
+     - `mtg-code-reviewer` for code quality and MTG rules compliance
+     - `qa-validator` for acceptance criteria verification (ALWAYS required)
+   - The QA phase MUST include `qa-validator` as the final step before closing
+   - QA phase should be explicitly listed in the Implementation Plan
+
 4. **Enable Agent Coordination**
    - Format outputs to facilitate seamless handoff to specialized agents
    - Provide sufficient context for each agent to work autonomously
@@ -109,6 +117,11 @@ For each phase:
 - **Dependencies**: What must be complete first
 - **Acceptance Criteria**: How to verify completion
 - **Estimated Effort**: Relative sizing (Small/Medium/Large)
+
+### QA Plan
+- **Code Review**: Which aspects need review (e.g., MTG rules, security, performance)
+- **Acceptance Criteria Verification**: List key AC that qa-validator must verify
+- **QA Sequence**: Order of QA agents (typically: mtg-code-reviewer → qa-validator)
 
 ### Risk Mitigation
 - Identified risks with likelihood and impact

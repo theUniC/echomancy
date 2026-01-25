@@ -14,44 +14,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Decision Tree: What to Do First?
 
-```
-┌─────────────────────────────────────────────────┐
-│ USER REQUEST                                    │
-└─────────────────────────────────────────────────┘
-                    ↓
-            Is it trivial work?
-            (typo, format, move file)
-                    ↓
-        ┌───────────┴───────────┐
-       YES                      NO
-        ↓                        ↓
-    Implement              Needs a spec?
-    directly                    ↓
-                        ┌───────┴───────┐
-                       YES              NO
-                        ↓                ↓
-                 mtg-spec-writer   tech-lead-strategist
-                        ↓                ↓
-                 (validate with    Plans &
-                  mtg-domain-      coordinates
-                  expert if                ↓
-                  rules-heavy)     Is it UI work?
-                                          ↓
-                                  ┌───────┴────────┐
-                                 YES              NO
-                                  ↓                ↓
-                           Has visual      Backend/TS
-                           design needs?   specialist
-                                  ↓
-                           ┌──────┴──────┐
-                          YES            NO
-                           ↓              ↓
-                      tcg-ui-designer  ui-engineer
-                           ↓           (directly)
-                      ui-engineer
-                      (implements
-                       design)
-```
+1. **Is it trivial?** (typo, format, move file, single-line fix)
+   - YES → Implement directly, skip to Phase 4
+   - NO → Continue
+
+2. **Does it need a spec?** (new feature needing detailed requirements)
+   - YES → `mtg-spec-writer` (validate with `mtg-domain-expert` if rules-heavy)
+   - NO → Continue
+
+3. **Use `tech-lead-strategist`** to plan implementation + QA
+
+4. **Is it UI work?**
+   - YES → Needs visual design? (new layout, visual states, aesthetics)
+     - YES → `tcg-ui-designer` → then `ui-engineer`
+     - NO → `ui-engineer` directly
+   - NO → `senior-backend-engineer`
 
 ---
 
@@ -103,8 +80,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Decide which specialist agents to use
 - Coordinate workflow (sequential or parallel)
 - Identify technical risks and dependencies
+- **Plan the QA phase** (which agents, what to verify)
 
-**OUTPUT**: Implementation plan with agent assignments
+**OUTPUT**: Implementation plan with agent assignments AND QA plan
 
 **CRITICAL**: `tech-lead-strategist` MUST add an "Implementation Tracking" section to the end of the active spec file.
 
@@ -172,14 +150,19 @@ All specs in `docs/specs/active/` contain an "Implementation Tracking" section a
 
 **MANDATORY** for all non-trivial work:
 
-1. **Tests**: `bun test` - All tests must pass
+1. **Tests**: `bun run test` - All tests must pass
 2. **Linting**: `bun run lint && bun run format` - Code style compliance
 3. **Code Review**: `mtg-code-reviewer` - Quality and MTG rules verification
-4. **Fix Issues**: Address any problems and repeat QA
+4. **Fix Issues**: Address any problems found in steps 1-3
+5. **AC Validation**: `qa-validator` - Verify ALL acceptance criteria are met and mark them `[x]`
+
+**IMPORTANT**: Step 5 (`qa-validator`) is REQUIRED before moving spec to `done/`. It ensures we delivered what we promised.
 
 ---
 
 ## Phase 5: Finalization
+
+**PREREQUISITE**: `qa-validator` must have passed (all AC marked `[x]`)
 
 1. **Update Documentation**: If architectural changes, update `docs/`
 2. **Move Spec**: `docs/specs/active/` → `docs/specs/done/`
@@ -223,11 +206,12 @@ You MAY implement directly for:
 |-------|---------|-------------|
 | `mtg-domain-expert` | MTG rules validation | Validate specs for rules completeness |
 | `mtg-spec-writer` | Write specifications | Need detailed spec document |
-| `tech-lead-strategist` | Plan implementation | Any non-trivial work |
+| `tech-lead-strategist` | Plan implementation + QA | Any non-trivial work |
 | `tcg-ui-designer` | Visual design for TCG UI | New layouts, visual states, aesthetics |
 | `ui-engineer` | Frontend implementation | React/Next.js work |
 | `senior-backend-engineer` | Backend implementation | API, domain logic, DDD |
 | `mtg-code-reviewer` | Code review | After implementation |
+| `qa-validator` | Verify acceptance criteria | Before moving spec to done (MANDATORY) |
 
 **Skills**:
 - `/subagent-driven-development` - Parallel frontend + backend work
