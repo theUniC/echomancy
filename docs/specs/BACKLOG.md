@@ -52,6 +52,7 @@ These fix critical bugs and gaps. Can be done in parallel.
 | 1 | B1-04 | Summoning sickness + Haste keyword | DONE | - |
 | 2 | B1-05 | Spell timing (instant vs sorcery) + Flash | DONE | B0-01 ✓ |
 | 3 | B1-06 | Mana cost payment (manaCost field, generic mana) | DONE | B0-01 (Phase 1-2) |
+| 3b | B1-07 | Deck assignment validation (fail-fast if decks missing) | TODO | B1-02 ✓ |
 
 ### Priority 2: Core Engine Foundation (Sequential)
 
