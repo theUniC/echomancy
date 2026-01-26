@@ -4,6 +4,7 @@ import {
   addCreatureToBattlefield,
   advanceToStep,
   createStartedGame,
+  createStartedGameWithDecks,
   createTestCreature,
   resolveStack,
   scheduleExtraCombatPhase,
@@ -324,7 +325,7 @@ test("creature attack state resets when turn changes", () => {
 })
 
 test("creature can attack again in next turn", () => {
-  const { game, player1, player2 } = createStartedGame()
+  const { game, player1, player2 } = createStartedGameWithDecks()
   const creature = createTestCreature(player1.id)
   addCreatureToBattlefield(game, player1.id, creature)
 

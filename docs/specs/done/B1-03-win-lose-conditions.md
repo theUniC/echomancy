@@ -53,6 +53,11 @@
 - Checked during state-based actions
 - Multiple players can lose simultaneously
 
+**Empty Library Loss** (104.3c):
+- A player who attempts to draw from an empty library loses the game
+- Tracking already implemented (`playersWhoAttemptedEmptyLibraryDraw`)
+- Just needs to trigger game end instead of clearing the flag
+
 **No Players Remaining** (104.3):
 - If all players lose simultaneously, the game is a draw
 - Example: Both players at 0 life from simultaneous damage
@@ -123,31 +128,35 @@
 ## Acceptance Criteria
 
 **Life Total Loss**:
-- [ ] Player with life ≤ 0 loses immediately during SBA check
-- [ ] Winning player is correctly identified
-- [ ] Game status transitions to FINISHED
-- [ ] Outcome includes winner ID and reason "LIFE_TOTAL"
+- [x] Player with life ≤ 0 loses immediately during SBA check
+- [x] Winning player is correctly identified
+- [x] Game status transitions to FINISHED
+- [x] Outcome includes winner ID and reason "LIFE_TOTAL"
+
+**Empty Library Loss**:
+- [x] Player who attempted to draw from empty library loses during SBA check
+- [x] Existing tracking mechanism triggers game end
+- [x] Outcome includes reason "EMPTY_LIBRARY"
 
 **Simultaneous Loss (Draw)**:
-- [ ] Both players losing simultaneously results in DRAW
-- [ ] Outcome includes reason "SIMULTANEOUS_LOSS"
-- [ ] No winner is declared
+- [x] Both players losing simultaneously results in DRAW
+- [x] Outcome includes reason "SIMULTANEOUS_LOSS"
+- [x] No winner is declared
 
 **Action Rejection**:
-- [ ] Submitting actions to a finished game fails with clear error
-- [ ] All action types are rejected (pass priority, cast spell, etc.)
+- [x] Submitting actions to a finished game fails with clear error
+- [x] All action types are rejected (pass priority, cast spell, etc.)
 
 **State Export**:
-- [ ] Game state remains queryable after game ends
-- [ ] Export includes finished status
-- [ ] Export includes outcome with winner/draw information
-- [ ] Final board state is visible in export
+- [x] Game state remains queryable after game ends
+- [x] Export includes finished status
+- [x] Export includes outcome with winner/draw information
+- [x] Final board state is visible in export
 
 ## Out of Scope
 
 **Deferred to future specs**:
 - Poison counters (104.3d)
-- Drawing from empty library (104.3c)
 - Ten poison counters (104.3d)
 - Conceding (104.3a)
 - Commander damage (903.10a)

@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid"
 import type { CardInstance } from "../../cards/CardInstance"
+import { PrebuiltDecks } from "../../cards/PrebuiltDecks"
 import { ZoneNames } from "../../zones/Zone"
 import { Game } from "../Game"
 import { GameEventTypes } from "../GameEvents"
@@ -28,6 +29,10 @@ export function createTestPlayer(name?: string, id?: string): Player {
  * 3. game.start()
  *
  * This is the preferred way to create test games going forward.
+ *
+ * NOTE: Creates games with EMPTY libraries. If your test advances to turn 2+
+ * and goes through a draw step, use createStartedGameWithDecks() instead to
+ * avoid triggering empty library loss.
  */
 export function createStartedGame() {
   const player1 = createTestPlayer("Player 1")
@@ -37,6 +42,36 @@ export function createStartedGame() {
   game.addPlayer(player1)
   game.addPlayer(player2)
   game.start(player1.id)
+
+  return { game, player1, player2 }
+}
+
+/**
+ * Create a game that has been fully started with prebuilt decks.
+ *
+ * This version creates players with 60-card decks loaded into their libraries.
+ * After drawing 7-card opening hands, each player has 53 cards in library.
+ *
+ * Use this when your test needs to advance through multiple turns without
+ * triggering empty library loss conditions.
+ */
+export function createStartedGameWithDecks() {
+  const player1 = createTestPlayer("Player 1")
+  const player2 = createTestPlayer("Player 2")
+
+  const game = Game.create(uuidv4())
+  game.addPlayer(player1)
+  game.addPlayer(player2)
+
+  const deck1 = PrebuiltDecks.greenDeck(player1.id)
+  const deck2 = PrebuiltDecks.redDeck(player2.id)
+
+  game.start(player1.id, {
+    decks: {
+      [player1.id]: deck1,
+      [player2.id]: deck2,
+    },
+  })
 
   return { game, player1, player2 }
 }

@@ -17,7 +17,7 @@ This is the **single source of truth** for project status and prioritized work.
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Core Engine | Partial | Missing: win/lose conditions (B1-03) |
+| Core Engine | Complete | All MVP features implemented |
 | UI | In Progress | Basic display done, interactions partially done |
 | MVP Complete | No | Blocked by core engine gaps |
 
@@ -62,7 +62,7 @@ These enable real game flow. Must be done in order.
 |---|------|-------------|--------|------------|
 | 4 | B1-01 | Library zone + drawCards() | DONE | - |
 | 5 | B1-02 | Game setup (deck loading, shuffle, draw 7) | DONE | B1-01 ✓ |
-| 6 | B1-03 | Win/lose conditions (life <= 0, empty library) | TODO | B1-01 ✓ |
+| 6 | B1-03 | Win/lose conditions (life <= 0, empty library) | DONE | B1-01 ✓ |
 
 ### Priority 3: Combat UI (Sequential)
 
@@ -77,7 +77,7 @@ These enable real game flow. Must be done in order.
 | # | Spec | Description | Status | Dependency |
 |---|------|-------------|--------|------------|
 | 10 | 08 | UI: Spell casting with targets | TODO | B1-05 ✓, B1-06 ✓ |
-| 11 | 14 | UI: Game end display | BLOCKED | B1-03 |
+| 11 | 14 | UI: Game end display | TODO | B1-03 ✓ |
 
 ### Priority 5: Complementary UI
 
@@ -104,6 +104,7 @@ These enable real game flow. Must be done in order.
 - Zones: Hand, Battlefield, Graveyard, Library
 - Library zone + drawCards() (B1-01)
 - Game setup: deck loading, shuffle, draw 7 (B1-02)
+- Win/lose conditions: life total, empty library, draws (B1-03)
 - Game.ts DDD Refactor - Specifications, Value Objects, Services (B0-01)
 - ETB triggers (execute immediately, not on stack)
 - Combat: declare attackers/blockers, damage, cleanup

@@ -7,6 +7,7 @@ import {
   addCreatureToBattlefieldWithSummoningSickness,
   advanceToStep,
   createStartedGame,
+  createStartedGameWithDecks,
   createTestCreature,
 } from "./helpers"
 
@@ -110,7 +111,7 @@ test("creature with summoning sickness cannot attack", () => {
 })
 
 test("creature can attack after summoning sickness is cleared", () => {
-  const { game, player1, player2 } = createStartedGame()
+  const { game, player1, player2 } = createStartedGameWithDecks()
 
   const creature = createTestCreature(player1.id, "creature-1", 2, 2)
   addCreatureToBattlefieldWithSummoningSickness(game, player1.id, creature)
@@ -308,7 +309,7 @@ test("creature with summoning sickness cannot use tap ability", () => {
 })
 
 test("creature can use tap ability after summoning sickness is cleared", () => {
-  const { game, player1, player2 } = createStartedGame()
+  const { game, player1, player2 } = createStartedGameWithDecks()
 
   // Create a creature with a tap ability
   const creature: CardInstance = {

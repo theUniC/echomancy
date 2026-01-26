@@ -82,10 +82,34 @@ export function findPlayersWhoAttemptedEmptyLibraryDraw(game: Game): string[] {
 }
 
 /**
+ * Finds all players who should lose due to having 0 or less life.
+ *
+ * Per MTG rules 704.5a: A player with 0 or less life loses the game.
+ *
+ * This is a pure function that queries the game state and returns
+ * a list of player IDs who should lose. It does NOT modify the game.
+ *
+ * @param game - The game to check
+ * @returns Array of player IDs who should lose
+ */
+export function findPlayersWithZeroOrLessLife(game: Game): string[] {
+  const playersToLose: string[] = []
+
+  for (const playerId of game.getPlayersInTurnOrder()) {
+    if (game.getPlayerLifeTotal(playerId) <= 0) {
+      playersToLose.push(playerId)
+    }
+  }
+
+  return playersToLose
+}
+
+/**
  * StateBasedActions namespace for organized service methods.
  * Using namespace pattern for future expansion and consistent API.
  */
 export const StateBasedActions = {
   findCreaturesToDestroy,
   findPlayersWhoAttemptedEmptyLibraryDraw,
+  findPlayersWithZeroOrLessLife,
 } as const

@@ -7,9 +7,11 @@
 
 import type { CardInstance } from "../../cards/CardInstance"
 import type { Zone } from "../../zones/Zone"
+import type { GameLifecycleState, GameOutcome } from "../Game"
 import type {
   CardInstanceExport,
   CreatureStateExport,
+  GameOutcomeExport,
   GameStateExport,
   ManaPoolExport,
   PlayerStateExport,
@@ -45,6 +47,8 @@ export type ExportableGameContext = {
   getStackItems(): readonly StackItem[]
   isPlaneswalker(card: CardInstance): boolean
   findCardOnBattlefields(instanceId: string): CardInstance | undefined
+  getLifecycleState(): GameLifecycleState
+  getOutcome(): GameOutcome | null
 }
 
 /**
@@ -76,8 +80,13 @@ export function exportGameState(ctx: ExportableGameContext): GameStateExport {
     }
   }
 
+  const lifecycleState = ctx.getLifecycleState()
+  const outcome = ctx.getOutcome()
+
   return {
     gameId: ctx.id,
+    lifecycleState: lifecycleState,
+    outcome: outcome ? exportOutcome(outcome) : null,
     currentTurnNumber: ctx.turnNumber,
     currentPlayerId: ctx.currentPlayerId,
     currentStep: ctx.currentStep,
@@ -87,6 +96,21 @@ export function exportGameState(ctx: ExportableGameContext): GameStateExport {
     stack: ctx.getStackItems().map((item) => exportStackItem(ctx, item)),
     scheduledSteps: [...ctx.scheduledSteps],
     resumeStepAfterScheduled: ctx.resumeStepAfterScheduled,
+  }
+}
+
+function exportOutcome(outcome: GameOutcome): GameOutcomeExport {
+  if (outcome.type === "WIN") {
+    return {
+      type: "WIN",
+      winnerId: outcome.winnerId,
+      reason: outcome.reason,
+    }
+  } else {
+    return {
+      type: "DRAW",
+      reason: outcome.reason,
+    }
   }
 }
 

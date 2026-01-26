@@ -145,6 +145,33 @@ export type PlayerStateExport = {
 }
 
 /**
+ * Game outcome when a player wins
+ */
+export type WinOutcomeExport = {
+  type: "WIN"
+  winnerId: string
+  reason: "LIFE_TOTAL" | "EMPTY_LIBRARY" | "SIMULTANEOUS_LOSS"
+}
+
+/**
+ * Game outcome when the game ends in a draw
+ */
+export type DrawOutcomeExport = {
+  type: "DRAW"
+  reason: "SIMULTANEOUS_LOSS"
+}
+
+/**
+ * Complete game outcome (win or draw)
+ */
+export type GameOutcomeExport = WinOutcomeExport | DrawOutcomeExport
+
+/**
+ * Game lifecycle states
+ */
+export type GameLifecycleStateExport = "CREATED" | "STARTED" | "FINISHED"
+
+/**
  * Complete game state export.
  * This is the top-level export structure.
  *
@@ -156,6 +183,8 @@ export type PlayerStateExport = {
  */
 export type GameStateExport = {
   gameId: string
+  lifecycleState: GameLifecycleStateExport
+  outcome: GameOutcomeExport | null
   currentTurnNumber: number
   currentPlayerId: string
   currentStep: GameSteps

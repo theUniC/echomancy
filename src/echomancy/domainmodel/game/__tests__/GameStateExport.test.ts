@@ -8,6 +8,7 @@ import {
   createGameInMainPhase,
   createGameInMainPhaseWithLand,
   createStartedGame,
+  createStartedGameWithDecks,
   createTestCreature,
   createTestSpell,
   resolveStack,
@@ -87,7 +88,7 @@ describe("GameStateExport", () => {
     })
 
     it("should continue incrementing turn number across multiple rounds", () => {
-      const { game, player1, player2 } = createStartedGame()
+      const { game, player1, player2 } = createStartedGameWithDecks()
 
       // Complete 3 full rounds (6 player turns)
       for (let round = 0; round < 3; round++) {

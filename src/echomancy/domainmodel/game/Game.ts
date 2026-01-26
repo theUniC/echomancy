@@ -29,6 +29,7 @@ import {
   CreatureHasSummoningSicknessError,
   DuplicatePlayerError,
   GameAlreadyStartedError,
+  GameFinishedError,
   GameNotStartedError,
   InsufficientManaError,
   InsufficientManaForSpellError,
@@ -109,6 +110,33 @@ export enum GraveyardReason {
   DESTROY = "destroy",
   STATE_BASED = "state-based",
 }
+
+/**
+ * Reason for game ending
+ */
+export type GameEndReason = "LIFE_TOTAL" | "EMPTY_LIBRARY" | "SIMULTANEOUS_LOSS"
+
+/**
+ * Game outcome when a player wins
+ */
+export type WinOutcome = {
+  type: "WIN"
+  winnerId: string
+  reason: GameEndReason
+}
+
+/**
+ * Game outcome when the game ends in a draw
+ */
+export type DrawOutcome = {
+  type: "DRAW"
+  reason: GameEndReason
+}
+
+/**
+ * Complete game outcome (win or draw)
+ */
+export type GameOutcome = WinOutcome | DrawOutcome
 
 // ============================================================================
 // CREATURE STATE TYPES
@@ -213,6 +241,7 @@ export class Game {
   }
 
   private lifecycleState: GameLifecycleState = GameLifecycleState.CREATED
+  private outcome: GameOutcome | null = null
   private _priorityPlayerId: string | null = null
   get priorityPlayerId(): string | null {
     return this._priorityPlayerId
@@ -402,9 +431,12 @@ export class Game {
    * @throws GameNotStartedError if game is not in STARTED state
    */
   apply(action: Actions): void {
-    // Enforce lifecycle invariant: game must be STARTED
-    if (this.lifecycleState !== GameLifecycleState.STARTED) {
+    // Enforce lifecycle invariant: game must be STARTED (not CREATED or FINISHED)
+    if (this.lifecycleState === GameLifecycleState.CREATED) {
       throw new GameNotStartedError()
+    }
+    if (this.lifecycleState === GameLifecycleState.FINISHED) {
+      throw new GameFinishedError()
     }
 
     match(action)
@@ -594,6 +626,14 @@ export class Game {
   }
 
   /**
+   * Get the game outcome (winner or draw).
+   * Returns null if the game has not finished yet.
+   */
+  getOutcome(): GameOutcome | null {
+    return this.outcome
+  }
+
+  /**
    * Get the current turn number.
    */
   getCurrentTurnNumber(): number {
@@ -616,6 +656,21 @@ export class Game {
       }
       return { id: player.id, name: player.name }
     })
+  }
+
+  /**
+   * Get a player's current life total.
+   *
+   * @param playerId - The ID of the player
+   * @returns The player's current life total
+   * @throws PlayerNotFoundError if the player does not exist
+   */
+  getPlayerLifeTotal(playerId: string): number {
+    const player = this.playersById.get(playerId)
+    if (!player) {
+      throw new PlayerNotFoundError(playerId)
+    }
+    return player.lifeTotal
   }
 
   /**
@@ -701,6 +756,8 @@ export class Game {
       isPlaneswalker: (card: CardInstance) => this.isPlaneswalker(card),
       findCardOnBattlefields: (instanceId: string) =>
         this.findCardOnBattlefields(instanceId),
+      getLifecycleState: () => this.lifecycleState,
+      getOutcome: () => this.outcome,
     }
   }
 
@@ -1964,30 +2021,77 @@ export class Game {
    * - Destroy creatures with lethal damage
    * - Destroy creatures with 0 or less toughness
    * - Player loses if they attempted to draw from empty library
+   * - Player loses if they have 0 or less life
+   * - Game ends with winner determination or draw
    *
    * MVP Limitations:
    * - Indestructible not supported (TODO: implement indestructible check)
-   * - Player loss condition not checked (0 life) (TODO: implement player loss at 0 life)
    * - Legend rule not implemented (TODO: implement legendary uniqueness check)
    *
    * @see StateBasedActions service for detection logic
    */
-  private performStateBasedActions(): void {
+  performStateBasedActions(): void {
+    // First, destroy creatures (this happens regardless of player loss)
     const creaturesToDestroy = StateBasedActions.findCreaturesToDestroy(this)
 
     for (const creatureId of creaturesToDestroy) {
       this.movePermanentToGraveyard(creatureId, GraveyardReason.STATE_BASED)
     }
 
-    // Check for players who attempted to draw from empty library
+    // Check for player loss conditions
+    const playersWithZeroOrLessLife =
+      StateBasedActions.findPlayersWithZeroOrLessLife(this)
     const playersWhoAttemptedEmptyLibraryDraw =
       StateBasedActions.findPlayersWhoAttemptedEmptyLibraryDraw(this)
 
-    for (const playerId of playersWhoAttemptedEmptyLibraryDraw) {
-      // TODO: Implement player loss mechanism (game over, winner determination)
-      // For now, just clear the flag to allow the test to pass
-      // In a full implementation, this would trigger game end
-      this.clearAttemptedDrawFromEmptyLibrary(playerId)
+    // Combine all players who should lose
+    const playersWhoShouldLose = new Set([
+      ...playersWithZeroOrLessLife,
+      ...playersWhoAttemptedEmptyLibraryDraw,
+    ])
+
+    // If at least one player should lose, determine game outcome
+    if (playersWhoShouldLose.size > 0) {
+      // Clear empty library draw flags
+      for (const playerId of playersWhoAttemptedEmptyLibraryDraw) {
+        this.clearAttemptedDrawFromEmptyLibrary(playerId)
+      }
+
+      // Determine the reason for the loss
+      let reason: GameEndReason
+      if (
+        playersWithZeroOrLessLife.length > 0 &&
+        playersWhoAttemptedEmptyLibraryDraw.length > 0
+      ) {
+        // Both types of loss happened
+        reason = "SIMULTANEOUS_LOSS"
+      } else if (playersWithZeroOrLessLife.length > 0) {
+        reason = "LIFE_TOTAL"
+      } else {
+        reason = "EMPTY_LIBRARY"
+      }
+
+      // If all players lose, it's a draw
+      if (playersWhoShouldLose.size >= this.turnOrder.length) {
+        this.outcome = {
+          type: "DRAW",
+          reason: "SIMULTANEOUS_LOSS",
+        }
+        this.lifecycleState = GameLifecycleState.FINISHED
+      } else {
+        // Otherwise, the remaining player wins
+        const winnerId = this.turnOrder.find(
+          (id) => !playersWhoShouldLose.has(id),
+        )
+        if (winnerId) {
+          this.outcome = {
+            type: "WIN",
+            winnerId,
+            reason,
+          }
+          this.lifecycleState = GameLifecycleState.FINISHED
+        }
+      }
     }
   }
 

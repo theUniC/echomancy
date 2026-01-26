@@ -316,3 +316,12 @@ export class InsufficientManaForSpellError extends GameError {
     super(`Insufficient mana to cast spell: ${message}`)
   }
 }
+
+/**
+ * Thrown when attempting to perform any action on a finished game.
+ */
+export class GameFinishedError extends GameError {
+  constructor() {
+    super("Cannot perform actions on a game that has finished")
+  }
+}
