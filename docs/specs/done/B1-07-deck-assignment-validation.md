@@ -14,10 +14,10 @@ Fail-fast: If deck configurations are provided, require entries for ALL players 
 
 ## Acceptance Criteria
 
-- [ ] If deck configurations provided, all players must have an entry
-- [ ] Throw descriptive error listing which player(s) lack decks
-- [ ] Empty deck (`[]`) is allowed (explicit empty vs missing key)
-- [ ] No decks at all still works (backward compatibility)
+- [x] If deck configurations provided, all players must have an entry
+- [x] Throw descriptive error listing which player(s) lack decks
+- [x] Empty deck (`[]`) is allowed (explicit empty vs missing key)
+- [x] No decks at all still works (backward compatibility)
 
 ## Out of Scope
 

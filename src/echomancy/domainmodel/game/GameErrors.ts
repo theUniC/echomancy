@@ -17,6 +17,12 @@ export class InvalidStartingPlayerError extends GameError {
   }
 }
 
+export class MissingDeckError extends GameError {
+  constructor(playerIds: string[]) {
+    super(`Missing deck for player(s): ${playerIds.join(", ")}`)
+  }
+}
+
 export class InvalidPlayerActionError extends GameError {
   constructor(playerId: string, action: string) {
     super(

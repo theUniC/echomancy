@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid"
 import { describe, expect, test } from "vitest"
 import { PrebuiltDecks } from "../../cards/PrebuiltDecks"
 import { Game } from "../Game"
+import { MissingDeckError } from "../GameErrors"
 import { Player } from "../Player"
 
 describe("Game Setup - Deck Loading and Opening Hand", () => {
@@ -180,6 +181,66 @@ describe("Game Setup - Deck Loading and Opening Hand", () => {
         .hand.cards.map((c) => c.definition.id)
 
       expect(game1Hand).toEqual(game2Hand)
+    })
+  })
+
+  describe("Deck assignment validation", () => {
+    test("throws MissingDeckError when decks provided but player is missing", () => {
+      const player1 = new Player(uuidv4(), "Player 1")
+      const player2 = new Player(uuidv4(), "Player 2")
+
+      const game = Game.create(uuidv4())
+      game.addPlayer(player1)
+      game.addPlayer(player2)
+
+      const deck1 = PrebuiltDecks.greenDeck(player1.id)
+
+      expect(() =>
+        game.start(player1.id, {
+          decks: {
+            [player1.id]: deck1,
+            // player2 missing!
+          },
+        }),
+      ).toThrow(MissingDeckError)
+    })
+
+    test("MissingDeckError lists all missing player IDs", () => {
+      const player1 = new Player(uuidv4(), "Player 1")
+      const player2 = new Player(uuidv4(), "Player 2")
+
+      const game = Game.create(uuidv4())
+      game.addPlayer(player1)
+      game.addPlayer(player2)
+
+      try {
+        game.start(player1.id, {
+          decks: {}, // both missing
+        })
+      } catch (e) {
+        expect(e).toBeInstanceOf(MissingDeckError)
+        expect((e as MissingDeckError).message).toContain(player1.id)
+        expect((e as MissingDeckError).message).toContain(player2.id)
+      }
+    })
+
+    test("allows empty deck array (explicit empty)", () => {
+      const player1 = new Player(uuidv4(), "Player 1")
+      const player2 = new Player(uuidv4(), "Player 2")
+
+      const game = Game.create(uuidv4())
+      game.addPlayer(player1)
+      game.addPlayer(player2)
+
+      // Empty array is explicit "no cards", not a missing entry
+      expect(() =>
+        game.start(player1.id, {
+          decks: {
+            [player1.id]: [],
+            [player2.id]: [],
+          },
+        }),
+      ).not.toThrow()
     })
   })
 

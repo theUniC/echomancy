@@ -40,6 +40,7 @@ import {
   InvalidPlayLandStepError,
   InvalidStartingPlayerError,
   LandLimitExceededError,
+  MissingDeckError,
   NotMainPhaseError,
   NotYourTurnError,
   PermanentHasNoActivatedAbilityError,
@@ -320,6 +321,7 @@ export class Game {
    * @throws GameAlreadyStartedError if game has already started
    * @throws InvalidPlayerCountError if insufficient players (minimum 2)
    * @throws InvalidStartingPlayerError if starting player not in game
+   * @throws MissingDeckError if decks provided but some players lack entries
    */
   start(
     startingPlayerId: string,
@@ -346,17 +348,24 @@ export class Game {
 
     // Load decks if provided
     if (options?.decks) {
+      // Validate all players have a deck entry
+      const decks = options.decks
+      const missingDeckPlayerIds = [...this.playersById.keys()].filter(
+        (playerId) => !(playerId in decks),
+      )
+      if (missingDeckPlayerIds.length > 0) {
+        throw new MissingDeckError(missingDeckPlayerIds)
+      }
+
       for (const playerId of this.playersById.keys()) {
         const deck = options.decks[playerId]
-        if (deck) {
-          // Load deck into library
-          const library = Library.fromCards(deck)
-          // Shuffle library
-          const shuffled = library.shuffle(options.shuffleSeed)
-          // Set player's library
-          const playerState = this.getPlayerState(playerId)
-          playerState.library = shuffled
-        }
+        // Load deck into library
+        const library = Library.fromCards(deck)
+        // Shuffle library
+        const shuffled = library.shuffle(options.shuffleSeed)
+        // Set player's library
+        const playerState = this.getPlayerState(playerId)
+        playerState.library = shuffled
       }
 
       // Draw 7-card opening hands for all players
