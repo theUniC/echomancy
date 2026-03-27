@@ -39,14 +39,14 @@ pub(crate) struct PlayerBattlefieldRoot;
 // Colors
 // ============================================================================
 
-/// Background color for the opponent battlefield zone.
-const OPPONENT_ZONE_BG: Color = Color::srgb(0.15, 0.15, 0.20);
+/// Background color for the opponent battlefield zone — warm dark slate.
+const OPPONENT_ZONE_BG: Color = Color::srgb(0.18, 0.16, 0.22);
 
-/// Background color for the player battlefield zone.
-const PLAYER_ZONE_BG: Color = Color::srgb(0.12, 0.20, 0.15);
+/// Background color for the player battlefield zone — warm dark teal.
+const PLAYER_ZONE_BG: Color = Color::srgb(0.14, 0.22, 0.20);
 
-/// Background color for the hand placeholder zone.
-const HAND_ZONE_BG: Color = Color::srgb(0.10, 0.10, 0.14);
+/// Background color for the hand zone — warm dark brown.
+const HAND_ZONE_BG: Color = Color::srgb(0.16, 0.14, 0.12);
 
 // ============================================================================
 // Systems
