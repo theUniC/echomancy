@@ -40,22 +40,22 @@ const TAPPED_ALPHA: f32 = 0.85;
 /// Priority: Creature > Land > other (gray).
 pub(crate) fn card_border_color(types: &[CardType]) -> Color {
     if types.contains(&CardType::Creature) {
-        Color::srgb(0.29, 0.49, 0.35) // Green
+        Color::srgb(0.30, 0.75, 0.40) // Vibrant green
     } else if types.contains(&CardType::Land) {
-        Color::srgb(0.55, 0.41, 0.08) // Brown
+        Color::srgb(0.80, 0.60, 0.15) // Vibrant brown/gold
     } else {
-        Color::srgb(0.4, 0.4, 0.4) // Gray
+        Color::srgb(0.60, 0.60, 0.65) // Light gray
     }
 }
 
 /// Return the background color for the card body (darker than border).
 pub(crate) fn card_background_color(types: &[CardType]) -> Color {
     if types.contains(&CardType::Creature) {
-        Color::srgb(0.10, 0.18, 0.12) // Dark green
+        Color::srgb(0.18, 0.30, 0.22) // Medium dark green
     } else if types.contains(&CardType::Land) {
-        Color::srgb(0.20, 0.15, 0.04) // Dark brown
+        Color::srgb(0.32, 0.24, 0.08) // Medium dark brown
     } else {
-        Color::srgb(0.15, 0.15, 0.15) // Dark gray
+        Color::srgb(0.25, 0.25, 0.28) // Medium dark gray
     }
 }
 
@@ -155,7 +155,7 @@ pub(crate) fn spawn_card(commands: &mut Commands, data: &CardSpawnData<'_>) -> E
                     width: Val::Percent(100.0),
                     ..default()
                 },
-                BackgroundColor(Color::srgb(0.05, 0.05, 0.05)),
+                BackgroundColor(Color::srgb(0.12, 0.12, 0.14)),
             ));
 
             // Type line
@@ -203,9 +203,9 @@ mod tests {
         let Color::Srgba(srgba) = color else {
             panic!("Expected Srgba color");
         };
-        assert!((srgba.red - 0.29).abs() < 0.01, "red channel mismatch");
-        assert!((srgba.green - 0.49).abs() < 0.01, "green channel mismatch");
-        assert!((srgba.blue - 0.35).abs() < 0.01, "blue channel mismatch");
+        assert!((srgba.red - 0.30).abs() < 0.01, "red channel mismatch");
+        assert!((srgba.green - 0.75).abs() < 0.01, "green channel mismatch");
+        assert!((srgba.blue - 0.40).abs() < 0.01, "blue channel mismatch");
     }
 
     #[test]
@@ -214,9 +214,9 @@ mod tests {
         let Color::Srgba(srgba) = color else {
             panic!("Expected Srgba color");
         };
-        assert!((srgba.red - 0.55).abs() < 0.01, "red channel mismatch");
-        assert!((srgba.green - 0.41).abs() < 0.01, "green channel mismatch");
-        assert!((srgba.blue - 0.08).abs() < 0.01, "blue channel mismatch");
+        assert!((srgba.red - 0.80).abs() < 0.01, "red channel mismatch");
+        assert!((srgba.green - 0.60).abs() < 0.01, "green channel mismatch");
+        assert!((srgba.blue - 0.15).abs() < 0.01, "blue channel mismatch");
     }
 
     #[test]
@@ -225,9 +225,9 @@ mod tests {
         let Color::Srgba(srgba) = color else {
             panic!("Expected Srgba color");
         };
-        assert!((srgba.red - 0.4).abs() < 0.01);
-        assert!((srgba.green - 0.4).abs() < 0.01);
-        assert!((srgba.blue - 0.4).abs() < 0.01);
+        assert!((srgba.red - 0.60).abs() < 0.01);
+        assert!((srgba.green - 0.60).abs() < 0.01);
+        assert!((srgba.blue - 0.65).abs() < 0.01);
     }
 
     #[test]
@@ -238,7 +238,7 @@ mod tests {
             panic!("Expected Srgba color");
         };
         assert!(
-            (srgba.red - 0.29).abs() < 0.01,
+            (srgba.red - 0.30).abs() < 0.01,
             "Expected creature (green) border; got red={}", srgba.red
         );
     }
@@ -249,7 +249,7 @@ mod tests {
         let Color::Srgba(srgba) = color else {
             panic!("Expected Srgba color");
         };
-        assert!((srgba.red - 0.4).abs() < 0.01);
+        assert!((srgba.red - 0.60).abs() < 0.01);
     }
 
     // ---- card_type_line ----------------------------------------------------

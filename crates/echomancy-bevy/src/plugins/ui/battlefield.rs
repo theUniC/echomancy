@@ -40,13 +40,13 @@ pub(crate) struct PlayerBattlefieldRoot;
 // ============================================================================
 
 /// Background color for the opponent battlefield zone.
-const OPPONENT_ZONE_BG: Color = Color::srgb(0.08, 0.08, 0.10);
+const OPPONENT_ZONE_BG: Color = Color::srgb(0.15, 0.15, 0.20);
 
 /// Background color for the player battlefield zone.
-const PLAYER_ZONE_BG: Color = Color::srgb(0.06, 0.10, 0.08);
+const PLAYER_ZONE_BG: Color = Color::srgb(0.12, 0.20, 0.15);
 
 /// Background color for the hand placeholder zone.
-const HAND_ZONE_BG: Color = Color::srgb(0.05, 0.05, 0.07);
+const HAND_ZONE_BG: Color = Color::srgb(0.10, 0.10, 0.14);
 
 // ============================================================================
 // Systems
@@ -120,7 +120,8 @@ pub(crate) fn spawn_ui_root(mut commands: Commands) {
         });
 }
 
-/// Update system: rebuild battlefield card entities when the snapshot changes.
+/// Update system: rebuild battlefield card entities when the snapshot changes
+/// or when the `CurrentSnapshot` resource is first added (initial render).
 ///
 /// Despawns all existing card children of each battlefield root, then spawns
 /// fresh card entities from `CurrentSnapshot`.
@@ -131,8 +132,12 @@ pub(crate) fn rebuild_battlefields(
     player_battlefield_q: Query<Entity, With<PlayerBattlefieldRoot>>,
     opponent_battlefield_q: Query<Entity, With<OpponentBattlefieldRoot>>,
 ) {
-    // Only rebuild when the snapshot has actually changed.
-    if snapshot_changed.read().count() == 0 {
+    // Rebuild on initial snapshot insertion OR when snapshot changes later.
+    // `resource_added` run condition handles the first frame; the message
+    // handles every subsequent mutation.
+    let has_message = snapshot_changed.read().count() > 0;
+    let is_new_resource = current_snapshot.is_added();
+    if !has_message && !is_new_resource {
         return;
     }
 
