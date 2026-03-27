@@ -6,7 +6,32 @@ on:
   pull_request:
 
 jobs:
-  lint-and-test:
+  rust-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Cargo registry and build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check compilation
+        run: cargo check --workspace
+
+      - name: Run clippy
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace
+
+  # TODO: Remove this job once TypeScript code is fully migrated to Rust
+  typescript-check:
     runs-on: ubuntu-latest
 
     steps:
