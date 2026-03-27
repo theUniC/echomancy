@@ -33,15 +33,14 @@ You ARE responsible for:
 
 ## Verification Methods
 
-Depending on the criterion, use appropriate verification:
-
 | Criterion Type | Verification Method |
 |---------------|---------------------|
 | "X can do Y" | Check if code/API exists, check tests |
-| "Tests pass" | Run `bun run test` |
-| "No regressions" | Run `bun run test`, verify test count |
+| "Tests pass" | Run `cargo test` |
+| "No regressions" | Run `cargo test`, verify test count |
 | "Feature works" | Check implementation + tests exist |
 | "Error handling" | Check error cases in code/tests |
+| "No clippy warnings" | Run `cargo clippy` |
 
 ## Output Format
 
@@ -57,9 +56,6 @@ Depending on the criterion, use appropriate verification:
 - [x] Criterion 1 - ✅ Verified: {how you verified}
 - [x] Criterion 2 - ✅ Verified: {how you verified}
 - [ ] Criterion 3 - ❌ NOT MET: {what's missing}
-
-#### {Section Name}
-- [x] Criterion 4 - ✅ Verified: {how you verified}
 
 ### Summary
 
@@ -85,9 +81,3 @@ OR
 3. **Be specific** - Say exactly how you verified each criterion
 4. **Update the spec** - Mark `[x]` for verified criteria directly in the spec file
 5. **Don't approve if incomplete** - If ANY criterion is not met, verdict is NOT READY
-
-## When Complete
-
-After your validation:
-- If all criteria met → Spec is ready to move to `done/`
-- If any criteria not met → List what needs to be fixed before closing
