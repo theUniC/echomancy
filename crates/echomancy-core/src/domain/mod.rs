@@ -7,6 +7,7 @@ pub mod entities;
 pub mod enums;
 pub mod errors;
 pub mod events;
+pub(crate) mod services;
 pub mod targets;
 pub mod triggers;
 pub mod types;
