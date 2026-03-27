@@ -50,6 +50,14 @@ pub enum GameEvent {
         controller_id: PlayerId,
     },
 
+    /// A creature was declared as a blocker.
+    CreatureDeclaredBlocker {
+        creature: CardInstanceSnapshot,
+        #[serde(rename = "controllerId")]
+        controller_id: PlayerId,
+        blocking: CardInstanceSnapshot,
+    },
+
     /// The combat phase ended.
     CombatEnded {
         #[serde(rename = "activePlayerId")]
@@ -106,6 +114,22 @@ mod tests {
         let event = GameEvent::CreatureDeclaredAttacker {
             creature: make_snapshot(),
             controller_id: PlayerId::new("player-1"),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: GameEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, decoded);
+    }
+
+    #[test]
+    fn creature_declared_blocker_serde_roundtrip() {
+        let event = GameEvent::CreatureDeclaredBlocker {
+            creature: make_snapshot(),
+            controller_id: PlayerId::new("player-2"),
+            blocking: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("attacker-1"),
+                definition_id: CardDefinitionId::new("bear"),
+                owner_id: PlayerId::new("player-1"),
+            },
         };
         let json = serde_json::to_string(&event).unwrap();
         let decoded: GameEvent = serde_json::from_str(&json).unwrap();

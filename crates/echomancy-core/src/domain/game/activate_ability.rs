@@ -1,0 +1,285 @@
+//! ActivateAbility handler — activate a permanent's activated ability.
+
+use crate::domain::abilities::ActivationCost;
+use crate::domain::entities::the_stack::{AbilityOnStack, StackItem};
+use crate::domain::errors::GameError;
+use crate::domain::events::GameEvent;
+use crate::domain::types::CardInstanceId;
+
+use super::Game;
+
+/// Handle the `ActivateAbility` action.
+///
+/// # Rules
+///
+/// 1. Player must have priority.
+/// 2. The permanent must be on the player's battlefield.
+/// 3. The permanent must have an activated ability.
+/// 4. The cost must be payable (MVP: only `{T}` supported).
+///    - For `{T}`: permanent must not be tapped.
+///    - For `{T}` on a creature: no summoning sickness (unless Haste).
+///
+/// After validation, the ability is placed on the stack and priority passes
+/// to the opponent.
+///
+/// # Errors
+///
+/// Various `GameError` variants for each validation failure.
+pub(crate) fn handle(
+    game: &mut Game,
+    player_id: &str,
+    permanent_id: &str,
+) -> Result<Vec<GameEvent>, GameError> {
+    // 1. Player must have priority
+    if !game.has_priority(player_id) {
+        return Err(GameError::InvalidPlayerAction {
+            player_id: player_id.into(),
+            action: "ACTIVATE_ABILITY".to_owned(),
+        });
+    }
+
+    // 2. Permanent must be on player's battlefield
+    let (permanent_card, ability) = {
+        let player = game.player_state(player_id)?;
+        let card = player
+            .battlefield
+            .iter()
+            .find(|c| c.instance_id() == permanent_id)
+            .cloned()
+            .ok_or_else(|| GameError::PermanentNotFound {
+                permanent_id: CardInstanceId::new(permanent_id),
+            })?;
+
+        // 3. Must have an activated ability
+        let ability = card
+            .definition()
+            .activated_ability()
+            .cloned()
+            .ok_or_else(|| GameError::PermanentHasNoActivatedAbility {
+                permanent_id: CardInstanceId::new(permanent_id),
+            })?;
+
+        (card, ability)
+    };
+
+    // 4. Pay the activation cost
+    pay_activation_cost(game, permanent_id, &permanent_card, &ability.cost)?;
+
+    // Push ability onto the stack
+    game.push_stack(StackItem::Ability(AbilityOnStack {
+        source_id: permanent_id.to_owned(),
+        effect: ability.effect,
+        controller_id: player_id.to_owned(),
+        targets: Vec::new(),
+    }));
+
+    // Give priority to opponent
+    let events = game.give_priority_to_opponent_of(player_id);
+    Ok(events)
+}
+
+/// Pay the activation cost for an activated ability.
+///
+/// MVP: Only `{T}` (tap) cost is supported.
+fn pay_activation_cost(
+    game: &mut Game,
+    permanent_id: &str,
+    permanent_card: &crate::domain::cards::card_instance::CardInstance,
+    cost: &ActivationCost,
+) -> Result<(), GameError> {
+    match cost {
+        ActivationCost::Tap => {
+            // Check state
+            let state = game
+                .permanent_state(permanent_id)
+                .ok_or_else(|| GameError::PermanentNotFound {
+                    permanent_id: CardInstanceId::new(permanent_id),
+                })?
+                .clone();
+
+            if state.is_tapped() {
+                return Err(GameError::PermanentAlreadyTapped {
+                    permanent_id: CardInstanceId::new(permanent_id),
+                });
+            }
+
+            // Check summoning sickness for creatures
+            if let Some(cs) = state.creature_state() {
+                if cs.has_summoning_sickness
+                    && !permanent_card
+                        .definition()
+                        .has_static_ability(crate::domain::enums::StaticAbility::Haste)
+                {
+                    return Err(GameError::CreatureHasSummoningSickness {
+                        creature_id: CardInstanceId::new(permanent_id),
+                    });
+                }
+            }
+
+            game.tap_permanent(permanent_id)?;
+            Ok(())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::abilities::{ActivatedAbility, ActivationCost};
+    use crate::domain::actions::Action;
+    use crate::domain::cards::card_definition::CardDefinition;
+    use crate::domain::cards::card_instance::CardInstance;
+    use crate::domain::effects::Effect;
+    use crate::domain::enums::{CardType, StaticAbility};
+    use crate::domain::game::test_helpers::{
+        add_permanent_to_battlefield, clear_summoning_sickness, make_game_in_first_main,
+    };
+    use crate::domain::types::{CardInstanceId, PlayerId};
+
+    fn make_tap_ability_land(instance_id: &str, owner_id: &str) -> CardInstance {
+        let def = CardDefinition::new("sol-ring", "Sol Ring", vec![CardType::Land])
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Tap,
+                effect: Effect::NoOp,
+            });
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    fn make_tap_ability_creature(instance_id: &str, owner_id: &str) -> CardInstance {
+        let def = CardDefinition::new("tapper", "Tapper", vec![CardType::Creature])
+            .with_power_toughness(1, 1)
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Tap,
+                effect: Effect::NoOp,
+            });
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    #[test]
+    fn activate_tap_ability_taps_the_permanent() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = make_tap_ability_land("land-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("land-1"),
+        })
+        .unwrap();
+
+        let state = game.permanent_state("land-1").unwrap();
+        assert!(state.is_tapped());
+    }
+
+    #[test]
+    fn activate_tap_ability_puts_ability_on_stack() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = make_tap_ability_land("land-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("land-1"),
+        })
+        .unwrap();
+
+        assert_eq!(game.stack().len(), 1);
+        assert!(matches!(game.stack()[0], crate::domain::entities::the_stack::StackItem::Ability(_)));
+    }
+
+    #[test]
+    fn already_tapped_permanent_cannot_activate_tap_ability() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = make_tap_ability_land("land-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+        game.tap_permanent("land-1").unwrap();
+
+        let err = game
+            .apply(Action::ActivateAbility {
+                player_id: PlayerId::new(&p1),
+                permanent_id: CardInstanceId::new("land-1"),
+            })
+            .unwrap_err();
+        assert!(matches!(err, GameError::PermanentAlreadyTapped { .. }));
+    }
+
+    #[test]
+    fn creature_with_summoning_sickness_cannot_activate_tap_ability() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let creature = make_tap_ability_creature("tapper-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+        // Has summoning sickness (just added to battlefield)
+
+        let err = game
+            .apply(Action::ActivateAbility {
+                player_id: PlayerId::new(&p1),
+                permanent_id: CardInstanceId::new("tapper-1"),
+            })
+            .unwrap_err();
+        assert!(matches!(err, GameError::CreatureHasSummoningSickness { .. }));
+    }
+
+    #[test]
+    fn creature_without_summoning_sickness_can_activate_tap_ability() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let creature = make_tap_ability_creature("tapper-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+        clear_summoning_sickness(&mut game, "tapper-1");
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("tapper-1"),
+        })
+        .unwrap();
+
+        let state = game.permanent_state("tapper-1").unwrap();
+        assert!(state.is_tapped());
+    }
+
+    #[test]
+    fn permanent_not_on_battlefield_returns_error() {
+        let (mut game, p1, _) = make_game_in_first_main();
+
+        let err = game
+            .apply(Action::ActivateAbility {
+                player_id: PlayerId::new(&p1),
+                permanent_id: CardInstanceId::new("nonexistent"),
+            })
+            .unwrap_err();
+        assert!(matches!(err, GameError::PermanentNotFound { .. }));
+    }
+
+    #[test]
+    fn permanent_without_activated_ability_returns_error() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = {
+            let def =
+                CardDefinition::new("forest", "Forest", vec![CardType::Land]);
+            CardInstance::new("land-1", def, &p1)
+        };
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        let err = game
+            .apply(Action::ActivateAbility {
+                player_id: PlayerId::new(&p1),
+                permanent_id: CardInstanceId::new("land-1"),
+            })
+            .unwrap_err();
+        assert!(matches!(err, GameError::PermanentHasNoActivatedAbility { .. }));
+    }
+
+    #[test]
+    fn player_without_priority_cannot_activate_ability() {
+        let (mut game, _, p2) = make_game_in_first_main();
+        let land = make_tap_ability_land("land-1", &p2);
+        add_permanent_to_battlefield(&mut game, &p2, land);
+
+        let err = game
+            .apply(Action::ActivateAbility {
+                player_id: PlayerId::new(&p2),
+                permanent_id: CardInstanceId::new("land-1"),
+            })
+            .unwrap_err();
+        assert!(matches!(err, GameError::InvalidPlayerAction { .. }));
+    }
+}

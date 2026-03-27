@@ -119,6 +119,13 @@ fn event_matches_trigger_type(event: &GameEvent, event_type: &TriggerEventType) 
         (GameEvent::SpellResolved { .. }, TriggerEventType::StepStarted) => false,
         (GameEvent::SpellResolved { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
         (GameEvent::SpellResolved { .. }, TriggerEventType::CombatEnded) => false,
+        // Non-matching combinations — CreatureDeclaredBlocker event (no trigger type maps to it yet).
+        (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::ZoneChanged) => false,
+        (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::StepStarted) => false,
+        (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::CreatureDeclaredAttacker) => {
+            false
+        }
+        (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::CombatEnded) => false,
     }
 }
 
