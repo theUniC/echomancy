@@ -26,7 +26,7 @@ pub(crate) const CARD_HEIGHT: f32 = 196.0;
 pub(crate) const CARD_GAP: f32 = 20.0;
 
 /// Border width for the card outline.
-const CARD_BORDER: f32 = 3.0;
+pub(crate) const CARD_BORDER: f32 = 3.0;
 
 /// Opacity applied to tapped cards.
 const TAPPED_ALPHA: f32 = 0.85;

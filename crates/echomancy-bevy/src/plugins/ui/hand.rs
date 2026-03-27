@@ -1,0 +1,289 @@
+//! HandPlugin — renders the player's hand as an overlapping horizontal row.
+//!
+//! Layout (inside the bottom zone, 30% height):
+//! ```text
+//! ┌─────────────────────────────────────────────────────┐
+//! │  [Card1][Card2][Card3][Card4][Card5][Card6][Card7]  │  overlapping by 45px
+//! └─────────────────────────────────────────────────────┘
+//! ```
+//!
+//! Playable cards (lands in FirstMain/SecondMain) have a bright green border
+//! and a `PlayableCard` marker component that enables click-to-play.
+//!
+//! The `rebuild_hand` system runs whenever `SnapshotChangedMessage` is received,
+//! following the same pattern as `BattlefieldPlugin`.
+
+use bevy::prelude::*;
+use echomancy_core::prelude::{Action, CardInstanceId, PlayerId};
+
+use super::card::{CARD_BORDER, CARD_HEIGHT, CARD_WIDTH, CardNode, card_background_color, card_border_color, card_pt_text, card_type_line};
+use crate::plugins::game::{ActivePlayerId, CurrentSnapshot, GameActionMessage, PlayableCards, SnapshotChangedMessage};
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/// Horizontal overlap for adjacent hand cards (negative left margin).
+const HAND_CARD_OVERLAP: f32 = 45.0;
+
+/// Brighter green border used for playable (land) cards in hand.
+const PLAYABLE_BORDER_COLOR: Color = Color::srgb(0.20, 0.90, 0.30);
+
+// ============================================================================
+// Marker components
+// ============================================================================
+
+/// Marks the bottom zone node that holds hand cards.
+#[derive(Component)]
+pub(crate) struct HandRoot;
+
+/// Marks a card in the hand that can currently be played (e.g. a land in FirstMain).
+///
+/// Only added when the card's `instance_id` appears in `PlayableCards.result.playable_lands`.
+#[derive(Component, Clone)]
+pub(crate) struct PlayableCard {
+    pub(crate) instance_id: String,
+}
+
+// ============================================================================
+// Pure helper — testable without ECS
+// ============================================================================
+
+/// Return the left margin for a card at position `index` in the hand row.
+///
+/// - Index 0 (first card): no negative margin.
+/// - Subsequent cards: `-HAND_CARD_OVERLAP` to create the overlapping fan.
+pub(crate) fn hand_card_left_margin(index: usize) -> Val {
+    if index == 0 {
+        Val::Px(0.0)
+    } else {
+        Val::Px(-HAND_CARD_OVERLAP)
+    }
+}
+
+/// Return `true` when `instance_id` is in the list of playable land IDs.
+pub(crate) fn is_playable_land(instance_id: &str, playable_lands: &[String]) -> bool {
+    playable_lands.iter().any(|id| id == instance_id)
+}
+
+// ============================================================================
+// Systems
+// ============================================================================
+
+/// Update system: rebuild hand card entities when the snapshot changes.
+///
+/// Despawns all children of `HandRoot`, then spawns fresh card entities from
+/// `CurrentSnapshot.private_player_state.hand`. Playable lands receive a green
+/// border and a `PlayableCard` + `Button` + `Interaction` for click detection.
+pub(crate) fn rebuild_hand(
+    mut commands: Commands,
+    current_snapshot: Res<CurrentSnapshot>,
+    playable_cards: Res<PlayableCards>,
+    mut snapshot_changed: MessageReader<SnapshotChangedMessage>,
+    hand_root_q: Query<Entity, With<HandRoot>>,
+) {
+    if snapshot_changed.read().count() == 0 {
+        return;
+    }
+
+    let Ok(hand_root) = hand_root_q.single() else {
+        return;
+    };
+
+    // Despawn all existing card children.
+    commands.entity(hand_root).despawn_children();
+
+    let hand = &current_snapshot.snapshot.private_player_state.hand;
+    let playable_lands = &playable_cards.result.playable_lands;
+
+    for (index, card) in hand.iter().enumerate() {
+        let playable = is_playable_land(&card.instance_id, playable_lands);
+        let border_color = if playable {
+            PLAYABLE_BORDER_COLOR
+        } else {
+            card_border_color(&card.types)
+        };
+        let bg_color = card_background_color(&card.types);
+        let type_line = card_type_line(&card.types);
+        let pt_text = card_pt_text(card.power, card.toughness);
+        let name = card.name.clone();
+        let instance_id = card.instance_id.clone();
+        let left_margin = hand_card_left_margin(index);
+
+        let mut entity_cmd = commands.spawn((
+            CardNode,
+            Node {
+                width: Val::Px(CARD_WIDTH),
+                height: Val::Px(CARD_HEIGHT),
+                border: UiRect::all(Val::Px(CARD_BORDER)),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(4.0)),
+                flex_shrink: 0.0,
+                overflow: Overflow::clip(),
+                margin: UiRect {
+                    left: left_margin,
+                    ..default()
+                },
+                ..default()
+            },
+            BorderColor::all(border_color),
+            BackgroundColor(bg_color),
+        ));
+
+        if playable {
+            entity_cmd.insert((
+                PlayableCard { instance_id },
+                Button,
+                Interaction::default(),
+            ));
+        }
+
+        let card_entity = entity_cmd
+            .with_children(|parent| {
+                // Card name
+                parent.spawn((
+                    Text::new(name),
+                    TextFont {
+                        font_size: 12.0,
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+
+                // Art placeholder
+                parent.spawn((
+                    Node {
+                        flex_grow: 1.0,
+                        width: Val::Percent(100.0),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.12, 0.12, 0.14)),
+                ));
+
+                // Type line
+                parent.spawn((
+                    Text::new(type_line),
+                    TextFont {
+                        font_size: 10.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.7, 0.7, 0.7)),
+                ));
+
+                // Power/toughness — creatures only
+                if let Some(pt) = pt_text {
+                    parent.spawn((
+                        Text::new(pt),
+                        TextFont {
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        Node {
+                            align_self: AlignSelf::FlexEnd,
+                            ..default()
+                        },
+                    ));
+                }
+            })
+            .id();
+
+        commands.entity(hand_root).add_child(card_entity);
+    }
+}
+
+/// Update system: detect clicks on playable hand cards and send a `PlayLand` action.
+///
+/// Uses Bevy's built-in `Interaction` component — `Button` nodes get `Interaction`
+/// automatically. Only `Interaction::Pressed` triggers an action.
+pub(crate) fn handle_card_clicks(
+    query: Query<(&Interaction, &PlayableCard), Changed<Interaction>>,
+    active_player: Res<ActivePlayerId>,
+    mut action_writer: MessageWriter<GameActionMessage>,
+) {
+    for (interaction, playable) in &query {
+        if *interaction == Interaction::Pressed {
+            action_writer.write(GameActionMessage(Action::PlayLand {
+                player_id: PlayerId::new(&active_player.player_id),
+                card_id: CardInstanceId::new(&playable.instance_id),
+            }));
+        }
+    }
+}
+
+// ============================================================================
+// Plugin
+// ============================================================================
+
+/// Registers hand rendering and click-to-play systems.
+pub(crate) struct HandPlugin;
+
+impl Plugin for HandPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Update, (rebuild_hand, handle_card_clicks));
+    }
+}
+
+// ============================================================================
+// Tests (TDD: written before implementation was final)
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---- hand_card_left_margin ---------------------------------------------
+
+    #[test]
+    fn first_card_has_no_negative_margin() {
+        assert_eq!(hand_card_left_margin(0), Val::Px(0.0));
+    }
+
+    #[test]
+    fn second_card_has_overlap_margin() {
+        assert_eq!(hand_card_left_margin(1), Val::Px(-HAND_CARD_OVERLAP));
+    }
+
+    #[test]
+    fn seventh_card_has_overlap_margin() {
+        assert_eq!(hand_card_left_margin(6), Val::Px(-HAND_CARD_OVERLAP));
+    }
+
+    // ---- is_playable_land --------------------------------------------------
+
+    #[test]
+    fn card_in_playable_list_is_playable() {
+        let playable = vec!["card-1".to_owned(), "card-2".to_owned()];
+        assert!(is_playable_land("card-1", &playable));
+        assert!(is_playable_land("card-2", &playable));
+    }
+
+    #[test]
+    fn card_not_in_playable_list_is_not_playable() {
+        let playable = vec!["card-1".to_owned()];
+        assert!(!is_playable_land("card-99", &playable));
+    }
+
+    #[test]
+    fn empty_playable_list_means_nothing_is_playable() {
+        assert!(!is_playable_land("card-1", &[]));
+    }
+
+    #[test]
+    fn playable_check_is_exact_match_not_substring() {
+        let playable = vec!["card-1-long".to_owned()];
+        assert!(!is_playable_land("card-1", &playable));
+    }
+
+    // ---- PLAYABLE_BORDER_COLOR sanity --------------------------------------
+
+    #[test]
+    fn playable_border_is_bright_green() {
+        let Color::Srgba(srgba) = PLAYABLE_BORDER_COLOR else {
+            panic!("Expected Srgba color");
+        };
+        assert!((srgba.red - 0.20).abs() < 0.01, "red channel mismatch");
+        assert!((srgba.green - 0.90).abs() < 0.01, "green channel mismatch");
+        assert!((srgba.blue - 0.30).abs() < 0.01, "blue channel mismatch");
+    }
+}

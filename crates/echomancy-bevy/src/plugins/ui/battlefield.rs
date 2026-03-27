@@ -1,4 +1,4 @@
-//! BattlefieldPlugin — renders two horizontal rows of cards.
+//! BattlefieldPlugin — renders two horizontal rows of cards and the hand zone root.
 //!
 //! Layout (top to bottom):
 //! ```text
@@ -7,7 +7,7 @@
 //! ├─────────────────────────────┤
 //! │  Player Battlefield (mid)   │  cards normal
 //! ├─────────────────────────────┤
-//! │  Hand placeholder (Phase 8.3)│
+//! │  Hand zone (HandRoot)       │  filled by HandPlugin (Phase 8.3)
 //! └─────────────────────────────┘
 //! ```
 //!
@@ -17,6 +17,7 @@
 use bevy::prelude::*;
 
 use super::card::{CardSpawnData, CARD_GAP, spawn_card};
+use super::hand::HandRoot;
 use crate::plugins::game::{CurrentSnapshot, SnapshotChangedMessage};
 
 // ============================================================================
@@ -104,8 +105,9 @@ pub(crate) fn spawn_ui_root(mut commands: Commands) {
                 BackgroundColor(PLAYER_ZONE_BG),
             ));
 
-            // Hand placeholder (bottom, 30% — Phase 8.3)
+            // Hand zone (bottom, 30% — Phase 8.3)
             root.spawn((
+                HandRoot,
                 Node {
                     width: Val::Percent(100.0),
                     height: Val::Percent(30.0),
@@ -113,6 +115,7 @@ pub(crate) fn spawn_ui_root(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     padding: UiRect::all(Val::Px(8.0)),
+                    overflow: Overflow::clip(),
                     ..default()
                 },
                 BackgroundColor(HAND_ZONE_BG),
