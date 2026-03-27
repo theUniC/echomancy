@@ -10,3 +10,4 @@ pub mod commands;
 pub mod errors;
 pub mod queries;
 pub mod repository;
+pub(crate) mod validation;

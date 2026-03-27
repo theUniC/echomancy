@@ -1,14 +1,14 @@
-//! Application queries — GetGameState and GetAllowedActions.
+//! Application queries — GetGameState, GetAllowedActions, and ListGames.
 //!
 //! Each query is a plain struct carrying its parameters. The associated
 //! `execute` method takes `&dyn GameRepository` (read-only) and returns
 //! `Result<T, ApplicationError>`.
 
-use uuid::Uuid;
-
 use crate::application::errors::ApplicationError;
 use crate::application::repository::GameRepository;
-use crate::domain::enums::{CardType, Step};
+use crate::application::validation::validate_uuid;
+use crate::domain::enums::{CardType, GameLifecycleState, Step};
+use crate::domain::game::Game;
 use crate::domain::services::game_state_export::GameStateExport;
 
 // ============================================================================
@@ -18,7 +18,7 @@ use crate::domain::services::game_state_export::GameStateExport;
 /// Query that exports the full, unfiltered game state.
 pub struct GetGameState {
     /// The UUID of the game to retrieve.
-    pub game_id: String,
+    game_id: String,
 }
 
 impl GetGameState {
@@ -63,9 +63,9 @@ pub struct AllowedActionsResult {
 /// Query that returns which actions a player can take right now.
 pub struct GetAllowedActions {
     /// The UUID of the game.
-    pub game_id: String,
+    game_id: String,
     /// The UUID of the querying player.
-    pub player_id: String,
+    player_id: String,
 }
 
 impl GetAllowedActions {
@@ -81,12 +81,16 @@ impl GetAllowedActions {
     /// # Errors
     ///
     /// - `ApplicationError::InvalidGameId` — `game_id` is not a valid UUID.
+    /// - `ApplicationError::InvalidPlayerId` — `player_id` is not a valid UUID.
     /// - `ApplicationError::GameNotFound` — no game with the given ID exists.
     pub fn execute(
         self,
         repo: &dyn GameRepository,
     ) -> Result<AllowedActionsResult, ApplicationError> {
         validate_uuid(&self.game_id, |id| ApplicationError::InvalidGameId {
+            id: id.to_owned(),
+        })?;
+        validate_uuid(&self.player_id, |id| ApplicationError::InvalidPlayerId {
             id: id.to_owned(),
         })?;
 
@@ -120,6 +124,50 @@ impl GetAllowedActions {
 }
 
 // ============================================================================
+// ListGames
+// ============================================================================
+
+/// A summary of a game for listing purposes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameSummary {
+    /// Unique identifier of the game.
+    pub game_id: String,
+    /// Number of players currently in the game.
+    pub player_count: usize,
+    /// Current lifecycle state of the game.
+    pub lifecycle_state: GameLifecycleState,
+    /// Current turn number. `None` if the game has not started.
+    pub turn_number: Option<u32>,
+    /// Current step. `None` if the game has not started.
+    pub current_step: Option<Step>,
+}
+
+/// Query that returns a summary of all games in the repository.
+pub struct ListGames;
+
+impl ListGames {
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Execute the query against the repository.
+    ///
+    /// Returns a `Vec<GameSummary>` with one entry per game. Order is not
+    /// guaranteed (depends on the repository's internal iteration order).
+    ///
+    /// This query is infallible — an empty repository returns an empty `Vec`.
+    pub fn execute(self, repo: &dyn GameRepository) -> Vec<GameSummary> {
+        repo.all().into_iter().map(game_summary_from).collect()
+    }
+}
+
+impl Default for ListGames {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -130,7 +178,7 @@ impl GetAllowedActions {
 /// 2. No land has been played this turn yet.
 /// 3. Current step is a main phase.
 /// 4. Stack is empty.
-fn can_player_play_land(game: &crate::domain::game::Game, player_id: &str) -> bool {
+fn can_player_play_land(game: &Game, player_id: &str) -> bool {
     // 1. Must be active player.
     if game.current_player_id() != player_id {
         return false;
@@ -156,12 +204,21 @@ fn can_player_play_land(game: &crate::domain::game::Game, player_id: &str) -> bo
     true
 }
 
-/// Returns `Ok(())` if `id` parses as a valid UUID.
-fn validate_uuid<E>(id: &str, make_err: impl Fn(&str) -> E) -> Result<(), E> {
-    if Uuid::parse_str(id).is_ok() {
-        Ok(())
+/// Build a `GameSummary` from a `&Game`.
+fn game_summary_from(game: &Game) -> GameSummary {
+    let lifecycle_state = game.lifecycle();
+    let (turn_number, current_step) = if lifecycle_state == GameLifecycleState::Started {
+        (Some(game.turn_number()), Some(game.current_step()))
     } else {
-        Err(make_err(id))
+        (None, None)
+    };
+
+    GameSummary {
+        game_id: game.id().to_owned(),
+        player_count: game.turn_order().len(),
+        lifecycle_state,
+        turn_number,
+        current_step,
     }
 }
 
@@ -177,6 +234,7 @@ mod tests {
     use crate::domain::enums::GameLifecycleState;
     use crate::domain::types::PlayerId;
     use crate::infrastructure::in_memory_repo::InMemoryGameRepository;
+    use uuid::Uuid;
 
     fn uuid() -> String {
         Uuid::new_v4().to_string()
@@ -264,6 +322,15 @@ mod tests {
             .execute(&repo)
             .unwrap_err();
         assert!(matches!(err, ApplicationError::InvalidGameId { .. }));
+    }
+
+    #[test]
+    fn get_allowed_actions_rejects_invalid_player_uuid() {
+        let repo = InMemoryGameRepository::new();
+        let err = GetAllowedActions::new(uuid(), "bad-player-id")
+            .execute(&repo)
+            .unwrap_err();
+        assert!(matches!(err, ApplicationError::InvalidPlayerId { .. }));
     }
 
     #[test]
@@ -403,5 +470,62 @@ mod tests {
                 .unwrap();
             assert!(card.definition().types().contains(&CardType::Land));
         }
+    }
+
+    // ---- ListGames ---------------------------------------------------------
+
+    #[test]
+    fn list_games_returns_empty_for_empty_repository() {
+        let repo = InMemoryGameRepository::new();
+        let summaries = ListGames::new().execute(&repo);
+        assert!(summaries.is_empty());
+    }
+
+    #[test]
+    fn list_games_returns_one_entry_per_game() {
+        let mut repo = InMemoryGameRepository::new();
+        CreateGame::new(uuid()).execute(&mut repo).unwrap();
+        CreateGame::new(uuid()).execute(&mut repo).unwrap();
+
+        let summaries = ListGames::new().execute(&repo);
+        assert_eq!(summaries.len(), 2);
+    }
+
+    #[test]
+    fn list_games_created_game_has_zero_players_and_created_lifecycle() {
+        let mut repo = InMemoryGameRepository::new();
+        let game_id = uuid();
+        CreateGame::new(&game_id).execute(&mut repo).unwrap();
+
+        let summaries = ListGames::new().execute(&repo);
+        let summary = summaries.iter().find(|s| s.game_id == game_id).unwrap();
+
+        assert_eq!(summary.player_count, 0);
+        assert_eq!(summary.lifecycle_state, GameLifecycleState::Created);
+        assert!(summary.turn_number.is_none());
+        assert!(summary.current_step.is_none());
+    }
+
+    #[test]
+    fn list_games_started_game_has_turn_info() {
+        let (repo, game_id, _, _) = started_game_repo();
+
+        let summaries = ListGames::new().execute(&repo);
+        let summary = summaries.iter().find(|s| s.game_id == game_id).unwrap();
+
+        assert_eq!(summary.player_count, 2);
+        assert_eq!(summary.lifecycle_state, GameLifecycleState::Started);
+        assert_eq!(summary.turn_number, Some(1));
+        assert_eq!(summary.current_step, Some(Step::Untap));
+    }
+
+    #[test]
+    fn list_games_includes_game_id_in_summary() {
+        let mut repo = InMemoryGameRepository::new();
+        let game_id = uuid();
+        CreateGame::new(&game_id).execute(&mut repo).unwrap();
+
+        let summaries = ListGames::new().execute(&repo);
+        assert!(summaries.iter().any(|s| s.game_id == game_id));
     }
 }

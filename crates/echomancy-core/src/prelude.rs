@@ -3,14 +3,16 @@
 // Application layer
 pub use crate::application::commands::{ApplyAction, CreateGame, JoinGame, StartGame};
 pub use crate::application::errors::ApplicationError;
-pub use crate::application::queries::{AllowedActionsResult, GetAllowedActions, GetGameState};
+pub use crate::application::queries::{
+    AllowedActionsResult, GameSummary, GetAllowedActions, GetGameState, ListGames,
+};
 pub use crate::application::repository::GameRepository;
 
 // Infrastructure layer
 pub use crate::infrastructure::game_snapshot::{
     CardRegistry, CardSnapshot, CombatStateSnapshot, CombatSummary, GameSnapshot,
-    OpponentState, PrivatePlayerState, PublicGameState, StackItemSnapshot, StackSnapshot,
-    UiHints, create_game_snapshot,
+    OpponentState, PrivatePlayerState, PublicGameState, SnapshotError, StackItemSnapshot,
+    StackSnapshot, UiHints, create_game_snapshot,
 };
 pub use crate::infrastructure::in_memory_repo::InMemoryGameRepository;
 

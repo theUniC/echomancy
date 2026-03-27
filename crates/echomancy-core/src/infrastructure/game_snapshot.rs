@@ -18,10 +18,24 @@
 
 use std::collections::HashMap;
 
+use thiserror::Error;
+
 use crate::domain::enums::{CardType, StaticAbility, Step};
 use crate::domain::services::game_state_export::{
     CardInstanceExport, GameStateExport, StackItemExport, StackItemKind,
 };
+
+// ============================================================================
+// SnapshotError
+// ============================================================================
+
+/// Errors that can occur when creating a `GameSnapshot`.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum SnapshotError {
+    /// The viewer player ID is not present in the exported game state.
+    #[error("Player '{player_id}' not found in game state")]
+    PlayerNotFound { player_id: String },
+}
 
 // ============================================================================
 // Public snapshot types
@@ -190,17 +204,19 @@ pub trait CardRegistry {
 ///
 /// # Errors
 ///
-/// Returns an error string if `viewer_player_id` is not in the exported state.
+/// - `SnapshotError::PlayerNotFound` — `viewer_player_id` is not in the exported state.
 pub fn create_game_snapshot(
     state: &GameStateExport,
     viewer_player_id: &str,
     registry: &dyn CardRegistry,
-) -> Result<GameSnapshot, String> {
+) -> Result<GameSnapshot, SnapshotError> {
     // Validate viewer is in the game.
     let viewer_state = state
         .players
         .get(viewer_player_id)
-        .ok_or_else(|| format!("Player {viewer_player_id} not found in game state"))?;
+        .ok_or_else(|| SnapshotError::PlayerNotFound {
+            player_id: viewer_player_id.to_owned(),
+        })?;
 
     // ---- Viewer's zones ----
     let viewer_hand = map_zone(&viewer_state.zones.hand.cards, registry, state);
@@ -591,8 +607,10 @@ mod tests {
         let (game, _, _) = make_started_game();
         let export = game.export_state();
         let result = create_game_snapshot(&export, "unknown-player", &MockRegistry);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("unknown-player"));
+        assert!(matches!(
+            result,
+            Err(SnapshotError::PlayerNotFound { ref player_id }) if player_id == "unknown-player"
+        ));
     }
 
     #[test]

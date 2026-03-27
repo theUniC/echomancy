@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::application::errors::ApplicationError;
 use crate::application::repository::GameRepository;
+use crate::application::validation::validate_uuid;
 use crate::domain::actions::Action;
 use crate::domain::cards::card_definition::CardDefinition;
 use crate::domain::cards::card_instance::CardInstance;
@@ -27,7 +28,7 @@ use crate::domain::game::Game;
 /// Command to create a new game with the given ID.
 pub struct CreateGame {
     /// The UUID that will identify the game.
-    pub game_id: String,
+    game_id: String,
 }
 
 impl CreateGame {
@@ -60,11 +61,11 @@ impl CreateGame {
 /// Command to add a player to an existing game.
 pub struct JoinGame {
     /// The UUID of the game to join.
-    pub game_id: String,
+    game_id: String,
     /// The UUID of the joining player.
-    pub player_id: String,
+    player_id: String,
     /// The display name of the joining player.
-    pub player_name: String,
+    player_name: String,
 }
 
 impl JoinGame {
@@ -118,9 +119,9 @@ impl JoinGame {
 /// implemented.
 pub struct StartGame {
     /// The UUID of the game to start.
-    pub game_id: String,
+    game_id: String,
     /// The UUID of the player who goes first.
-    pub starting_player_id: String,
+    starting_player_id: String,
 }
 
 impl StartGame {
@@ -192,9 +193,9 @@ impl StartGame {
 /// Command to apply a player action to the game.
 pub struct ApplyAction {
     /// The UUID of the game to apply the action to.
-    pub game_id: String,
+    game_id: String,
     /// The action to apply.
-    pub action: Action,
+    action: Action,
 }
 
 impl ApplyAction {
@@ -232,112 +233,97 @@ impl ApplyAction {
 // Bootstrap helpers (temporary until deck/library system is implemented)
 // ============================================================================
 
+/// Specification for a card to be created in the bootstrap hand.
+struct CardSpec<'a> {
+    def_id: &'a str,
+    name: &'a str,
+    types: Vec<CardType>,
+    power: Option<u32>,
+    toughness: Option<u32>,
+    static_abilities: Vec<StaticAbility>,
+}
+
+impl<'a> CardSpec<'a> {
+    fn into_card_instance(self, owner_id: &str) -> CardInstance {
+        let mut def = CardDefinition::new(self.def_id, self.name, self.types);
+        if let (Some(p), Some(t)) = (self.power, self.toughness) {
+            def = def.with_power_toughness(p, t);
+        }
+        for ability in self.static_abilities {
+            def = def.with_static_ability(ability);
+        }
+        CardInstance::new(Uuid::new_v4().to_string(), def, owner_id)
+    }
+}
+
 /// Creates the temporary 7-card bootstrap hand for a player.
 ///
 /// Composition: 2 lands (Forest, Plains) + 5 creatures.
 /// This mirrors `populateStartingHands` from the TypeScript source.
 fn bootstrap_hand(owner_id: &str) -> Vec<CardInstance> {
-    vec![
-        make_card(
-            owner_id,
-            "forest",
-            "Forest",
-            vec![CardType::Land],
-            None,
-            None,
-            vec![],
-        ),
-        make_card(
-            owner_id,
-            "plains",
-            "Plains",
-            vec![CardType::Land],
-            None,
-            None,
-            vec![],
-        ),
-        make_card(
-            owner_id,
-            "grizzly-bears",
-            "Grizzly Bears",
-            vec![CardType::Creature],
-            Some(2),
-            Some(2),
-            vec![],
-        ),
-        make_card(
-            owner_id,
-            "elite-vanguard",
-            "Elite Vanguard",
-            vec![CardType::Creature],
-            Some(2),
-            Some(1),
-            vec![],
-        ),
-        make_card(
-            owner_id,
-            "giant-spider",
-            "Giant Spider",
-            vec![CardType::Creature],
-            Some(2),
-            Some(4),
-            vec![StaticAbility::Reach],
-        ),
-        make_card(
-            owner_id,
-            "serra-angel",
-            "Serra Angel",
-            vec![CardType::Creature],
-            Some(4),
-            Some(4),
-            vec![StaticAbility::Flying, StaticAbility::Vigilance],
-        ),
-        make_card(
-            owner_id,
-            "llanowar-elves",
-            "Llanowar Elves",
-            vec![CardType::Creature],
-            Some(1),
-            Some(1),
-            vec![],
-        ),
-    ]
-}
+    let specs = vec![
+        CardSpec {
+            def_id: "forest",
+            name: "Forest",
+            types: vec![CardType::Land],
+            power: None,
+            toughness: None,
+            static_abilities: vec![],
+        },
+        CardSpec {
+            def_id: "plains",
+            name: "Plains",
+            types: vec![CardType::Land],
+            power: None,
+            toughness: None,
+            static_abilities: vec![],
+        },
+        CardSpec {
+            def_id: "grizzly-bears",
+            name: "Grizzly Bears",
+            types: vec![CardType::Creature],
+            power: Some(2),
+            toughness: Some(2),
+            static_abilities: vec![],
+        },
+        CardSpec {
+            def_id: "elite-vanguard",
+            name: "Elite Vanguard",
+            types: vec![CardType::Creature],
+            power: Some(2),
+            toughness: Some(1),
+            static_abilities: vec![],
+        },
+        CardSpec {
+            def_id: "giant-spider",
+            name: "Giant Spider",
+            types: vec![CardType::Creature],
+            power: Some(2),
+            toughness: Some(4),
+            static_abilities: vec![StaticAbility::Reach],
+        },
+        CardSpec {
+            def_id: "serra-angel",
+            name: "Serra Angel",
+            types: vec![CardType::Creature],
+            power: Some(4),
+            toughness: Some(4),
+            static_abilities: vec![StaticAbility::Flying, StaticAbility::Vigilance],
+        },
+        CardSpec {
+            def_id: "llanowar-elves",
+            name: "Llanowar Elves",
+            types: vec![CardType::Creature],
+            power: Some(1),
+            toughness: Some(1),
+            static_abilities: vec![],
+        },
+    ];
 
-/// Constructs a `CardInstance` with a fresh UUID and the given definition.
-#[allow(clippy::too_many_arguments)]
-fn make_card(
-    owner_id: &str,
-    def_id: &str,
-    name: &str,
-    types: Vec<CardType>,
-    power: Option<u32>,
-    toughness: Option<u32>,
-    static_abilities: Vec<StaticAbility>,
-) -> CardInstance {
-    let mut def = CardDefinition::new(def_id, name, types);
-    if let (Some(p), Some(t)) = (power, toughness) {
-        def = def.with_power_toughness(p, t);
-    }
-    for ability in static_abilities {
-        def = def.with_static_ability(ability);
-    }
-    CardInstance::new(Uuid::new_v4().to_string(), def, owner_id)
-}
-
-// ============================================================================
-// Validation helpers
-// ============================================================================
-
-/// Returns `Ok(())` if `id` parses as a valid UUID.
-///
-/// On failure, calls `make_err(id)` to construct the error variant.
-fn validate_uuid<E>(id: &str, make_err: impl Fn(&str) -> E) -> Result<(), E> {
-    if Uuid::parse_str(id).is_ok() {
-        Ok(())
-    } else {
-        Err(make_err(id))
-    }
+    specs
+        .into_iter()
+        .map(|spec| spec.into_card_instance(owner_id))
+        .collect()
 }
 
 // ============================================================================
