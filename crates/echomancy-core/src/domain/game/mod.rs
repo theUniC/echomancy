@@ -489,8 +489,7 @@ impl Game {
     }
 
     /// Export the complete game state as a plain data structure.
-    #[allow(dead_code)]
-    pub(crate) fn export_state(&self) -> GameStateExport {
+    pub fn export_state(&self) -> GameStateExport {
         export_game_state(self)
     }
 

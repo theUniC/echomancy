@@ -11,7 +11,7 @@
 
 pub(crate) mod combat_declarations;
 pub(crate) mod combat_resolution;
-pub(crate) mod game_state_export;
+pub mod game_state_export;
 pub(crate) mod mana_payment;
 pub(crate) mod spell_timing;
 pub(crate) mod state_based_actions;

@@ -26,7 +26,7 @@ use crate::domain::value_objects::permanent_state::PermanentState;
 
 /// Mana pool snapshot for export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct ManaPoolExport {
+pub struct ManaPoolExport {
     pub white: u32,
     pub blue: u32,
     pub black: u32,
@@ -37,7 +37,7 @@ pub(crate) struct ManaPoolExport {
 
 /// Creature-specific state export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct CreatureStateExport {
+pub struct CreatureStateExport {
     pub is_tapped: bool,
     pub is_attacking: bool,
     pub has_attacked_this_turn: bool,
@@ -54,7 +54,7 @@ pub(crate) struct CreatureStateExport {
 
 /// Card instance export representation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct CardInstanceExport {
+pub struct CardInstanceExport {
     pub instance_id: String,
     pub owner_id: String,
     pub controller_id: String,
@@ -74,14 +74,14 @@ pub(crate) struct CardInstanceExport {
 
 /// Zone export — all cards in a zone, unfiltered.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct ZoneExport {
+pub struct ZoneExport {
     pub cards: Vec<CardInstanceExport>,
 }
 
 /// Stack item kind for export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub(crate) enum StackItemKind {
+pub enum StackItemKind {
     Spell,
     ActivatedAbility,
     TriggeredAbility,
@@ -89,7 +89,7 @@ pub(crate) enum StackItemKind {
 
 /// A stack item export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct StackItemExport {
+pub struct StackItemExport {
     pub kind: StackItemKind,
     pub source_card_instance_id: String,
     pub source_card_definition_id: String,
@@ -100,7 +100,7 @@ pub(crate) struct StackItemExport {
 
 /// Zones for a player in the export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct PlayerZonesExport {
+pub struct PlayerZonesExport {
     pub hand: ZoneExport,
     pub battlefield: ZoneExport,
     pub graveyard: ZoneExport,
@@ -109,7 +109,7 @@ pub(crate) struct PlayerZonesExport {
 
 /// Per-player state export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct PlayerStateExport {
+pub struct PlayerStateExport {
     pub life_total: i32,
     pub mana_pool: ManaPoolExport,
     pub played_lands_this_turn: u32,
@@ -118,21 +118,21 @@ pub(crate) struct PlayerStateExport {
 
 /// Win outcome export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct WinOutcomeExport {
+pub struct WinOutcomeExport {
     pub winner_id: String,
     pub reason: String,
 }
 
 /// Draw outcome export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct DrawOutcomeExport {
+pub struct DrawOutcomeExport {
     pub reason: String,
 }
 
 /// Game outcome export (win or draw).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
-pub(crate) enum GameOutcomeExport {
+pub enum GameOutcomeExport {
     Win(WinOutcomeExport),
     Draw(DrawOutcomeExport),
 }
@@ -144,7 +144,7 @@ pub(crate) enum GameOutcomeExport {
 /// - No derived or computed UI state.
 /// - No validation logic.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct GameStateExport {
+pub struct GameStateExport {
     pub game_id: String,
     pub lifecycle_state: GameLifecycleState,
     pub outcome: Option<GameOutcomeExport>,
