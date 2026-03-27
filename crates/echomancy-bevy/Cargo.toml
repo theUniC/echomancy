@@ -1,0 +1,12 @@
+[package]
+name = "echomancy-bevy"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "echomancy"
+path = "src/main.rs"
+
+[dependencies]
+echomancy-core = { path = "../echomancy-core" }
+bevy = { workspace = true }
