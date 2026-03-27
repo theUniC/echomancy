@@ -91,6 +91,9 @@ pub enum GameError {
     #[error("Permanent '{permanent_id}' has no activated ability")]
     PermanentHasNoActivatedAbility { permanent_id: CardInstanceId },
 
+    #[error("Player '{player_id}' has no permanent with an activatable ability")]
+    NoActivatableAbility { player_id: PlayerId },
+
     #[error("Cannot activate ability of '{permanent_id}': {reason}")]
     CannotPayActivationCost {
         permanent_id: CardInstanceId,
