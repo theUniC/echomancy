@@ -59,6 +59,9 @@ const HAND_ZONE_BG: Color = Color::srgb(0.16, 0.14, 0.12);
 /// 1. Opponent battlefield (top, 35% height)
 /// 2. Player battlefield (middle, 35% height)
 /// 3. Hand placeholder (bottom, 30% height — filled in Phase 8.3)
+///
+/// The HUD panel (Phase 8.4) is an absolutely-positioned overlay spawned by
+/// `HudPlugin` — it does not affect this flex layout.
 pub(crate) fn spawn_ui_root(mut commands: Commands) {
     commands
         .spawn((

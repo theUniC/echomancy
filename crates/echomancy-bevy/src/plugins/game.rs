@@ -48,6 +48,15 @@ pub(crate) struct ActivePlayerId {
     pub(crate) player_id: String,
 }
 
+/// Stores the most recent domain error message to display in the HUD.
+///
+/// Set to `Some(msg)` when an action is rejected; cleared to `None` on the
+/// next successful action. The HUD reads this resource to render a red alert.
+#[derive(Resource, Default)]
+pub(crate) struct ErrorMessage {
+    pub(crate) message: Option<String>,
+}
+
 // ============================================================================
 // Messages
 // ============================================================================
@@ -175,6 +184,15 @@ pub(crate) fn setup_game(mut commands: Commands) {
     // Use OS entropy for shuffling (non-deterministic, as expected in production).
     game.start(&p1_id, None).expect("start game");
 
+    // Auto-advance through Untap → Upkeep → Draw → FirstMain so the player
+    // immediately sees playable lands on startup.
+    for _ in 0..3 {
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1_id),
+        })
+        .expect("advance to FirstMain");
+    }
+
     let (snapshot, playable_cards) =
         compute_snapshot(&game, &p1_id).expect("initial snapshot");
 
@@ -194,6 +212,7 @@ pub(crate) fn setup_game(mut commands: Commands) {
     commands.insert_resource(PlayableCards {
         result: playable_cards,
     });
+    commands.insert_resource(ErrorMessage::default());
 }
 
 /// One-shot system that fires after startup to notify UI of initial state.
@@ -205,6 +224,9 @@ pub(crate) fn send_initial_snapshot_message(
 
 /// Update system: drain `GameActionMessage`s, apply each to the domain game,
 /// recompute the snapshot, and send `SnapshotChangedMessage`.
+///
+/// On success, clears `ErrorMessage`. On failure, stores the error string in
+/// `ErrorMessage` so the HUD can display it.
 pub(crate) fn handle_game_actions(
     mut game_state: ResMut<GameState>,
     active_player: Res<ActivePlayerId>,
@@ -212,6 +234,7 @@ pub(crate) fn handle_game_actions(
     mut snapshot_res: ResMut<CurrentSnapshot>,
     mut playable_res: ResMut<PlayableCards>,
     mut snapshot_changed: MessageWriter<SnapshotChangedMessage>,
+    mut error_message: ResMut<ErrorMessage>,
 ) {
     let mut any_applied = false;
 
@@ -220,9 +243,12 @@ pub(crate) fn handle_game_actions(
             Ok(events) => {
                 debug!(event_count = events.len(), "Game action applied");
                 any_applied = true;
+                // Clear any previous error on success.
+                error_message.message = None;
             }
             Err(err) => {
                 warn!(%err, "GameActionMessage rejected by domain");
+                error_message.message = Some(err.to_string());
             }
         }
     }
