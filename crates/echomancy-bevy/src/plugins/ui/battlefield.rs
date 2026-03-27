@@ -132,12 +132,8 @@ pub(crate) fn rebuild_battlefields(
     player_battlefield_q: Query<Entity, With<PlayerBattlefieldRoot>>,
     opponent_battlefield_q: Query<Entity, With<OpponentBattlefieldRoot>>,
 ) {
-    // Rebuild on initial snapshot insertion OR when snapshot changes later.
-    // `resource_added` run condition handles the first frame; the message
-    // handles every subsequent mutation.
-    let has_message = snapshot_changed.read().count() > 0;
-    let is_new_resource = current_snapshot.is_added();
-    if !has_message && !is_new_resource {
+    // Only rebuild when the snapshot has actually changed.
+    if snapshot_changed.read().count() == 0 {
         return;
     }
 

@@ -196,6 +196,13 @@ pub(crate) fn setup_game(mut commands: Commands) {
     });
 }
 
+/// One-shot system that fires after startup to notify UI of initial state.
+pub(crate) fn send_initial_snapshot_message(
+    mut snapshot_changed: MessageWriter<SnapshotChangedMessage>,
+) {
+    snapshot_changed.write(SnapshotChangedMessage);
+}
+
 /// Update system: drain `GameActionMessage`s, apply each to the domain game,
 /// recompute the snapshot, and send `SnapshotChangedMessage`.
 pub(crate) fn handle_game_actions(
@@ -253,6 +260,7 @@ impl Plugin for GamePlugin {
         app.add_message::<GameActionMessage>()
             .add_message::<SnapshotChangedMessage>()
             .add_systems(Startup, (setup_camera, setup_game))
+            .add_systems(PostStartup, send_initial_snapshot_message)
             .add_systems(Update, handle_game_actions);
     }
 }
