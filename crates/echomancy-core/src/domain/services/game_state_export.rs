@@ -181,6 +181,9 @@ pub(crate) trait ExportableGameContext {
     /// The current lifecycle state of the game.
     fn lifecycle_state(&self) -> GameLifecycleState;
 
+    /// The game outcome, if the game has finished.
+    fn game_outcome(&self) -> Option<GameOutcomeExport>;
+
     /// The current turn number.
     fn current_turn_number(&self) -> u32;
 
@@ -286,7 +289,7 @@ pub(crate) fn export_game_state(ctx: &impl ExportableGameContext) -> GameStateEx
     GameStateExport {
         game_id: ctx.game_id().to_owned(),
         lifecycle_state: ctx.lifecycle_state(),
-        outcome: None,
+        outcome: ctx.game_outcome(),
         current_turn_number: ctx.current_turn_number(),
         current_player_id: ctx.current_player_id().to_owned(),
         current_step: ctx.current_step(),

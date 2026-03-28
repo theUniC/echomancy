@@ -40,7 +40,8 @@ use crate::domain::events::{CardInstanceSnapshot, GameEvent};
 use crate::domain::services::combat_declarations::CombatValidationContext;
 use crate::domain::services::combat_resolution::{calculate_damage_assignments, CreatureCombatEntry};
 use crate::domain::services::game_state_export::{
-    export_game_state, ExportableGameContext, GameStateExport, StackItemExport, StackItemKind,
+    export_game_state, DrawOutcomeExport, ExportableGameContext, GameOutcomeExport,
+    GameStateExport, StackItemExport, StackItemKind, WinOutcomeExport,
 };
 use crate::domain::services::mana_payment::pay_cost;
 use crate::domain::services::state_based_actions::{
@@ -1384,6 +1385,22 @@ impl ExportableGameContext for Game {
 
     fn lifecycle_state(&self) -> GameLifecycleState {
         self.lifecycle
+    }
+
+    fn game_outcome(&self) -> Option<GameOutcomeExport> {
+        self.outcome.as_ref().map(|o| match o {
+            GameOutcome::Win { winner_id, reason } => {
+                GameOutcomeExport::Win(WinOutcomeExport {
+                    winner_id: winner_id.to_string(),
+                    reason: format!("{reason:?}"),
+                })
+            }
+            GameOutcome::Draw { reason } => {
+                GameOutcomeExport::Draw(DrawOutcomeExport {
+                    reason: format!("{reason:?}"),
+                })
+            }
+        })
     }
 
     fn current_turn_number(&self) -> u32 {
