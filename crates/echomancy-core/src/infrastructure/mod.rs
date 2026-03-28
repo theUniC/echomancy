@@ -1,10 +1,10 @@
-//! Infrastructure layer — implementations of application-layer contracts.
+//! Infrastructure layer — data projection and UI-facing types.
 //!
 //! Provides:
-//! - `in_memory_repo` — `InMemoryGameRepository` implementation.
+//! - `allowed_actions` — `AllowedActionsResult` struct consumed by the Bevy UI.
 //! - `game_snapshot` — `GameSnapshot` player-relative view.
 //! - `game_state_export` — serialisable snapshot of the complete game state.
 
+pub mod allowed_actions;
 pub mod game_snapshot;
 pub mod game_state_export;
-pub mod in_memory_repo;

@@ -1,20 +1,12 @@
 //! Convenience re-exports for common types used across the crate and by consumers.
 
-// Application layer
-pub use crate::application::commands::{ApplyAction, CreateGame, JoinGame, StartGame};
-pub use crate::application::errors::ApplicationError;
-pub use crate::application::queries::{
-    AllowedActionsResult, GameSummary, GetAllowedActions, GetGameState, ListGames,
-};
-pub use crate::application::repository::GameRepository;
-
 // Infrastructure layer
+pub use crate::infrastructure::allowed_actions::AllowedActionsResult;
 pub use crate::infrastructure::game_snapshot::{
     CardRegistry, CardSnapshot, CombatStateSnapshot, CombatSummary, GameSnapshot,
     OpponentState, PrivatePlayerState, PublicGameState, SnapshotError, StackItemSnapshot,
     StackSnapshot, UiHints, create_game_snapshot,
 };
-pub use crate::infrastructure::in_memory_repo::InMemoryGameRepository;
 
 // Domain — game aggregate
 pub use crate::domain::game::Game;
