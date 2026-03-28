@@ -182,6 +182,34 @@ fn auto_advance_to_main_phase(game: &mut Game, player_id: &str) {
 }
 
 // ============================================================================
+// Stack auto-resolve helper
+// ============================================================================
+
+/// Auto-pass priority for both players until the stack empties.
+///
+/// In the MVP, no player has counterspells or instant-speed responses, so
+/// when a spell is cast, we immediately resolve it by passing priority from
+/// whoever has it until the stack is empty. This avoids requiring the user
+/// to manually switch perspectives and click "Pass Priority" multiple times.
+///
+/// Max iterations guard prevents infinite loops.
+fn auto_resolve_stack(game: &mut Game) {
+    let mut iterations = 0;
+    while game.stack_has_items() && iterations < 20 {
+        if let Some(priority_holder) = game.priority_player_id().map(str::to_owned) {
+            if game.apply(Action::PassPriority {
+                player_id: PlayerId::new(&priority_holder),
+            }).is_err() {
+                break;
+            }
+        } else {
+            break;
+        }
+        iterations += 1;
+    }
+}
+
+// ============================================================================
 // Snapshot helper
 // ============================================================================
 
@@ -449,6 +477,11 @@ pub(crate) fn handle_game_actions(
     }
 
     if any_applied {
+        // Auto-resolve the stack when no player can respond.
+        // In the MVP, neither player has counterspells or instant-speed responses,
+        // so we auto-pass priority for both players until the stack empties.
+        auto_resolve_stack(&mut game_state.game);
+
         // Determine which player's perspective the UI should show.
         // Uses current_player_id as the primary signal — priority can be stale
         // during auto-resolved steps (Untap/Upkeep/Draw).
