@@ -10,13 +10,9 @@ Never skip this. For every request:
 
 1. **Trivial?** (typo, format, single-line fix) → Implement directly, go to Phase 4
 2. **Needs spec?** (new feature) → `mtg-spec-writer` → (if rules-heavy: `mtg-domain-expert`)
-3. **Plan** → `tech-lead-strategist`
-4. **Implement**:
-   - Domain logic / game engine → `senior-backend-engineer`
-   - Bevy UI with visual design needs → `tcg-ui-designer` → `ui-engineer`
-   - Bevy UI without design needs → `ui-engineer`
-5. **QA** → `cargo test` → `cargo clippy` → `mtg-code-reviewer` → `qa-validator`
-6. **Finalize** → Update docs → Move spec to `done/` → `/git-workflow`
+3. **Implement** → `rust-engineer` (handles both core domain and Bevy UI)
+4. **QA** → `cargo test` → `cargo clippy` → `mtg-code-reviewer` → `qa-validator`
+5. **Finalize** → Update docs → Move spec to `done/` → `/git-workflow`
 
 ## Phase Details
 
@@ -27,15 +23,14 @@ Never skip this. For every request:
 **Validation**: Use `mtg-domain-expert` for rules-heavy features
 
 ### Phase 2: Planning
-**When**: Spec ready in `active/`
-**Agent**: `tech-lead-strategist`
-**Output**: Implementation plan with tasks, agent assignments, and QA plan
-**Required**: Add "Implementation Tracking" section to spec (see agent definition)
+**When**: Spec ready in `active/`, feature is non-trivial
+**How**: Break down the work in the conversation before launching `rust-engineer`
+**Output**: Clear task list with acceptance criteria
 
 ### Phase 3: Implementation
-**When**: After planning
-**Agents**: `senior-backend-engineer`, `ui-engineer`, `tcg-ui-designer`
-**Rule**: ALL implementation through specialized agents. No exceptions.
+**When**: After spec is ready
+**Agent**: `rust-engineer` (handles both echomancy-core and echomancy-bevy)
+**Rule**: ALL implementation through `rust-engineer`. No exceptions.
 
 ### Phase 4: QA
 **Required for all non-trivial work**:
@@ -97,12 +92,9 @@ All agents MUST follow these when writing Rust code:
 
 | Agent | Purpose |
 |-------|---------|
-| `mtg-spec-writer` | Write specifications |
+| `mtg-spec-writer` | Write game design specifications |
 | `mtg-domain-expert` | Validate MTG rules completeness |
-| `tech-lead-strategist` | Plan implementation + QA |
-| `tcg-ui-designer` | Visual design (layout, states, Bevy-native) |
-| `ui-engineer` | Bevy UI implementation |
-| `senior-backend-engineer` | Rust domain logic, DDD, game engine |
+| `rust-engineer` | Implement features (domain + Bevy UI) |
 | `mtg-code-reviewer` | Code review (Rust quality + MTG rules) |
 | `qa-validator` | Verify acceptance criteria (MANDATORY before done) |
 
