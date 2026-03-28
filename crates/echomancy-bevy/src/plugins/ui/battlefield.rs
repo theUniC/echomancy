@@ -70,6 +70,11 @@ pub(crate) fn spawn_ui_root(mut commands: Commands) {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
+                // Leave space for HUD panel on the right
+                padding: UiRect {
+                    right: Val::Px(super::hud::HUD_PANEL_WIDTH),
+                    ..default()
+                },
                 ..default()
             },
         ))
