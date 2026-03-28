@@ -138,26 +138,78 @@ impl CardRegistry for CatalogRegistry {
 
 /// Determine which player should currently control the UI.
 ///
-/// The UI follows the current active player (whose turn it is). Priority can
-/// be stale in non-main-phase steps (e.g., during auto-resolved Untap/Upkeep/
-/// Draw), so `current_player_id` is the reliable signal for who the UI should
-/// represent. Priority is used only when it explicitly belongs to the *opponent*
-/// of the active player, which can happen when responding during the opponent's
-/// turn (a future feature). For MVP, the active player always drives the UI.
+/// In most steps the active player (`current_player_id`) drives the UI.
+/// During `DeclareBlockers`, however, the defending player (whoever holds
+/// priority at that step) must control the UI so they can click their
+/// blockers.  We detect this by checking whether `priority_player_id`
+/// differs from `current_player_id` while in a combat step.
 ///
 /// Fallback order:
-/// 1. `current_player_id` — always authoritative for whose turn it is.
-/// 2. `priority_player_id` if different from `current_player_id` (future: opponent response).
+/// 1. During `DeclareBlockers`: the priority holder (defending player).
+/// 2. Otherwise: `current_player_id`.
 pub(crate) fn resolve_ui_player_id<'a>(
-    _priority_player_id: Option<&'a str>,
+    priority_player_id: Option<&'a str>,
     current_player_id: &'a str,
+    current_step: Step,
 ) -> &'a str {
+    // During DeclareBlockers the defending player holds priority.
+    if current_step == Step::DeclareBlockers {
+        if let Some(priority_id) = priority_player_id {
+            if priority_id != current_player_id {
+                return priority_id;
+            }
+        }
+    }
     current_player_id
 }
 
 // ============================================================================
 // Auto-advance helper
 // ============================================================================
+
+/// Returns `true` for steps that have no player interaction and should be
+/// automatically skipped by the UI.
+///
+/// Interactive steps (where players must act or choose to pass) are:
+/// - `FirstMain`, `SecondMain` — land play, spell casting.
+/// - `DeclareAttackers` — active player declares attackers.
+/// - `DeclareBlockers` — defending player declares blockers.
+/// - `CombatDamage` — (auto-resolved by the engine on entry; but we stop
+///   here to let the engine emit damage events before advancing).
+///
+/// Everything else is auto-skipped.
+fn is_non_interactive_step(step: Step) -> bool {
+    matches!(
+        step,
+        Step::Untap
+            | Step::Upkeep
+            | Step::Draw
+            | Step::BeginningOfCombat
+            | Step::EndOfCombat
+            | Step::EndStep
+            | Step::Cleanup
+    )
+}
+
+/// Advance through all non-interactive steps until an interactive step or a
+/// turn change occurs.
+///
+/// Called after any action is applied and after turn changes so the player
+/// always lands on a step where they can act (or see the result).
+fn auto_advance_through_non_interactive(game: &mut Game, player_id: &str) {
+    let mut iterations = 0;
+    while is_non_interactive_step(game.current_step()) && iterations < 20 {
+        if game
+            .apply(Action::AdvanceStep {
+                player_id: PlayerId::new(player_id),
+            })
+            .is_err()
+        {
+            break;
+        }
+        iterations += 1;
+    }
+}
 
 /// Advance through non-interactive steps (Untap, Upkeep, Draw) to reach
 /// FirstMain where the player can actually take actions.
@@ -166,20 +218,7 @@ pub(crate) fn resolve_ui_player_id<'a>(
 /// changes (for P2, P1 again, etc.). Without this, the player would need
 /// to manually click "Pass Priority" through steps where nothing happens.
 fn auto_advance_to_main_phase(game: &mut Game, player_id: &str) {
-    let steps_to_advance = match game.current_step() {
-        Step::Untap => 3,     // Untap → Upkeep → Draw → FirstMain
-        Step::Upkeep => 2,    // Upkeep → Draw → FirstMain
-        Step::Draw => 1,      // Draw → FirstMain
-        _ => 0,               // Already past the boring steps
-    };
-
-    for _ in 0..steps_to_advance {
-        if game.apply(Action::AdvanceStep {
-            player_id: PlayerId::new(player_id),
-        }).is_err() {
-            break;
-        }
-    }
+    auto_advance_through_non_interactive(game, player_id);
 }
 
 // ============================================================================
@@ -234,7 +273,15 @@ pub(crate) fn compute_snapshot(
     // Compute which battlefield lands can be tapped for mana right now.
     let tappable_lands = compute_tappable_lands(game, viewer_player_id);
     let castable_spells = compute_castable_spells(game, viewer_player_id);
-    let result = AllowedActionsResult { playable_lands, tappable_lands, castable_spells };
+    let attackable_creatures = compute_attackable_creatures(game, viewer_player_id);
+    let blockable_creatures = compute_blockable_creatures(game, viewer_player_id);
+    let result = AllowedActionsResult {
+        playable_lands,
+        tappable_lands,
+        castable_spells,
+        attackable_creatures,
+        blockable_creatures,
+    };
 
     Ok((snapshot, result))
 }
@@ -380,6 +427,88 @@ fn compute_castable_spells(game: &Game, player_id: &str) -> Vec<String> {
         .collect()
 }
 
+/// Returns instance IDs of untapped, non-summoning-sick creatures the player
+/// can declare as attackers during the `DeclareAttackers` step.
+fn compute_attackable_creatures(game: &Game, player_id: &str) -> Vec<String> {
+    use echomancy_core::prelude::StaticAbility;
+
+    if game.current_step() != Step::DeclareAttackers {
+        return Vec::new();
+    }
+    if game.current_player_id() != player_id {
+        return Vec::new();
+    }
+    let battlefield = match game.battlefield(player_id) {
+        Ok(bf) => bf,
+        Err(_) => return Vec::new(),
+    };
+    battlefield
+        .iter()
+        .filter(|card| {
+            if !card.definition().is_creature() {
+                return false;
+            }
+            let Some(state) = game.permanent_state(card.instance_id()) else {
+                return false;
+            };
+            if state.is_tapped() {
+                return false;
+            }
+            let Some(cs) = state.creature_state() else {
+                return false;
+            };
+            if cs.has_attacked_this_turn {
+                return false;
+            }
+            if cs.has_summoning_sickness
+                && !card
+                    .definition()
+                    .static_abilities()
+                    .contains(&StaticAbility::Haste)
+            {
+                return false;
+            }
+            true
+        })
+        .map(|card| card.instance_id().to_owned())
+        .collect()
+}
+
+/// Returns instance IDs of untapped creatures on the defending player's
+/// battlefield that can be declared as blockers during `DeclareBlockers`.
+fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<String> {
+    if game.current_step() != Step::DeclareBlockers {
+        return Vec::new();
+    }
+    // Defending player is NOT the current (active) player.
+    if game.current_player_id() == player_id {
+        return Vec::new();
+    }
+    let battlefield = match game.battlefield(player_id) {
+        Ok(bf) => bf,
+        Err(_) => return Vec::new(),
+    };
+    battlefield
+        .iter()
+        .filter(|card| {
+            if !card.definition().is_creature() {
+                return false;
+            }
+            let Some(state) = game.permanent_state(card.instance_id()) else {
+                return false;
+            };
+            if state.is_tapped() {
+                return false;
+            }
+            let Some(cs) = state.creature_state() else {
+                return false;
+            };
+            cs.blocking_creature_id.is_none()
+        })
+        .map(|card| card.instance_id().to_owned())
+        .collect()
+}
+
 // ============================================================================
 // Systems
 // ============================================================================
@@ -483,12 +612,22 @@ pub(crate) fn handle_game_actions(
         // so we auto-pass priority for both players until the stack empties.
         auto_resolve_stack(&mut game_state.game);
 
+        // Auto-advance through non-interactive steps on every action, not just
+        // on perspective changes. This handles the case where the active player
+        // clicks "Pass Priority" from FirstMain and the engine enters
+        // BeginningOfCombat, which must be auto-skipped to reach DeclareAttackers.
+        // Combat damage (CombatDamage step) is auto-calculated by the engine's
+        // on_enter_step hook; EndOfCombat, EndStep, Cleanup are also non-interactive.
+        let current_player_for_advance = game_state.game.current_player_id().to_owned();
+        auto_advance_through_non_interactive(&mut game_state.game, &current_player_for_advance);
+
         // Determine which player's perspective the UI should show.
-        // Uses current_player_id as the primary signal — priority can be stale
-        // during auto-resolved steps (Untap/Upkeep/Draw).
+        // During DeclareBlockers the defending player (priority holder) drives the UI.
+        // Otherwise the active (current) player drives it.
         let new_ui_player = resolve_ui_player_id(
             game_state.game.priority_player_id(),
             game_state.game.current_player_id(),
+            game_state.game.current_step(),
         )
         .to_owned();
 
@@ -501,9 +640,10 @@ pub(crate) fn handle_game_actions(
             );
             active_player.player_id = new_ui_player.clone();
 
-            // Auto-advance through non-interactive steps (Untap → Upkeep → Draw → FirstMain)
-            // so the new player starts in a state where they can act.
-            auto_advance_to_main_phase(&mut game_state.game, &new_ui_player);
+            // When a new player takes over the UI (e.g. after EndTurn or after
+            // P1's cleanup wraps to P2's Untap), auto-advance through any
+            // remaining non-interactive steps so P2 starts in an interactive step.
+            auto_advance_through_non_interactive(&mut game_state.game, &new_ui_player);
         }
 
         match compute_snapshot(&game_state.game, &active_player.player_id) {
@@ -684,24 +824,37 @@ mod tests {
 
     // ---- resolve_ui_player_id ----------------------------------------------
 
-    /// The UI always follows the current active player (whose turn it is),
-    /// not the priority holder. Priority can be stale during auto-resolved steps.
+    /// During non-combat steps the UI follows the current active player.
     #[test]
-    fn resolve_ui_player_returns_current_player_regardless_of_priority() {
-        // Even if priority says p2, current player is p1 — UI shows p1.
-        let result = resolve_ui_player_id(Some("p2"), "p1");
+    fn resolve_ui_player_returns_current_player_in_first_main() {
+        let result = resolve_ui_player_id(Some("p2"), "p1", Step::FirstMain);
         assert_eq!(result, "p1");
     }
 
     #[test]
     fn resolve_ui_player_returns_current_when_no_priority() {
-        let result = resolve_ui_player_id(None, "p1");
+        let result = resolve_ui_player_id(None, "p1", Step::FirstMain);
         assert_eq!(result, "p1");
     }
 
     #[test]
     fn resolve_ui_player_returns_current_when_priority_matches() {
-        let result = resolve_ui_player_id(Some("p1"), "p1");
+        let result = resolve_ui_player_id(Some("p1"), "p1", Step::FirstMain);
+        assert_eq!(result, "p1");
+    }
+
+    /// During DeclareBlockers the defending player (priority holder) drives the UI.
+    #[test]
+    fn resolve_ui_player_returns_priority_holder_during_declare_blockers() {
+        // p1 is current (active attacker), p2 has priority (defending player).
+        let result = resolve_ui_player_id(Some("p2"), "p1", Step::DeclareBlockers);
+        assert_eq!(result, "p2");
+    }
+
+    /// During DeclareAttackers, the active player still drives the UI.
+    #[test]
+    fn resolve_ui_player_returns_current_during_declare_attackers() {
+        let result = resolve_ui_player_id(Some("p2"), "p1", Step::DeclareAttackers);
         assert_eq!(result, "p1");
     }
 
@@ -718,6 +871,7 @@ mod tests {
         let ui_player = resolve_ui_player_id(
             game.priority_player_id(),
             game.current_player_id(),
+            game.current_step(),
         );
         assert_eq!(ui_player, p2.as_str(),
             "UI should show P2 after P1 ends their turn");

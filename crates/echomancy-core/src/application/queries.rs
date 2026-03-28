@@ -68,6 +68,18 @@ pub struct AllowedActionsResult {
     /// - Timing permits (sorcery-speed: main phase, active player, empty stack).
     /// - The player can pay the mana cost from their current pool.
     pub castable_spells: Vec<String>,
+    /// Instance IDs of creatures on the active player's battlefield that can
+    /// legally be declared as attackers during the `DeclareAttackers` step.
+    ///
+    /// Empty when not in `DeclareAttackers` step or when the player is not the
+    /// active player.
+    pub attackable_creatures: Vec<String>,
+    /// Instance IDs of creatures on the defending player's battlefield that can
+    /// legally be declared as blockers during the `DeclareBlockers` step.
+    ///
+    /// Each entry is the blocker's instance ID. The UI can assign them to attack
+    /// any currently-attacking creature. Empty outside of `DeclareBlockers`.
+    pub blockable_creatures: Vec<String>,
 }
 
 /// Query that returns which actions a player can take right now.
@@ -121,11 +133,16 @@ impl GetAllowedActions {
         // Collect castable spells regardless of land-play eligibility.
         let castable_spells = collect_castable_spells(game, &self.player_id);
 
+        let attackable_creatures = collect_attackable_creatures(game, &self.player_id);
+        let blockable_creatures = collect_blockable_creatures(game, &self.player_id);
+
         if !can_play_land {
             return Ok(AllowedActionsResult {
                 playable_lands: Vec::new(),
                 tappable_lands,
                 castable_spells,
+                attackable_creatures,
+                blockable_creatures,
             });
         }
 
@@ -138,7 +155,7 @@ impl GetAllowedActions {
             .map(|c| c.instance_id().to_owned())
             .collect();
 
-        Ok(AllowedActionsResult { playable_lands, tappable_lands, castable_spells })
+        Ok(AllowedActionsResult { playable_lands, tappable_lands, castable_spells, attackable_creatures, blockable_creatures })
     }
 }
 
@@ -319,6 +336,110 @@ fn collect_castable_spells(game: &Game, player_id: &str) -> Vec<String> {
                 .cloned()
                 .unwrap_or_else(ManaCost::zero);
             can_pay_cost(mana_pool, &cost)
+        })
+        .map(|card| card.instance_id().to_owned())
+        .collect()
+}
+
+/// Collect instance IDs of untapped, non-summoning-sick creatures on the active
+/// player's battlefield that can be declared as attackers right now.
+///
+/// Conditions:
+/// 1. Current step is `DeclareAttackers`.
+/// 2. Player is the active (current) player.
+/// 3. Creature is untapped.
+/// 4. Creature has no summoning sickness (or has Haste).
+/// 5. Creature has not already attacked this turn.
+fn collect_attackable_creatures(game: &Game, player_id: &str) -> Vec<String> {
+    use crate::domain::enums::StaticAbility;
+
+    if game.current_step() != Step::DeclareAttackers {
+        return Vec::new();
+    }
+    if game.current_player_id() != player_id {
+        return Vec::new();
+    }
+
+    let battlefield = match game.battlefield(player_id) {
+        Ok(bf) => bf,
+        Err(_) => return Vec::new(),
+    };
+
+    battlefield
+        .iter()
+        .filter(|card| {
+            if !card.definition().is_creature() {
+                return false;
+            }
+            let Some(state) = game.permanent_state(card.instance_id()) else {
+                return false;
+            };
+            if state.is_tapped() {
+                return false;
+            }
+            let Some(cs) = state.creature_state() else {
+                return false;
+            };
+            if cs.has_attacked_this_turn {
+                return false;
+            }
+            // Summoning sickness check: blocked by Haste
+            if cs.has_summoning_sickness
+                && !card
+                    .definition()
+                    .static_abilities()
+                    .contains(&StaticAbility::Haste)
+            {
+                return false;
+            }
+            true
+        })
+        .map(|card| card.instance_id().to_owned())
+        .collect()
+}
+
+/// Collect instance IDs of untapped creatures on the defending player's
+/// battlefield that can be declared as blockers right now.
+///
+/// Conditions:
+/// 1. Current step is `DeclareBlockers`.
+/// 2. Player is NOT the active player (i.e., they are the defending player).
+/// 3. Creature is untapped.
+/// 4. Creature is not already blocking.
+fn collect_blockable_creatures(game: &Game, player_id: &str) -> Vec<String> {
+    if game.current_step() != Step::DeclareBlockers {
+        return Vec::new();
+    }
+    // Defending player is NOT the current (active) player.
+    if game.current_player_id() == player_id {
+        return Vec::new();
+    }
+
+    let battlefield = match game.battlefield(player_id) {
+        Ok(bf) => bf,
+        Err(_) => return Vec::new(),
+    };
+
+    battlefield
+        .iter()
+        .filter(|card| {
+            if !card.definition().is_creature() {
+                return false;
+            }
+            let Some(state) = game.permanent_state(card.instance_id()) else {
+                return false;
+            };
+            if state.is_tapped() {
+                return false;
+            }
+            let Some(cs) = state.creature_state() else {
+                return false;
+            };
+            // Already blocking something
+            if cs.blocking_creature_id.is_some() {
+                return false;
+            }
+            true
         })
         .map(|card| card.instance_id().to_owned())
         .collect()
@@ -647,5 +768,143 @@ mod tests {
 
         let summaries = ListGames::new().execute(&repo);
         assert!(summaries.iter().any(|s| s.game_id == game_id));
+    }
+
+    // ---- attackable_creatures -----------------------------------------------
+
+    #[test]
+    fn attackable_creatures_empty_outside_declare_attackers_step() {
+        let (repo, game_id, p1, _) = started_game_repo();
+        // Game starts in Untap — not DeclareAttackers.
+        let result = GetAllowedActions::new(&game_id, &p1).execute(&repo).unwrap();
+        assert!(result.attackable_creatures.is_empty());
+    }
+
+    #[test]
+    fn attackable_creatures_returns_eligible_creatures_during_declare_attackers() {
+        use crate::domain::game::test_helpers::{
+            add_permanent_to_battlefield, clear_summoning_sickness, make_creature_card,
+        };
+
+        let mut repo = InMemoryGameRepository::new();
+        let game_id = uuid();
+        let p1 = uuid();
+        let p2 = uuid();
+
+        CreateGame::new(&game_id).execute(&mut repo).unwrap();
+        JoinGame::new(&game_id, &p1, "Alice").execute(&mut repo).unwrap();
+        JoinGame::new(&game_id, &p2, "Bob").execute(&mut repo).unwrap();
+        StartGame::new(&game_id, &p1).execute(&mut repo).unwrap();
+
+        {
+            let game = repo.find_by_id_mut(&game_id).unwrap();
+            let creature = make_creature_card("bear-1", &p1, 2, 2);
+            add_permanent_to_battlefield(game, &p1, creature);
+            clear_summoning_sickness(game, "bear-1");
+            // Advance to DeclareAttackers (5 steps: Untap→Upkeep→Draw→FirstMain→BeginningOfCombat→DeclareAttackers)
+            for _ in 0..5 {
+                game.apply(Action::AdvanceStep {
+                    player_id: PlayerId::new(&p1),
+                })
+                .unwrap();
+            }
+        }
+
+        let result = GetAllowedActions::new(&game_id, &p1).execute(&repo).unwrap();
+        assert!(result.attackable_creatures.contains(&"bear-1".to_owned()));
+    }
+
+    #[test]
+    fn attackable_creatures_excludes_tapped_creatures() {
+        use crate::domain::game::test_helpers::{
+            add_permanent_to_battlefield, clear_summoning_sickness, make_creature_card,
+        };
+
+        let mut repo = InMemoryGameRepository::new();
+        let game_id = uuid();
+        let p1 = uuid();
+        let p2 = uuid();
+
+        CreateGame::new(&game_id).execute(&mut repo).unwrap();
+        JoinGame::new(&game_id, &p1, "Alice").execute(&mut repo).unwrap();
+        JoinGame::new(&game_id, &p2, "Bob").execute(&mut repo).unwrap();
+        StartGame::new(&game_id, &p1).execute(&mut repo).unwrap();
+
+        {
+            let game = repo.find_by_id_mut(&game_id).unwrap();
+            let creature = make_creature_card("bear-1", &p1, 2, 2);
+            add_permanent_to_battlefield(game, &p1, creature);
+            clear_summoning_sickness(game, "bear-1");
+            game.tap_permanent("bear-1").unwrap();
+            for _ in 0..5 {
+                game.apply(Action::AdvanceStep {
+                    player_id: PlayerId::new(&p1),
+                })
+                .unwrap();
+            }
+        }
+
+        let result = GetAllowedActions::new(&game_id, &p1).execute(&repo).unwrap();
+        assert!(!result.attackable_creatures.contains(&"bear-1".to_owned()));
+    }
+
+    // ---- blockable_creatures ------------------------------------------------
+
+    #[test]
+    fn blockable_creatures_empty_outside_declare_blockers_step() {
+        let (repo, game_id, _, p2) = started_game_repo();
+        let result = GetAllowedActions::new(&game_id, &p2).execute(&repo).unwrap();
+        assert!(result.blockable_creatures.is_empty());
+    }
+
+    #[test]
+    fn blockable_creatures_returns_eligible_creatures_during_declare_blockers() {
+        use crate::domain::game::test_helpers::{
+            add_permanent_to_battlefield, clear_summoning_sickness, make_creature_card,
+        };
+
+        let mut repo = InMemoryGameRepository::new();
+        let game_id = uuid();
+        let p1 = uuid();
+        let p2 = uuid();
+
+        CreateGame::new(&game_id).execute(&mut repo).unwrap();
+        JoinGame::new(&game_id, &p1, "Alice").execute(&mut repo).unwrap();
+        JoinGame::new(&game_id, &p2, "Bob").execute(&mut repo).unwrap();
+        StartGame::new(&game_id, &p1).execute(&mut repo).unwrap();
+
+        {
+            let game = repo.find_by_id_mut(&game_id).unwrap();
+            // Add attacker for p1
+            let attacker = make_creature_card("attacker-1", &p1, 2, 2);
+            add_permanent_to_battlefield(game, &p1, attacker);
+            clear_summoning_sickness(game, "attacker-1");
+            // Add potential blocker for p2
+            let blocker = make_creature_card("blocker-1", &p2, 3, 3);
+            add_permanent_to_battlefield(game, &p2, blocker);
+
+            // Advance to DeclareAttackers
+            for _ in 0..5 {
+                game.apply(Action::AdvanceStep {
+                    player_id: PlayerId::new(&p1),
+                })
+                .unwrap();
+            }
+            // Declare attacker
+            game.apply(Action::DeclareAttacker {
+                player_id: PlayerId::new(&p1),
+                creature_id: crate::domain::types::CardInstanceId::new("attacker-1"),
+            })
+            .unwrap();
+            // Advance to DeclareBlockers
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&p1),
+            })
+            .unwrap();
+        }
+
+        // p2 is the defending player
+        let result = GetAllowedActions::new(&game_id, &p2).execute(&repo).unwrap();
+        assert!(result.blockable_creatures.contains(&"blocker-1".to_owned()));
     }
 }

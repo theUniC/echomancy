@@ -49,6 +49,22 @@ pub(crate) struct TappableLand {
     pub(crate) instance_id: String,
 }
 
+/// Marks a creature in the player's battlefield that can be declared as an attacker.
+///
+/// Carries the `instance_id` so the click handler can send the `DeclareAttacker` action.
+#[derive(Component, Clone)]
+pub(crate) struct AttackableCreature {
+    pub(crate) instance_id: String,
+}
+
+/// Marks a creature in the player's battlefield that can be declared as a blocker.
+///
+/// During DeclareBlockers, clicking auto-assigns it to block the first available attacker.
+#[derive(Component, Clone)]
+pub(crate) struct BlockableCreature {
+    pub(crate) instance_id: String,
+}
+
 // ============================================================================
 // Colors
 // ============================================================================
@@ -64,6 +80,12 @@ const HAND_ZONE_BG: Color = Color::srgb(0.16, 0.14, 0.12);
 
 /// Gold border for tappable (untapped mana) lands on the player's battlefield.
 const TAPPABLE_LAND_BORDER_COLOR: Color = Color::srgb(0.90, 0.75, 0.10);
+
+/// Red border for creatures that can be declared as attackers.
+const ATTACKABLE_CREATURE_BORDER_COLOR: Color = Color::srgb(0.90, 0.20, 0.15);
+
+/// Blue border for creatures that can be declared as blockers.
+const BLOCKABLE_CREATURE_BORDER_COLOR: Color = Color::srgb(0.20, 0.50, 0.90);
 
 // ============================================================================
 // Systems
@@ -152,15 +174,53 @@ pub(crate) fn is_tappable_land(instance_id: &str, tappable_lands: &[String]) -> 
     tappable_lands.iter().any(|id| id == instance_id)
 }
 
+/// Returns `true` when `instance_id` is in the list of attackable creature IDs.
+pub(crate) fn is_attackable_creature(instance_id: &str, attackable: &[String]) -> bool {
+    attackable.iter().any(|id| id == instance_id)
+}
+
+/// Returns `true` when `instance_id` is in the list of blockable creature IDs.
+pub(crate) fn is_blockable_creature(instance_id: &str, blockable: &[String]) -> bool {
+    blockable.iter().any(|id| id == instance_id)
+}
+
+/// Determine the override border color for a player's battlefield card.
+///
+/// Priority (highest first):
+/// 1. Attackable creature → red border.
+/// 2. Blockable creature → blue border.
+/// 3. Tappable land → gold border.
+/// 4. No override → `None` (use the type-based default from `card_border_color`).
+pub(crate) fn player_card_override_border(
+    instance_id: &str,
+    tappable_lands: &[String],
+    attackable_creatures: &[String],
+    blockable_creatures: &[String],
+) -> Option<Color> {
+    if is_attackable_creature(instance_id, attackable_creatures) {
+        Some(ATTACKABLE_CREATURE_BORDER_COLOR)
+    } else if is_blockable_creature(instance_id, blockable_creatures) {
+        Some(BLOCKABLE_CREATURE_BORDER_COLOR)
+    } else if is_tappable_land(instance_id, tappable_lands) {
+        Some(TAPPABLE_LAND_BORDER_COLOR)
+    } else {
+        None
+    }
+}
+
 /// Update system: rebuild battlefield card entities when the snapshot changes
 /// or when the `CurrentSnapshot` resource is first added (initial render).
 ///
 /// Despawns all existing card children of each battlefield root, then spawns
 /// fresh card entities from `CurrentSnapshot`.
 ///
-/// Untapped lands in the player's battlefield that appear in `PlayableCards.tappable_lands`
-/// are rendered with a gold border and receive `TappableLand` + `Button` + `Interaction`
-/// components for click-to-tap.
+/// Cards are rendered with interactive borders and click components based on
+/// the current `PlayableCards` result:
+/// - Untapped mana lands → gold border + `TappableLand`.
+/// - Attackable creatures (DeclareAttackers) → red border + `AttackableCreature`.
+/// - Blockable creatures (DeclareBlockers) → blue border + `BlockableCreature`.
+/// - Attacking creatures (combat state) → "ATK" label overlay.
+/// - Blocking creatures (combat state) → "BLK" label overlay.
 pub(crate) fn rebuild_battlefields(
     mut commands: Commands,
     current_snapshot: Res<CurrentSnapshot>,
@@ -175,7 +235,7 @@ pub(crate) fn rebuild_battlefields(
     }
 
     let snapshot = &current_snapshot.snapshot;
-    let tappable_lands = &playable_cards.result.tappable_lands;
+    let result = &playable_cards.result;
 
     // ---- Rebuild player battlefield ----
     if let Ok(player_root) = player_battlefield_q.single() {
@@ -185,7 +245,26 @@ pub(crate) fn rebuild_battlefields(
         // Spawn new cards as children.
         for card in &snapshot.private_player_state.battlefield {
             let is_tapped = card.tapped.unwrap_or(false);
-            let tappable = is_tappable_land(&card.instance_id, tappable_lands);
+
+            let override_border = player_card_override_border(
+                &card.instance_id,
+                &result.tappable_lands,
+                &result.attackable_creatures,
+                &result.blockable_creatures,
+            );
+
+            let is_attacking = card
+                .combat_state
+                .as_ref()
+                .is_some_and(|cs| cs.is_attacking);
+            let is_blocking = card
+                .combat_state
+                .as_ref()
+                .is_some_and(|cs| cs.is_blocking);
+
+            let tappable = is_tappable_land(&card.instance_id, &result.tappable_lands);
+            let attackable = is_attackable_creature(&card.instance_id, &result.attackable_creatures);
+            let blockable = is_blockable_creature(&card.instance_id, &result.blockable_creatures);
 
             let mut card_entity_cmd = spawn_card_with_tappable(
                 &mut commands,
@@ -197,18 +276,52 @@ pub(crate) fn rebuild_battlefields(
                     is_tapped,
                     flipped: false,
                 },
-                if tappable { Some(TAPPABLE_LAND_BORDER_COLOR) } else { None },
+                override_border,
             );
 
+            // Insert interactive components based on what this card can do.
             if tappable {
                 card_entity_cmd.insert((
                     TappableLand { instance_id: card.instance_id.clone() },
                     Button,
                     Interaction::default(),
                 ));
+            } else if attackable {
+                card_entity_cmd.insert((
+                    AttackableCreature { instance_id: card.instance_id.clone() },
+                    Button,
+                    Interaction::default(),
+                ));
+            } else if blockable {
+                card_entity_cmd.insert((
+                    BlockableCreature { instance_id: card.instance_id.clone() },
+                    Button,
+                    Interaction::default(),
+                ));
             }
 
             let card_entity = card_entity_cmd.id();
+
+            // Add ATK / BLK overlay label for combat status.
+            if is_attacking || is_blocking {
+                let label = if is_attacking { "ATK" } else { "BLK" };
+                let label_color = if is_attacking {
+                    Color::srgb(1.0, 0.25, 0.15)
+                } else {
+                    Color::srgb(0.25, 0.60, 1.0)
+                };
+                commands.entity(card_entity).with_children(|parent| {
+                    parent.spawn((
+                        Text::new(label),
+                        TextFont {
+                            font_size: 11.0,
+                            ..default()
+                        },
+                        TextColor(label_color),
+                    ));
+                });
+            }
+
             commands.entity(player_root).add_child(card_entity);
         }
     }
@@ -220,6 +333,11 @@ pub(crate) fn rebuild_battlefields(
         if let Some(opponent) = snapshot.opponent_states.first() {
             for card in &opponent.battlefield {
                 let is_tapped = card.tapped.unwrap_or(false);
+                let is_attacking = card
+                    .combat_state
+                    .as_ref()
+                    .is_some_and(|cs| cs.is_attacking);
+
                 let card_entity = spawn_card(
                     &mut commands,
                     &CardSpawnData {
@@ -231,6 +349,21 @@ pub(crate) fn rebuild_battlefields(
                         flipped: true,
                     },
                 );
+
+                // Show ATK indicator for opponent's attacking creatures.
+                if is_attacking {
+                    commands.entity(card_entity).with_children(|parent| {
+                        parent.spawn((
+                            Text::new("ATK"),
+                            TextFont {
+                                font_size: 11.0,
+                                ..default()
+                            },
+                            TextColor(Color::srgb(1.0, 0.25, 0.15)),
+                        ));
+                    });
+                }
+
                 commands.entity(opponent_root).add_child(card_entity);
             }
         }
@@ -248,6 +381,63 @@ pub(crate) fn handle_battlefield_land_click(
             action_writer.write(GameActionMessage(Action::ActivateAbility {
                 player_id: PlayerId::new(&active_player.player_id),
                 permanent_id: CardInstanceId::new(&tappable.instance_id),
+            }));
+        }
+    }
+}
+
+/// Click handler: detect clicks on `AttackableCreature` buttons and send `DeclareAttacker`.
+pub(crate) fn handle_attacker_click(
+    query: Query<(&Interaction, &AttackableCreature), Changed<Interaction>>,
+    active_player: Res<ActivePlayerId>,
+    mut action_writer: MessageWriter<GameActionMessage>,
+) {
+    for (interaction, attackable) in &query {
+        if *interaction == Interaction::Pressed {
+            action_writer.write(GameActionMessage(Action::DeclareAttacker {
+                player_id: PlayerId::new(&active_player.player_id),
+                creature_id: CardInstanceId::new(&attackable.instance_id),
+            }));
+        }
+    }
+}
+
+/// Click handler: detect clicks on `BlockableCreature` buttons and send `DeclareBlocker`.
+///
+/// MVP simplification: the blocker is auto-assigned to the first available attacker
+/// on the opponent's battlefield. This avoids needing a two-click targeting UI.
+pub(crate) fn handle_blocker_click(
+    query: Query<(&Interaction, &BlockableCreature), Changed<Interaction>>,
+    active_player: Res<ActivePlayerId>,
+    current_snapshot: Res<CurrentSnapshot>,
+    mut action_writer: MessageWriter<GameActionMessage>,
+) {
+    for (interaction, blockable) in &query {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+
+        // Find the first attacking creature on the opponent's battlefield.
+        let attacker_id = current_snapshot
+            .snapshot
+            .opponent_states
+            .first()
+            .and_then(|opp| {
+                opp.battlefield
+                    .iter()
+                    .find(|card| {
+                        card.combat_state
+                            .as_ref()
+                            .is_some_and(|cs| cs.is_attacking && cs.blocked_by.is_empty())
+                    })
+                    .map(|card| card.instance_id.clone())
+            });
+
+        if let Some(attacker_id) = attacker_id {
+            action_writer.write(GameActionMessage(Action::DeclareBlocker {
+                player_id: PlayerId::new(&active_player.player_id),
+                blocker_id: CardInstanceId::new(&blockable.instance_id),
+                attacker_id: CardInstanceId::new(&attacker_id),
             }));
         }
     }
@@ -284,6 +474,93 @@ mod tests {
         let tappable = vec!["land-1-long".to_owned()];
         assert!(!is_tappable_land("land-1", &tappable));
     }
+
+    // ---- is_attackable_creature --------------------------------------------
+
+    #[test]
+    fn creature_in_attackable_list_is_attackable() {
+        let attackable = vec!["bear-1".to_owned(), "bear-2".to_owned()];
+        assert!(is_attackable_creature("bear-1", &attackable));
+        assert!(is_attackable_creature("bear-2", &attackable));
+    }
+
+    #[test]
+    fn creature_not_in_attackable_list_is_not_attackable() {
+        let attackable = vec!["bear-1".to_owned()];
+        assert!(!is_attackable_creature("bear-99", &attackable));
+    }
+
+    #[test]
+    fn empty_attackable_list_means_nothing_is_attackable() {
+        assert!(!is_attackable_creature("bear-1", &[]));
+    }
+
+    // ---- is_blockable_creature --------------------------------------------
+
+    #[test]
+    fn creature_in_blockable_list_is_blockable() {
+        let blockable = vec!["goblin-1".to_owned()];
+        assert!(is_blockable_creature("goblin-1", &blockable));
+    }
+
+    #[test]
+    fn creature_not_in_blockable_list_is_not_blockable() {
+        let blockable = vec!["goblin-1".to_owned()];
+        assert!(!is_blockable_creature("goblin-99", &blockable));
+    }
+
+    // ---- player_card_override_border -------------------------------------
+
+    #[test]
+    fn attackable_creature_gets_red_border() {
+        let border = player_card_override_border(
+            "bear-1",
+            &[],
+            &["bear-1".to_owned()],
+            &[],
+        );
+        assert_eq!(border, Some(ATTACKABLE_CREATURE_BORDER_COLOR));
+    }
+
+    #[test]
+    fn blockable_creature_gets_blue_border() {
+        let border = player_card_override_border(
+            "goblin-1",
+            &[],
+            &[],
+            &["goblin-1".to_owned()],
+        );
+        assert_eq!(border, Some(BLOCKABLE_CREATURE_BORDER_COLOR));
+    }
+
+    #[test]
+    fn tappable_land_gets_gold_border() {
+        let border = player_card_override_border(
+            "forest-1",
+            &["forest-1".to_owned()],
+            &[],
+            &[],
+        );
+        assert_eq!(border, Some(TAPPABLE_LAND_BORDER_COLOR));
+    }
+
+    #[test]
+    fn no_special_card_has_no_override_border() {
+        let border = player_card_override_border("plain-1", &[], &[], &[]);
+        assert_eq!(border, None);
+    }
+
+    #[test]
+    fn attackable_takes_priority_over_tappable() {
+        // A card that is somehow both attackable and tappable → red wins.
+        let border = player_card_override_border(
+            "card-1",
+            &["card-1".to_owned()],
+            &["card-1".to_owned()],
+            &[],
+        );
+        assert_eq!(border, Some(ATTACKABLE_CREATURE_BORDER_COLOR));
+    }
 }
 
 // ============================================================================
@@ -296,6 +573,14 @@ pub(crate) struct BattlefieldPlugin;
 impl Plugin for BattlefieldPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_ui_root)
-            .add_systems(Update, (rebuild_battlefields, handle_battlefield_land_click));
+            .add_systems(
+                Update,
+                (
+                    rebuild_battlefields,
+                    handle_battlefield_land_click,
+                    handle_attacker_click,
+                    handle_blocker_click,
+                ),
+            );
     }
 }
