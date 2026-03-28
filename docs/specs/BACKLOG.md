@@ -116,8 +116,8 @@ Intentional simplifications:
 | Auto-tap lands for mana | No manual mana ability activation yet |
 | Mana empties only at Cleanup | MTG says each phase, simplified |
 | No 7-layer system | Only needed for continuous effects |
-| resolve_ability is no-op | Activated abilities don't execute effects yet |
-| Single player perspective | ActivePlayerId hardcoded to P1 — game blocks on P2's turn |
+| No priority before combat damage | Auto-advances through combat steps — can't cast instants before damage resolves |
+| Spells only at sorcery speed | Instants highlighted but not castable during combat or opponent's turn |
 
 ---
 
