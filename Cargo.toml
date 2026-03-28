@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/echomancy-core",
     "crates/echomancy-bevy",
+    "crates/clips-sys",
 ]
 
 [workspace.dependencies]
@@ -12,3 +13,4 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
 rand = "0.9"
 bevy = "=0.18.1"
+cc = "1"
