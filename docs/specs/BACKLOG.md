@@ -40,17 +40,17 @@ Work items in order of implementation. **Always take the first `TODO` item.**
 
 ### Milestone: v0.1.0 — Playable Game
 
-These items, in order, make the game actually playable.
+A real game where two players can play lands, cast creatures, attack, block, and someone wins.
 
-| # | Description | Status | Dependency |
-|---|-------------|--------|------------|
-| A | Mana abilities (tap land → add mana to pool) | TODO | - |
-| B | Spell resolution (creature spells enter battlefield) | TODO | A |
-| C | Cast spell UI (click creature in hand → pay mana → stack) | BLOCKED | A, B |
-| D | Mana pool display in HUD | BLOCKED | A |
-| E | Combat UI (declare attackers + blockers) | BLOCKED | C |
-| F | Game end display ("You Win" / "You Lose") | TODO | - |
-| G | Two-player hotseat (alternate perspectives each turn) | BLOCKED | E, F |
+| # | Description | Status | Dependency | Notes |
+|---|-------------|--------|------------|-------|
+| A | Active player switching (UI follows priority holder) | TODO | - | Without this, P2's turn blocks the game |
+| B | Mana abilities (tap land → add mana to pool) | TODO | - | Engine: wire resolve_ability for tap-mana |
+| C | Spell resolution (creature spells enter battlefield) | TODO | B | Engine: wire resolve_spell to move card |
+| D | Cast spell UI + mana pool display | BLOCKED | A, B, C | Click creature in hand → pay mana → stack → resolve |
+| E | Combat UI (declare attackers + blockers) | BLOCKED | D | Click creatures to attack/block |
+| F | Game end display ("You Win" / "You Lose") | TODO | - | Engine detects it, UI doesn't show it |
+| G | Two-player hotseat (alternate perspectives each turn) | BLOCKED | A, E, F | Swap hand/perspective each turn, transition screen |
 
 ### Future: Combat & Interaction UI
 
@@ -117,7 +117,7 @@ Intentional simplifications:
 | Mana empties only at Cleanup | MTG says each phase, simplified |
 | No 7-layer system | Only needed for continuous effects |
 | resolve_ability is no-op | Activated abilities don't execute effects yet |
-| Single player perspective | Both players controlled from same view |
+| Single player perspective | ActivePlayerId hardcoded to P1 — game blocks on P2's turn |
 
 ---
 
