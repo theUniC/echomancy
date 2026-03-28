@@ -21,8 +21,9 @@ pub use crate::domain::game::Game;
 
 // Domain — export types
 pub use crate::domain::services::game_state_export::{
-    CardInstanceExport, CreatureStateExport, GameStateExport, ManaPoolExport,
-    PlayerStateExport, StackItemExport, StackItemKind,
+    CardInstanceExport, CreatureStateExport, DrawOutcomeExport, GameOutcomeExport,
+    GameStateExport, ManaPoolExport, PlayerStateExport, StackItemExport, StackItemKind,
+    WinOutcomeExport,
 };
 
 pub use crate::domain::abilities::{ActivatedAbility, ActivationCost, Ability};

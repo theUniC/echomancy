@@ -20,9 +20,9 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use crate::domain::enums::{CardType, StaticAbility, Step};
+use crate::domain::enums::{CardType, GameLifecycleState, StaticAbility, Step};
 use crate::domain::services::game_state_export::{
-    CardInstanceExport, GameStateExport, StackItemExport, StackItemKind,
+    CardInstanceExport, GameOutcomeExport, GameStateExport, StackItemExport, StackItemKind,
 };
 
 // ============================================================================
@@ -104,6 +104,11 @@ pub struct PublicGameState {
     /// `None` when not in combat.
     pub combat_summary: Option<CombatSummary>,
     pub stack_size: usize,
+
+    /// Current lifecycle state of the game.
+    pub lifecycle_state: GameLifecycleState,
+    /// The game outcome, populated when lifecycle is `Finished`.
+    pub game_outcome: Option<GameOutcomeExport>,
 }
 
 /// Private player state (the viewer's own zones, fully visible).
@@ -258,6 +263,8 @@ pub fn create_game_snapshot(
         current_step: state.current_step,
         combat_summary,
         stack_size: state.stack.len(),
+        lifecycle_state: state.lifecycle_state,
+        game_outcome: state.outcome.clone(),
     };
 
     // ---- Private player state ----
@@ -917,6 +924,30 @@ mod tests {
             forest_snapshot.tapped,
             Some(true),
             "CardSnapshot.tapped should be Some(true) so the UI can render the card as rotated 90°"
+        );
+    }
+
+    // ---- lifecycle_state and game_outcome -----------------------------------
+
+    #[test]
+    fn public_state_lifecycle_is_started_during_active_game() {
+        let (game, p1, _) = make_started_game();
+        let export = game.export_state();
+        let snap = create_game_snapshot(&export, &p1, &MockRegistry).unwrap();
+        assert_eq!(
+            snap.public_game_state.lifecycle_state,
+            GameLifecycleState::Started
+        );
+    }
+
+    #[test]
+    fn public_state_game_outcome_is_none_during_active_game() {
+        let (game, p1, _) = make_started_game();
+        let export = game.export_state();
+        let snap = create_game_snapshot(&export, &p1, &MockRegistry).unwrap();
+        assert!(
+            snap.public_game_state.game_outcome.is_none(),
+            "No outcome when game is still in progress"
         );
     }
 }
