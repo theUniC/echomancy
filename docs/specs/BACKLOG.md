@@ -17,9 +17,14 @@ This is the **single source of truth** for project status and prioritized work.
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Core Engine | Complete | All MVP features implemented |
-| UI | In Progress | Basic display done, interactions partially done |
-| MVP Complete | No | Blocked by core engine gaps |
+| Core Engine | Complete | Rust, 630+ tests, DDD architecture |
+| Bevy UI | Basic | Play lands, pass priority, end turn |
+| Playable Game | **No** | Can't cast spells, no combat UI, no game end |
+| Tech Stack | Rust / Bevy 0.18 | Single native binary |
+
+### Goal: v0.1.0 — Minimum Playable Game
+
+A real game of Magic where two players can play lands, cast creatures, attack, block, and someone wins.
 
 ---
 
@@ -33,129 +38,96 @@ Work items in order of implementation. **Always take the first `TODO` item.**
 - `TODO` - Ready to implement, spec in `docs/specs/backlog/`
 - `BLOCKED` - Cannot start until dependency is done
 
-### Priority 0: Foundation (Blocking)
+### Milestone: v0.1.0 — Playable Game
 
-These refactors are foundational and improve maintainability.
+These items, in order, make the game actually playable.
 
-| # | Spec | Description | Status | Dependency |
-|---|------|-------------|--------|------------|
-| 0 | B0-01 | Game.ts DDD Refactor (2,282 → ~600-800 lines) | DONE | - |
-| 0b | R-01 | CreatureState → PermanentState (unified permanent state) | DONE | - |
-| 0c | R-02 | Documentation refactor (2,875 → 1,503 lines, -48%) | DONE | - |
+| # | Description | Status | Dependency |
+|---|-------------|--------|------------|
+| A | Mana abilities (tap land → add mana to pool) | TODO | - |
+| B | Spell resolution (creature spells enter battlefield) | TODO | A |
+| C | Cast spell UI (click creature in hand → pay mana → stack) | BLOCKED | A, B |
+| D | Mana pool display in HUD | BLOCKED | A |
+| E | Combat UI (declare attackers + blockers) | BLOCKED | C |
+| F | Game end display ("You Win" / "You Lose") | TODO | - |
+| G | Two-player hotseat (alternate perspectives each turn) | BLOCKED | E, F |
 
-### Priority 1: Core Engine Fixes (Parallel)
+### Future: Combat & Interaction UI
 
-These fix critical bugs and gaps. Can be done in parallel.
-
-| # | Spec | Description | Status | Dependency |
-|---|------|-------------|--------|------------|
-| 1 | B1-04 | Summoning sickness + Haste keyword | DONE | - |
-| 2 | B1-05 | Spell timing (instant vs sorcery) + Flash | DONE | B0-01 ✓ |
-| 3 | B1-06 | Mana cost payment (manaCost field, generic mana) | DONE | B0-01 (Phase 1-2) |
-| 3b | B1-07 | Deck assignment validation (fail-fast if decks missing) | DONE | B1-02 ✓ |
-
-### Priority 2: Core Engine Foundation (Sequential)
-
-These enable real game flow. Must be done in order.
-
-| # | Spec | Description | Status | Dependency |
-|---|------|-------------|--------|------------|
-| 4 | B1-01 | Library zone + drawCards() | DONE | - |
-| 5 | B1-02 | Game setup (deck loading, shuffle, draw 7) | DONE | B1-01 ✓ |
-| 6 | B1-03 | Win/lose conditions (life <= 0, empty library) | DONE | B1-01 ✓ |
-
-### Priority 3: Combat UI (Sequential)
-
-| # | Spec | Description | Status | Dependency |
-|---|------|-------------|--------|------------|
-| 7 | 09 | UI: Declare attackers | TODO | B1-04 ✓ |
-| 8 | 10 | UI: Declare blockers | BLOCKED | 09 |
-| 9 | 11 | UI: Combat damage | BLOCKED | 10 |
-
-### Priority 4: Spell & Game End UI
-
-| # | Spec | Description | Status | Dependency |
-|---|------|-------------|--------|------------|
-| 10 | 08 | UI: Spell casting with targets | TODO | B1-05 ✓, B1-06 ✓ |
-| 11 | 14 | UI: Game end display | TODO | B1-03 ✓ |
-
-### Priority 5: Complementary UI
-
-| # | Spec | Description | Status | Dependency |
-|---|------|-------------|--------|------------|
-| 12 | 15 | UI: Stack display | TODO | - |
-| 13 | 13 | UI: Activated abilities | TODO | B1-04 ✓ |
-
-### Priority 6: Nice to Have
-
-| # | Spec | Description | Status | Dependency |
-|---|------|-------------|--------|------------|
-| 14 | 12 | UI: Graveyard viewer | TODO | - |
-| 15 | 16 | UI: Exile zone | TODO | - |
+| # | Description | Status | Dependency |
+|---|-------------|--------|------------|
+| 8 | UI: Spell casting with targets | TODO | v0.1.0 |
+| 9 | UI: Stack display | TODO | - |
+| 10 | UI: Activated abilities | TODO | v0.1.0 |
+| 11 | UI: Graveyard viewer | TODO | - |
+| 12 | UI: Exile zone | TODO | - |
 
 ---
 
 ## Completed Work
+
+### Rust Migration (Done)
+
+Full migration from TypeScript/Next.js to Rust/Bevy completed March 2026.
 
 ### Core Engine (Done)
 
 - Turns and phases (12 steps, 5 phases)
 - Priority and stack (LIFO resolution, priority passing)
 - Zones: Hand, Battlefield, Graveyard, Library
-- Library zone + drawCards() (B1-01)
-- Game setup: deck loading, shuffle, draw 7 (B1-02)
-- Win/lose conditions: life total, empty library, draws (B1-03)
-- Game.ts DDD Refactor - Specifications, Value Objects, Services (B0-01)
+- Library zone + drawCards()
+- Game setup (deck loading, shuffle, draw 7)
+- Win/lose conditions (life total, empty library, draws)
+- DDD Architecture: command handlers, specifications, services, value objects
 - ETB triggers (execute immediately, not on stack)
 - Combat: declare attackers/blockers, damage, cleanup
-- Mana pool (add/spend/clear) - exists but not used for spell costs
-- Spell timing validation (instant vs sorcery) + Flash keyword (B1-05)
-- Mana cost payment with auto-pay algorithm (B1-06)
-- Costs: TapSelfCost, SacrificeSelfCost, ManaCost (not wired to spells)
-- Static keywords: Flying, Reach, Vigilance (consultative)
-- +1/+1 counters
-- Creature P/T calculation
-- PermanentState - unified state for all permanents (R-01)
+- Mana pool (add/spend/clear)
+- Spell timing validation (instant vs sorcery) + Flash keyword
+- Mana cost payment with auto-pay algorithm
+- Costs: TapSelfCost, SacrificeSelfCost, ManaCost
+- Static keywords: Flying, Reach, Vigilance, Haste
+- Summoning sickness
+- +1/+1 counters and P/T calculation
+- PermanentState - unified state for all permanents
+- GameSnapshot - player-relative filtered view
+- Application layer (CQRS commands/queries)
 
-### UI (Done)
+### Bevy UI (Done)
 
-- Debug console (Phase 0)
-- Route & data pipeline (Phase 1a)
-- Basic game info - turn, phase, life (Phase 1b)
-- Battlefield display (Phase 1c)
-- Hand display (Phase 1d)
-- Graveyard count (Phase 1e)
-- Play land interaction (Phase 2)
-- Priority controls - Pass/End Turn (Phase 2)
+- Battlefield display (player + opponent zones)
+- Hand display with card rendering (name, type, P/T, colored borders)
+- Play land interaction (click playable land → moves to battlefield)
+- HUD panel (turn/step, priority indicator, life totals, hand/graveyard counts)
+- Priority controls (Pass Priority, End Turn buttons)
+- Error message display
+- Tapped card rotation
 
 ---
 
 ## Known Limitations (MVP)
 
-These are intentional simplifications for MVP:
+Intentional simplifications:
 
-| Limitation | Reason | Fix |
-|------------|--------|-----|
-| Triggers execute immediately (not on stack) | Complexity - proper trigger stacking is complex | - |
-| 1 blocker per attacker | Simplifies damage assignment | - |
-| Only player targets | Creature/permanent targeting requires more work | - |
-| No mana abilities | Auto-tap lands for now | - |
-| Mana empties only at Cleanup | MTG rule says each phase, but simplified | - |
-| No 7-layer system | Only needed for continuous effects (lords, etc.) | - |
-| Only creatures have state (tap, counters) | CreatureState only tracks creatures | R-01 ✓ |
+| Limitation | Reason |
+|------------|--------|
+| Triggers execute immediately (not on stack) | Proper trigger stacking is complex |
+| 1 blocker per attacker | Simplifies damage assignment |
+| Only player targets | Creature/permanent targeting requires more work |
+| Auto-tap lands for mana | No manual mana ability activation yet |
+| Mana empties only at Cleanup | MTG says each phase, simplified |
+| No 7-layer system | Only needed for continuous effects |
+| resolve_ability is no-op | Activated abilities don't execute effects yet |
+| Single player perspective | Both players controlled from same view |
 
 ---
 
 ## Post-MVP Features
-
-Features explicitly deferred beyond MVP:
 
 ### Combat Keywords
 - First Strike / Double Strike
 - Trample
 - Deathtouch
 - Indestructible
-- Regeneration
 
 ### Counters
 - -1/-1 counters
@@ -163,22 +135,15 @@ Features explicitly deferred beyond MVP:
 - Loyalty counters
 
 ### Mana & Costs
-- X costs (variable mana)
-- Hybrid mana costs
-- Phyrexian mana costs
-- Alternative costs
-- Cost reductions/modifications
-- Snow mana
-- Conditional mana
+- X costs, hybrid mana, Phyrexian mana
+- Alternative costs, cost reductions
+- Snow mana, conditional mana
 
 ### Effects & Abilities
 - Duration tracking ("until end of turn")
 - Modal effects ("Choose one")
-- Prevention effects
-- APNAP ordering for simultaneous triggers
-- Ability gain/loss ("creature gains flying")
+- Prevention/replacement effects
 - Token creation
-- Split second
 
 ### Targeting
 - Creature/permanent targeting
@@ -186,17 +151,15 @@ Features explicitly deferred beyond MVP:
 
 ### Advanced Rules
 - Multiple blockers + damage assignment order
-- Replacement effects
 - Continuous effects / lords
 - 7-layer system
 - Hexproof / Shroud / Protection
-- Full state-based actions (0-toughness, legend rule, etc.)
-- Discard to hand size (cleanup step)
+- Full state-based actions (legend rule, etc.)
 
 ### Game Modes
 - Mulligan system
 - Deck builder
-- Matchmaking
+- Matchmaking / networking
 - Replays
 
 ---
@@ -208,6 +171,7 @@ Echomancy prioritizes:
 2. **Explicitness over convenience** - No hidden magic
 3. **Testability over flexibility** - Everything must be testable
 4. **Type safety** - Rust's type system enforces invariants at compile time
+5. **Transparency** - Open source, honest about limitations
 
 ---
 
