@@ -155,6 +155,33 @@ pub(crate) fn resolve_ui_player_id<'a>(
 }
 
 // ============================================================================
+// Auto-advance helper
+// ============================================================================
+
+/// Advance through non-interactive steps (Untap, Upkeep, Draw) to reach
+/// FirstMain where the player can actually take actions.
+///
+/// This is called both at startup (for P1) and whenever the active player
+/// changes (for P2, P1 again, etc.). Without this, the player would need
+/// to manually click "Pass Priority" through steps where nothing happens.
+fn auto_advance_to_main_phase(game: &mut Game, player_id: &str) {
+    let steps_to_advance = match game.current_step() {
+        Step::Untap => 3,     // Untap → Upkeep → Draw → FirstMain
+        Step::Upkeep => 2,    // Upkeep → Draw → FirstMain
+        Step::Draw => 1,      // Draw → FirstMain
+        _ => 0,               // Already past the boring steps
+    };
+
+    for _ in 0..steps_to_advance {
+        if game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(player_id),
+        }).is_err() {
+            break;
+        }
+    }
+}
+
+// ============================================================================
 // Snapshot helper
 // ============================================================================
 
@@ -240,12 +267,7 @@ pub(crate) fn setup_game(mut commands: Commands) {
 
     // Auto-advance through Untap → Upkeep → Draw → FirstMain so the player
     // immediately sees playable lands on startup.
-    for _ in 0..3 {
-        game.apply(Action::AdvanceStep {
-            player_id: PlayerId::new(&p1_id),
-        })
-        .expect("advance to FirstMain");
-    }
+    auto_advance_to_main_phase(&mut game, &p1_id);
 
     let (snapshot, playable_cards) =
         compute_snapshot(&game, &p1_id).expect("initial snapshot");
@@ -333,6 +355,10 @@ pub(crate) fn handle_game_actions(
                 "UI perspective switched to new active player"
             );
             active_player.player_id = new_ui_player.clone();
+
+            // Auto-advance through non-interactive steps (Untap → Upkeep → Draw → FirstMain)
+            // so the new player starts in a state where they can act.
+            auto_advance_to_main_phase(&mut game_state.game, &new_ui_player);
         }
 
         match compute_snapshot(&game_state.game, &active_player.player_id) {
