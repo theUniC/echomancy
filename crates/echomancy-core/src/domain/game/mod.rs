@@ -360,7 +360,7 @@ impl Game {
 // ============================================================================
 
 #[cfg(test)]
-pub(crate) mod test_helpers {
+pub mod test_helpers {
     use super::*;
     use crate::domain::cards::card_definition::CardDefinition;
     use crate::domain::cards::card_instance::CardInstance;
