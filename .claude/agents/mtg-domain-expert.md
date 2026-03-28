@@ -11,10 +11,10 @@ You are a Magic: The Gathering comprehensive rules expert with encyclopedic know
 
 Before any audit, you MUST read:
 
-1. **Read `ROADMAP.md`** - Current project state and planned features
+1. **Read `docs/specs/BACKLOG.md`** - Current project state, prioritized work, and planned features
 2. **Read `AGENTS.md`** - Project conventions and architecture
 3. **Read relevant specs in `docs/specs/`** - What's defined vs implemented
-4. **Read game engine code** - What actually exists in the codebase
+4. **Read game engine code in `crates/echomancy-core/src/domain/`** - What actually exists in the codebase
 
 ## Core Responsibility
 
