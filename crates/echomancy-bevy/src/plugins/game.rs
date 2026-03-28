@@ -42,10 +42,38 @@ pub(crate) struct PlayableCards {
     pub(crate) result: AllowedActionsResult,
 }
 
-/// The player whose perspective drives the UI (hardcoded to player 1 for MVP).
+/// The player whose perspective drives the UI (updated whenever priority changes).
 #[derive(Resource)]
 pub(crate) struct ActivePlayerId {
     pub(crate) player_id: String,
+}
+
+/// A single player's identity info: their ID and display name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PlayerInfo {
+    pub(crate) id: String,
+    pub(crate) name: String,
+}
+
+/// Stores both players' IDs and display names so the HUD can label whose
+/// perspective is currently shown.
+#[derive(Resource)]
+pub(crate) struct PlayerIds {
+    pub(crate) p1: PlayerInfo,
+    pub(crate) p2: PlayerInfo,
+}
+
+impl PlayerIds {
+    /// Return the display name of the player with the given ID, or `"Unknown"`.
+    pub(crate) fn name_for(&self, player_id: &str) -> &str {
+        if self.p1.id == player_id {
+            &self.p1.name
+        } else if self.p2.id == player_id {
+            &self.p2.name
+        } else {
+            "Unknown"
+        }
+    }
 }
 
 /// Stores the most recent domain error message to display in the HUD.
@@ -101,6 +129,29 @@ impl CardRegistry for CatalogRegistry {
             other => other.to_owned(),
         }
     }
+}
+
+// ============================================================================
+// Priority-based perspective helper
+// ============================================================================
+
+/// Determine which player should currently control the UI.
+///
+/// The UI follows the current active player (whose turn it is). Priority can
+/// be stale in non-main-phase steps (e.g., during auto-resolved Untap/Upkeep/
+/// Draw), so `current_player_id` is the reliable signal for who the UI should
+/// represent. Priority is used only when it explicitly belongs to the *opponent*
+/// of the active player, which can happen when responding during the opponent's
+/// turn (a future feature). For MVP, the active player always drives the UI.
+///
+/// Fallback order:
+/// 1. `current_player_id` — always authoritative for whose turn it is.
+/// 2. `priority_player_id` if different from `current_player_id` (future: opponent response).
+pub(crate) fn resolve_ui_player_id<'a>(
+    _priority_player_id: Option<&'a str>,
+    current_player_id: &'a str,
+) -> &'a str {
+    current_player_id
 }
 
 // ============================================================================
@@ -172,9 +223,12 @@ pub(crate) fn setup_game(mut commands: Commands) {
     let p1_id = Uuid::new_v4().to_string();
     let p2_id = Uuid::new_v4().to_string();
 
+    let p1_name = "Player 1".to_owned();
+    let p2_name = "Player 2".to_owned();
+
     let mut game = Game::create(Uuid::new_v4().to_string());
-    game.add_player(&p1_id, "Player 1").expect("add player 1");
-    game.add_player(&p2_id, "Player 2").expect("add player 2");
+    game.add_player(&p1_id, &p1_name).expect("add player 1");
+    game.add_player(&p2_id, &p2_name).expect("add player 2");
 
     game.assign_deck(&p1_id, prebuilt_decks::green_deck(&p1_id))
         .expect("assign green deck");
@@ -204,6 +258,10 @@ pub(crate) fn setup_game(mut commands: Commands) {
         "Game created and started"
     );
 
+    commands.insert_resource(PlayerIds {
+        p1: PlayerInfo { id: p1_id.clone(), name: p1_name },
+        p2: PlayerInfo { id: p2_id.clone(), name: p2_name },
+    });
     commands.insert_resource(ActivePlayerId {
         player_id: p1_id.clone(),
     });
@@ -225,11 +283,15 @@ pub(crate) fn send_initial_snapshot_message(
 /// Update system: drain `GameActionMessage`s, apply each to the domain game,
 /// recompute the snapshot, and send `SnapshotChangedMessage`.
 ///
+/// After each action, checks whether the active player has changed (e.g.,
+/// after `EndTurn`) and updates `ActivePlayerId` accordingly so the UI always
+/// shows the perspective of the player whose turn it currently is.
+///
 /// On success, clears `ErrorMessage`. On failure, stores the error string in
 /// `ErrorMessage` so the HUD can display it.
 pub(crate) fn handle_game_actions(
     mut game_state: ResMut<GameState>,
-    active_player: Res<ActivePlayerId>,
+    mut active_player: ResMut<ActivePlayerId>,
     mut action_messages: MessageReader<GameActionMessage>,
     mut snapshot_res: ResMut<CurrentSnapshot>,
     mut playable_res: ResMut<PlayableCards>,
@@ -254,6 +316,25 @@ pub(crate) fn handle_game_actions(
     }
 
     if any_applied {
+        // Determine which player's perspective the UI should show.
+        // Uses current_player_id as the primary signal — priority can be stale
+        // during auto-resolved steps (Untap/Upkeep/Draw).
+        let new_ui_player = resolve_ui_player_id(
+            game_state.game.priority_player_id(),
+            game_state.game.current_player_id(),
+        )
+        .to_owned();
+
+        let perspective_changed = new_ui_player != active_player.player_id;
+        if perspective_changed {
+            info!(
+                old = %active_player.player_id,
+                new = %new_ui_player,
+                "UI perspective switched to new active player"
+            );
+            active_player.player_id = new_ui_player.clone();
+        }
+
         match compute_snapshot(&game_state.game, &active_player.player_id) {
             Ok((snapshot, playable_cards)) => {
                 *snapshot_res = CurrentSnapshot { snapshot };
@@ -399,6 +480,108 @@ mod tests {
             !lands.is_empty(),
             "Should have playable lands in FirstMain with a green deck"
         );
+    }
+
+    // ---- PlayerIds ---------------------------------------------------------
+
+    #[test]
+    fn player_ids_name_for_returns_p1_name() {
+        let ids = PlayerIds {
+            p1: PlayerInfo { id: "id-1".to_owned(), name: "Alice".to_owned() },
+            p2: PlayerInfo { id: "id-2".to_owned(), name: "Bob".to_owned() },
+        };
+        assert_eq!(ids.name_for("id-1"), "Alice");
+    }
+
+    #[test]
+    fn player_ids_name_for_returns_p2_name() {
+        let ids = PlayerIds {
+            p1: PlayerInfo { id: "id-1".to_owned(), name: "Alice".to_owned() },
+            p2: PlayerInfo { id: "id-2".to_owned(), name: "Bob".to_owned() },
+        };
+        assert_eq!(ids.name_for("id-2"), "Bob");
+    }
+
+    #[test]
+    fn player_ids_name_for_returns_unknown_for_bad_id() {
+        let ids = PlayerIds {
+            p1: PlayerInfo { id: "id-1".to_owned(), name: "Alice".to_owned() },
+            p2: PlayerInfo { id: "id-2".to_owned(), name: "Bob".to_owned() },
+        };
+        assert_eq!(ids.name_for("bad-id"), "Unknown");
+    }
+
+    // ---- resolve_ui_player_id ----------------------------------------------
+
+    /// The UI always follows the current active player (whose turn it is),
+    /// not the priority holder. Priority can be stale during auto-resolved steps.
+    #[test]
+    fn resolve_ui_player_returns_current_player_regardless_of_priority() {
+        // Even if priority says p2, current player is p1 — UI shows p1.
+        let result = resolve_ui_player_id(Some("p2"), "p1");
+        assert_eq!(result, "p1");
+    }
+
+    #[test]
+    fn resolve_ui_player_returns_current_when_no_priority() {
+        let result = resolve_ui_player_id(None, "p1");
+        assert_eq!(result, "p1");
+    }
+
+    #[test]
+    fn resolve_ui_player_returns_current_when_priority_matches() {
+        let result = resolve_ui_player_id(Some("p1"), "p1");
+        assert_eq!(result, "p1");
+    }
+
+    /// After P1 ends their turn, the resolved UI player should be P2
+    /// (since P2 becomes the current active player).
+    #[test]
+    fn resolve_ui_player_is_p2_after_p1_ends_turn() {
+        let (mut game, p1, p2) = make_started_game();
+        for _ in 0..3 {
+            game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        }
+        game.apply(Action::EndTurn { player_id: PlayerId::new(&p1) }).unwrap();
+
+        let ui_player = resolve_ui_player_id(
+            game.priority_player_id(),
+            game.current_player_id(),
+        );
+        assert_eq!(ui_player, p2.as_str(),
+            "UI should show P2 after P1 ends their turn");
+    }
+
+    // ---- priority switching (domain-level) ---------------------------------
+
+    /// After P1's turn ends (via EndTurn), P2 should be the active player.
+    #[test]
+    fn active_player_switches_to_p2_after_p1_ends_turn() {
+        let (mut game, p1, p2) = make_started_game();
+        // Advance to FirstMain (Untap → Upkeep → Draw → FirstMain).
+        for _ in 0..3 {
+            game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        }
+        // P1 ends their turn.
+        game.apply(Action::EndTurn { player_id: PlayerId::new(&p1) }).unwrap();
+        // P2 should now be the active player.
+        assert_eq!(game.current_player_id(), p2.as_str());
+    }
+
+    /// The snapshot correctly reports P2's priority after P1 ends their turn.
+    #[test]
+    fn snapshot_priority_player_id_is_p2_after_p1_ends_turn() {
+        let (mut game, p1, p2) = make_started_game();
+        for _ in 0..3 {
+            game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        }
+        game.apply(Action::EndTurn { player_id: PlayerId::new(&p1) }).unwrap();
+
+        // Snapshot from P2's perspective should show P2 has priority (or no one
+        // holds it mid-auto-advance, but the active player is P2).
+        let (snapshot, _) = compute_snapshot(&game, &p2).unwrap();
+        assert_eq!(snapshot.public_game_state.current_player_id, p2,
+            "P2 should be the active player after P1 ends turn");
     }
 
     // ---- CatalogRegistry --------------------------------------------------

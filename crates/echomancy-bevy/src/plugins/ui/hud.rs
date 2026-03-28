@@ -26,7 +26,8 @@ use bevy::prelude::*;
 use echomancy_core::prelude::{Action, PlayerId, Step};
 
 use crate::plugins::game::{
-    ActivePlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, SnapshotChangedMessage,
+    ActivePlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, PlayerIds,
+    SnapshotChangedMessage,
 };
 
 // ============================================================================
@@ -67,6 +68,10 @@ const ERROR_BG: Color = Color::srgb(0.55, 0.10, 0.10);
 /// Marks the HUD panel root node.
 #[derive(Component)]
 pub(crate) struct HudRoot;
+
+/// Marks the "Playing as: ..." label showing whose perspective the UI displays.
+#[derive(Component)]
+pub(crate) struct HudActivePlayerLabel;
 
 /// Marks the turn-info label (rebuilt on snapshot change).
 #[derive(Component)]
@@ -155,6 +160,13 @@ pub(crate) fn format_turn_label(turn_number: u32, step: Step) -> String {
     format!("Turn {} \u{2014} {}", turn_number, step_display_name(step))
 }
 
+/// Format the "Playing as" label shown in the HUD.
+///
+/// Example: `"Playing as: Player 1"`
+pub(crate) fn format_active_player_label(player_name: &str) -> String {
+    format!("Playing as: {player_name}")
+}
+
 // ============================================================================
 // Spawn systems
 // ============================================================================
@@ -183,6 +195,17 @@ pub(crate) fn spawn_hud(mut commands: Commands) {
             BackgroundColor(HUD_BG),
         ))
         .with_children(|panel| {
+            // "Playing as" label — shows whose perspective the UI is from.
+            panel.spawn((
+                HudActivePlayerLabel,
+                Text::new("Playing as: ..."),
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor(MUTED_COLOR),
+            ));
+
             // Turn info label
             panel.spawn((
                 HudTurnLabel,
@@ -381,9 +404,12 @@ pub(crate) fn spawn_hud(mut commands: Commands) {
 // Type aliases — reduce clippy type_complexity warnings on query parameters
 // ============================================================================
 
-type TurnLabelQuery<'w, 's> = Query<'w, 's, &'static mut Text, With<HudTurnLabel>>;
+type ActivePlayerLabelQuery<'w, 's> =
+    Query<'w, 's, &'static mut Text, With<HudActivePlayerLabel>>;
+type TurnLabelQuery<'w, 's> =
+    Query<'w, 's, &'static mut Text, (With<HudTurnLabel>, Without<HudActivePlayerLabel>)>;
 type PriorityLabelQuery<'w, 's> =
-    Query<'w, 's, &'static mut Text, (With<HudPriorityLabel>, Without<HudTurnLabel>)>;
+    Query<'w, 's, &'static mut Text, (With<HudPriorityLabel>, Without<HudTurnLabel>, Without<HudActivePlayerLabel>)>;
 type PriorityBoxQuery<'w, 's> = Query<'w, 's, &'static mut BackgroundColor, With<HudPriorityBox>>;
 type PassBtnQuery<'w, 's> = Query<
     'w,
@@ -398,12 +424,12 @@ type EndTurnBtnQuery<'w, 's> = Query<
     (With<EndTurnButton>, Without<HudPriorityBox>, Without<PassPriorityButton>),
 >;
 type PlayerLifeQuery<'w, 's> =
-    Query<'w, 's, &'static mut Text, (With<HudPlayerLife>, Without<HudPriorityLabel>, Without<HudTurnLabel>)>;
+    Query<'w, 's, &'static mut Text, (With<HudPlayerLife>, Without<HudPriorityLabel>, Without<HudTurnLabel>, Without<HudActivePlayerLabel>)>;
 type OpponentLifeQuery<'w, 's> = Query<
     'w,
     's,
     &'static mut Text,
-    (With<HudOpponentLife>, Without<HudPlayerLife>, Without<HudPriorityLabel>, Without<HudTurnLabel>),
+    (With<HudOpponentLife>, Without<HudPlayerLife>, Without<HudPriorityLabel>, Without<HudTurnLabel>, Without<HudActivePlayerLabel>),
 >;
 type OppHandQuery<'w, 's> = Query<
     'w,
@@ -415,6 +441,7 @@ type OppHandQuery<'w, 's> = Query<
         Without<HudPlayerLife>,
         Without<HudPriorityLabel>,
         Without<HudTurnLabel>,
+        Without<HudActivePlayerLabel>,
     ),
 >;
 type PlayerGraveyardQuery<'w, 's> = Query<
@@ -428,6 +455,7 @@ type PlayerGraveyardQuery<'w, 's> = Query<
         Without<HudPlayerLife>,
         Without<HudPriorityLabel>,
         Without<HudTurnLabel>,
+        Without<HudActivePlayerLabel>,
     ),
 >;
 type OppGraveyardQuery<'w, 's> = Query<
@@ -442,6 +470,7 @@ type OppGraveyardQuery<'w, 's> = Query<
         Without<HudPlayerLife>,
         Without<HudPriorityLabel>,
         Without<HudTurnLabel>,
+        Without<HudActivePlayerLabel>,
     ),
 >;
 
@@ -454,7 +483,9 @@ type OppGraveyardQuery<'w, 's> = Query<
 pub(crate) fn update_hud(
     current_snapshot: Res<CurrentSnapshot>,
     active_player: Res<ActivePlayerId>,
+    player_ids: Res<PlayerIds>,
     mut snapshot_changed: MessageReader<SnapshotChangedMessage>,
+    mut active_player_label_q: ActivePlayerLabelQuery,
     mut turn_label_q: TurnLabelQuery,
     mut priority_label_q: PriorityLabelQuery,
     mut priority_box_q: PriorityBoxQuery,
@@ -474,6 +505,12 @@ pub(crate) fn update_hud(
     let pub_state = &snapshot.public_game_state;
     let priv_state = &snapshot.private_player_state;
     let player_id = &active_player.player_id;
+
+    // "Playing as" label
+    if let Ok(mut text) = active_player_label_q.single_mut() {
+        let name = player_ids.name_for(player_id);
+        *text = Text::new(format_active_player_label(name));
+    }
 
     // Turn label
     if let Ok(mut text) = turn_label_q.single_mut() {
@@ -736,5 +773,19 @@ mod tests {
             label.contains("Combat Damage"),
             "Label should contain the step name"
         );
+    }
+
+    // ---- format_active_player_label ----------------------------------------
+
+    #[test]
+    fn format_active_player_label_includes_player_name() {
+        let label = format_active_player_label("Player 1");
+        assert_eq!(label, "Playing as: Player 1");
+    }
+
+    #[test]
+    fn format_active_player_label_includes_player_2_name() {
+        let label = format_active_player_label("Player 2");
+        assert_eq!(label, "Playing as: Player 2");
     }
 }
