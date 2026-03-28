@@ -33,7 +33,7 @@ pub(crate) fn handle(game: &mut Game, player_id: &str) -> Result<Vec<GameEvent>,
     }
 
     // Record auto-pass intent
-    game.auto_pass_players.insert(player_id.to_owned());
+    game.set_auto_pass(player_id);
 
     // Trigger auto-pass processing
     let events = game.process_auto_pass();

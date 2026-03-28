@@ -31,7 +31,7 @@ pub(crate) fn handle(game: &mut Game, player_id: &str) -> Result<Vec<GameEvent>,
             game.resolve_top_of_stack()
         } else {
             // Both passed with empty stack — advance step
-            game.players_who_passed_priority.clear();
+            game.clear_passed_priority();
             game.perform_step_advance()
         }
     } else {

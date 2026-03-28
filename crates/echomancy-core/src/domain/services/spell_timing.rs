@@ -16,6 +16,7 @@ use crate::domain::enums::{CardType, StaticAbility, Step};
 /// - Artifacts (unless Flash)
 /// - Enchantments (unless Flash)
 /// - Planeswalkers (unless Flash)
+#[allow(dead_code)]
 pub(crate) fn is_sorcery_speed(card: &CardInstance) -> bool {
     !is_instant_speed(card)
 }

@@ -2,12 +2,8 @@
 //! entity/value-object inputs.
 //!
 //! None of these modules mutate state; all mutations are applied by the
-//! caller (the Game aggregate in Phase 6).
-//!
-//! The `dead_code` lint is suppressed here because these are internal APIs
-//! that will be consumed by the Game aggregate (Phase 6). They are fully
-//! tested via `#[cfg(test)]` modules in each file.
-#![allow(dead_code)]
+//! caller (the Game aggregate). They are fully tested via `#[cfg(test)]`
+//! modules in each file.
 
 pub(crate) mod combat_declarations;
 pub(crate) mod combat_resolution;

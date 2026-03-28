@@ -254,6 +254,21 @@ impl Game {
         self.stack.push(item);
     }
 
+    /// Record that the current player has played their land this turn.
+    pub(crate) fn record_land_played(&mut self) {
+        self.turn_state = self.turn_state.with_land_played();
+    }
+
+    /// Mark a player as having expressed intent to auto-pass through the end of their turn.
+    pub(crate) fn set_auto_pass(&mut self, player_id: &str) {
+        self.auto_pass_players.insert(player_id.to_owned());
+    }
+
+    /// Clear the set of players who have passed priority in the current window.
+    pub(crate) fn clear_passed_priority(&mut self) {
+        self.players_who_passed_priority.clear();
+    }
+
     /// Add mana to a player's pool.
     ///
     /// `pub` because cross-crate tests need it for test setup.

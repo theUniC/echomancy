@@ -85,7 +85,7 @@ pub(crate) fn handle(
     let events = game.enter_battlefield(card, player_id, ZoneName::Hand);
 
     // Record land played
-    game.turn_state = game.turn_state.with_land_played();
+    game.record_land_played();
 
     Ok(events)
 }

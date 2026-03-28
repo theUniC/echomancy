@@ -119,6 +119,7 @@ pub(crate) fn calculate_damage_assignments(
 /// - `all_creatures` — all permanents from both battlefields. The function
 ///   filters internally for those involved in combat.
 /// - `defending_player_id` — the ID of the player being attacked.
+#[allow(dead_code)]
 pub(crate) fn calculate_all_combat_damage(
     all_creatures: &[CreatureCombatEntry<'_>],
     defending_player_id: &str,
