@@ -24,7 +24,7 @@ const COLORED_MANA: [ManaColor; 5] = [
 /// Returns `true` if the given pool can pay the given cost.
 ///
 /// This is a pure predicate that does not mutate anything.
-pub(crate) fn can_pay_cost(pool: &ManaPool, cost: &ManaCost) -> bool {
+pub fn can_pay_cost(pool: &ManaPool, cost: &ManaCost) -> bool {
     pay_cost(pool.clone(), cost).is_ok()
 }
 

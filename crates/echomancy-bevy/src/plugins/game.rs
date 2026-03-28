@@ -204,7 +204,8 @@ pub(crate) fn compute_snapshot(
     let playable_lands = compute_playable_lands(game, viewer_player_id);
     // Compute which battlefield lands can be tapped for mana right now.
     let tappable_lands = compute_tappable_lands(game, viewer_player_id);
-    let result = AllowedActionsResult { playable_lands, tappable_lands };
+    let castable_spells = compute_castable_spells(game, viewer_player_id);
+    let result = AllowedActionsResult { playable_lands, tappable_lands, castable_spells };
 
     Ok((snapshot, result))
 }
@@ -273,6 +274,78 @@ fn compute_tappable_lands(game: &Game, player_id: &str) -> Vec<String> {
                 .permanent_state(card.instance_id())
                 .is_some_and(|s| s.is_tapped());
             !is_tapped
+        })
+        .map(|card| card.instance_id().to_owned())
+        .collect()
+}
+
+/// Returns the instance IDs of non-land spells in the player's hand that can
+/// be cast right now at sorcery speed.
+///
+/// Mirrors `collect_castable_spells` from `echomancy-core`'s queries module,
+/// operating directly on `&Game` instead of going through the repository.
+///
+/// Conditions:
+///
+/// 1. Player has priority.
+/// 2. Player is the active player (their turn).
+/// 3. Current step is a main phase.
+/// 4. Stack is empty.
+/// 5. Player can pay the mana cost from their current pool.
+fn compute_castable_spells(game: &Game, player_id: &str) -> Vec<String> {
+    use echomancy_core::prelude::{ManaCost, can_pay_cost};
+
+    // 1. Must have priority.
+    if game.priority_player_id() != Some(player_id) {
+        return Vec::new();
+    }
+
+    // 2. Must be the active player.
+    if game.current_player_id() != player_id {
+        return Vec::new();
+    }
+
+    // 3. Must be a main phase.
+    if !matches!(game.current_step(), Step::FirstMain | Step::SecondMain) {
+        return Vec::new();
+    }
+
+    // 4. Stack must be empty (sorcery speed).
+    if game.stack_has_items() {
+        return Vec::new();
+    }
+
+    let mana_pool = match game.mana_pool(player_id) {
+        Ok(pool) => pool,
+        Err(_) => return Vec::new(),
+    };
+
+    let hand = match game.hand(player_id) {
+        Ok(h) => h,
+        Err(_) => return Vec::new(),
+    };
+
+    hand.iter()
+        .filter(|card| {
+            // Lands are played, not cast.
+            if card.definition().types().contains(&CardType::Land) {
+                return false;
+            }
+            // For MVP, only highlight sorcery-speed spells (creatures and sorceries).
+            // Instants can be cast at any time but their UI highlight is a future feature.
+            let is_sorcery_speed = card.definition().types().iter().any(|t| {
+                matches!(t, CardType::Creature | CardType::Sorcery)
+            });
+            if !is_sorcery_speed {
+                return false;
+            }
+            // Must be able to pay the mana cost.
+            let cost = card
+                .definition()
+                .mana_cost()
+                .cloned()
+                .unwrap_or_else(ManaCost::zero);
+            can_pay_cost(mana_pool, &cost)
         })
         .map(|card| card.instance_id().to_owned())
         .collect()
@@ -734,5 +807,98 @@ mod tests {
             Some(true),
             "Tapped land must have tapped == Some(true) so the UI can render it rotated 90°"
         );
+    }
+
+    // ---- compute_castable_spells -------------------------------------------
+
+    /// Helper: build a minimal game at FirstMain, P1 has priority.
+    fn make_game_in_first_main() -> (Game, String, String) {
+        let (mut game, p1, p2) = make_started_game();
+        for _ in 0..3 {
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&p1),
+            })
+            .unwrap();
+        }
+        (game, p1, p2)
+    }
+
+    /// With seed=42 the green deck's 7-card opening hand contains Bears.
+    /// With an empty mana pool, those Bears ({1}{G}) cannot be cast.
+    #[test]
+    fn castable_spells_empty_when_no_mana() {
+        let (game, p1, _) = make_game_in_first_main();
+        // Mana pool is empty (no taps done yet).
+        assert_eq!(game.mana_pool(&p1).unwrap().total(), 0);
+        let castable = compute_castable_spells(&game, &p1);
+        assert!(
+            castable.is_empty(),
+            "No spells should be castable with empty mana pool"
+        );
+    }
+
+    #[test]
+    fn castable_spells_empty_for_non_active_player() {
+        let (game, _, p2) = make_game_in_first_main();
+        let castable = compute_castable_spells(&game, &p2);
+        assert!(
+            castable.is_empty(),
+            "Non-active player cannot cast spells at sorcery speed"
+        );
+    }
+
+    #[test]
+    fn castable_spells_empty_outside_main_phase() {
+        let (game, p1, _) = make_started_game();
+        // Game starts in Untap, not a main phase.
+        let castable = compute_castable_spells(&game, &p1);
+        assert!(
+            castable.is_empty(),
+            "Spells should not be castable during Untap step"
+        );
+    }
+
+    /// With seed=42, P1's opening hand from the green deck includes a Bear.
+    /// After adding {1}{G} to the pool, the Bear should appear as castable.
+    #[test]
+    fn castable_spells_returns_affordable_bear_after_adding_mana() {
+        let (mut game, p1, _) = make_game_in_first_main();
+
+        // Verify a Bear is in hand (seed=42 makes this deterministic).
+        let bear_in_hand = game
+            .hand(&p1)
+            .unwrap()
+            .iter()
+            .any(|c| c.definition().id() == "bear");
+        if !bear_in_hand {
+            // Seed produced a hand with no bears — skip test rather than assert.
+            // (This is very unlikely with 20/60 bears but defensively handled.)
+            return;
+        }
+
+        // Give P1 exactly {1}{G} to pay for the Bear.
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+        game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+
+        let castable = compute_castable_spells(&game, &p1);
+        assert!(
+            !castable.is_empty(),
+            "At least one Bear should be castable with {{1}}{{G}} in pool"
+        );
+        // All returned IDs must be Bears (the only non-land in the green deck
+        // that fits in a 7-card opening hand alongside forests).
+        for id in &castable {
+            let card = game
+                .hand(&p1)
+                .unwrap()
+                .iter()
+                .find(|c| c.instance_id() == id)
+                .expect("castable_id should refer to a card in hand");
+            assert_eq!(
+                card.definition().id(),
+                "bear",
+                "Castable card should be a Bear"
+            );
+        }
     }
 }

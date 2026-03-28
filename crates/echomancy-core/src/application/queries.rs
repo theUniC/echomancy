@@ -61,6 +61,13 @@ pub struct AllowedActionsResult {
     /// Instance IDs of untapped lands on the player's battlefield that can be
     /// tapped to produce mana right now.
     pub tappable_lands: Vec<String>,
+    /// Instance IDs of non-land spells in the player's hand that can be cast now.
+    ///
+    /// A spell is castable when:
+    /// - The player has priority.
+    /// - Timing permits (sorcery-speed: main phase, active player, empty stack).
+    /// - The player can pay the mana cost from their current pool.
+    pub castable_spells: Vec<String>,
 }
 
 /// Query that returns which actions a player can take right now.
@@ -111,10 +118,14 @@ impl GetAllowedActions {
         // These are always tappable as long as the player has priority and they are untapped.
         let tappable_lands = collect_tappable_lands(game, &self.player_id);
 
+        // Collect castable spells regardless of land-play eligibility.
+        let castable_spells = collect_castable_spells(game, &self.player_id);
+
         if !can_play_land {
             return Ok(AllowedActionsResult {
                 playable_lands: Vec::new(),
                 tappable_lands,
+                castable_spells,
             });
         }
 
@@ -127,7 +138,7 @@ impl GetAllowedActions {
             .map(|c| c.instance_id().to_owned())
             .collect();
 
-        Ok(AllowedActionsResult { playable_lands, tappable_lands })
+        Ok(AllowedActionsResult { playable_lands, tappable_lands, castable_spells })
     }
 }
 
@@ -241,6 +252,73 @@ fn collect_tappable_lands(game: &Game, player_id: &str) -> Vec<String> {
                 .permanent_state(card.instance_id())
                 .is_some_and(|s| s.is_tapped());
             !is_tapped
+        })
+        .map(|card| card.instance_id().to_owned())
+        .collect()
+}
+
+/// Collect instance IDs of non-land spells in the player's hand that can be cast
+/// right now at sorcery speed.
+///
+/// Conditions (sorcery-speed only — instants/flash are a future extension):
+/// 1. Player has priority.
+/// 2. Player is the active player (their turn).
+/// 3. Current step is a main phase (FirstMain or SecondMain).
+/// 4. Stack is empty.
+/// 5. Player can pay the card's mana cost from their current mana pool.
+fn collect_castable_spells(game: &Game, player_id: &str) -> Vec<String> {
+    use crate::domain::services::mana_payment::can_pay_cost;
+    use crate::domain::value_objects::mana::ManaCost;
+
+    // 1. Player must have priority.
+    if game.priority_player_id() != Some(player_id) {
+        return Vec::new();
+    }
+
+    // 2. Must be the active player's turn.
+    if game.current_player_id() != player_id {
+        return Vec::new();
+    }
+
+    // 3. Must be a main phase.
+    let step = game.current_step();
+    if !matches!(step, Step::FirstMain | Step::SecondMain) {
+        return Vec::new();
+    }
+
+    // 4. Stack must be empty (sorcery speed).
+    if game.stack_has_items() {
+        return Vec::new();
+    }
+
+    let mana_pool = match game.mana_pool(player_id) {
+        Ok(pool) => pool,
+        Err(_) => return Vec::new(),
+    };
+
+    game.hand(player_id)
+        .unwrap_or(&[])
+        .iter()
+        .filter(|card| {
+            // Must not be a land.
+            if card.definition().is_land() {
+                return false;
+            }
+            // For MVP, only sorcery-speed spells (creatures and sorceries).
+            // Instants can be cast at any time but their highlight is future work.
+            let is_sorcery_speed = card.definition().types().iter().any(|t| {
+                matches!(t, CardType::Creature | CardType::Sorcery)
+            });
+            if !is_sorcery_speed {
+                return false;
+            }
+            // Must be able to afford the mana cost.
+            let cost = card
+                .definition()
+                .mana_cost()
+                .cloned()
+                .unwrap_or_else(ManaCost::zero);
+            can_pay_cost(mana_pool, &cost)
         })
         .map(|card| card.instance_id().to_owned())
         .collect()

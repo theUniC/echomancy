@@ -10,6 +10,7 @@ use crate::domain::abilities::{ActivatedAbility, ActivationCost};
 use crate::domain::cards::card_definition::CardDefinition;
 use crate::domain::effects::Effect;
 use crate::domain::enums::{CardType, ManaColor};
+use crate::domain::value_objects::mana::ManaCost;
 
 // ============================================================================
 // Basic Lands
@@ -75,9 +76,14 @@ pub fn swamp() -> CardDefinition {
 // ============================================================================
 
 /// Return the `Bear` (2/2 creature) definition.
+///
+/// Mana cost: {1}{G} (1 generic + 1 green), matching Grizzly Bears.
 pub fn bear() -> CardDefinition {
+    // SAFETY: "1G" is a valid mana cost string; this cannot fail at runtime.
+    let cost = ManaCost::parse("1G").expect("bear mana cost is valid");
     CardDefinition::new("bear", "Bear", vec![CardType::Creature])
         .with_power_toughness(2, 2)
+        .with_mana_cost(cost)
 }
 
 /// Return the `Elite Vanguard` (2/1 creature) definition.
@@ -166,6 +172,15 @@ mod tests {
         assert_eq!(b.power(), Some(2));
         assert_eq!(b.toughness(), Some(2));
         assert_eq!(b.id(), "bear");
+    }
+
+    #[test]
+    fn bear_has_mana_cost_1g() {
+        use crate::domain::value_objects::mana::ManaCost;
+        let b = bear();
+        let cost = b.mana_cost().expect("Bear must have a mana cost of {1}{G}");
+        let expected = ManaCost::parse("1G").unwrap();
+        assert_eq!(*cost, expected, "Bear mana cost should be {{1}}{{G}}");
     }
 
     #[test]

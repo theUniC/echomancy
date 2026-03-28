@@ -29,6 +29,9 @@ const HAND_CARD_OVERLAP: f32 = 45.0;
 /// Brighter green border used for playable (land) cards in hand.
 const PLAYABLE_BORDER_COLOR: Color = Color::srgb(0.20, 0.90, 0.30);
 
+/// Blue border used for castable (non-land spell) cards in hand.
+const CASTABLE_BORDER_COLOR: Color = Color::srgb(0.20, 0.50, 1.00);
+
 // ============================================================================
 // Marker components
 // ============================================================================
@@ -42,6 +45,14 @@ pub(crate) struct HandRoot;
 /// Only added when the card's `instance_id` appears in `PlayableCards.result.playable_lands`.
 #[derive(Component, Clone)]
 pub(crate) struct PlayableCard {
+    pub(crate) instance_id: String,
+}
+
+/// Marks a card in the hand that can currently be cast as a spell.
+///
+/// Only added when the card's `instance_id` appears in `PlayableCards.result.castable_spells`.
+#[derive(Component, Clone)]
+pub(crate) struct CastableSpell {
     pub(crate) instance_id: String,
 }
 
@@ -64,6 +75,11 @@ pub(crate) fn hand_card_left_margin(index: usize) -> Val {
 /// Return `true` when `instance_id` is in the list of playable land IDs.
 pub(crate) fn is_playable_land(instance_id: &str, playable_lands: &[String]) -> bool {
     playable_lands.iter().any(|id| id == instance_id)
+}
+
+/// Return `true` when `instance_id` is in the list of castable spell IDs.
+pub(crate) fn is_castable_spell(instance_id: &str, castable_spells: &[String]) -> bool {
+    castable_spells.iter().any(|id| id == instance_id)
 }
 
 // ============================================================================
@@ -95,11 +111,15 @@ pub(crate) fn rebuild_hand(
 
     let hand = &current_snapshot.snapshot.private_player_state.hand;
     let playable_lands = &playable_cards.result.playable_lands;
+    let castable_spells = &playable_cards.result.castable_spells;
 
     for (index, card) in hand.iter().enumerate() {
         let playable = is_playable_land(&card.instance_id, playable_lands);
+        let castable = is_castable_spell(&card.instance_id, castable_spells);
         let border_color = if playable {
             PLAYABLE_BORDER_COLOR
+        } else if castable {
+            CASTABLE_BORDER_COLOR
         } else {
             card_border_color(&card.types)
         };
@@ -133,6 +153,12 @@ pub(crate) fn rebuild_hand(
         if playable {
             entity_cmd.insert((
                 PlayableCard { instance_id },
+                Button,
+                Interaction::default(),
+            ));
+        } else if castable {
+            entity_cmd.insert((
+                CastableSpell { instance_id },
                 Button,
                 Interaction::default(),
             ));
@@ -211,6 +237,24 @@ pub(crate) fn handle_card_clicks(
     }
 }
 
+/// Update system: detect clicks on castable spell cards and send a `CastSpell` action.
+///
+/// Only `Interaction::Pressed` triggers an action.
+pub(crate) fn handle_castable_spell_clicks(
+    query: Query<(&Interaction, &CastableSpell), Changed<Interaction>>,
+    active_player: Res<ActivePlayerId>,
+    mut action_writer: MessageWriter<GameActionMessage>,
+) {
+    for (interaction, castable) in &query {
+        if *interaction == Interaction::Pressed {
+            action_writer.write(GameActionMessage(Action::CastSpell {
+                player_id: PlayerId::new(&active_player.player_id),
+                card_id: CardInstanceId::new(&castable.instance_id),
+            }));
+        }
+    }
+}
+
 // ============================================================================
 // Plugin
 // ============================================================================
@@ -220,7 +264,10 @@ pub(crate) struct HandPlugin;
 
 impl Plugin for HandPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (rebuild_hand, handle_card_clicks));
+        app.add_systems(
+            Update,
+            (rebuild_hand, handle_card_clicks, handle_castable_spell_clicks),
+        );
     }
 }
 
@@ -285,5 +332,43 @@ mod tests {
         assert!((srgba.red - 0.20).abs() < 0.01, "red channel mismatch");
         assert!((srgba.green - 0.90).abs() < 0.01, "green channel mismatch");
         assert!((srgba.blue - 0.30).abs() < 0.01, "blue channel mismatch");
+    }
+
+    // ---- is_castable_spell -------------------------------------------------
+
+    #[test]
+    fn card_in_castable_list_is_castable() {
+        let castable = vec!["spell-1".to_owned(), "spell-2".to_owned()];
+        assert!(is_castable_spell("spell-1", &castable));
+        assert!(is_castable_spell("spell-2", &castable));
+    }
+
+    #[test]
+    fn card_not_in_castable_list_is_not_castable() {
+        let castable = vec!["spell-1".to_owned()];
+        assert!(!is_castable_spell("spell-99", &castable));
+    }
+
+    #[test]
+    fn empty_castable_list_means_nothing_is_castable() {
+        assert!(!is_castable_spell("spell-1", &[]));
+    }
+
+    #[test]
+    fn castable_check_is_exact_match_not_substring() {
+        let castable = vec!["spell-1-long".to_owned()];
+        assert!(!is_castable_spell("spell-1", &castable));
+    }
+
+    // ---- CASTABLE_BORDER_COLOR sanity --------------------------------------
+
+    #[test]
+    fn castable_border_is_blue() {
+        let Color::Srgba(srgba) = CASTABLE_BORDER_COLOR else {
+            panic!("Expected Srgba color");
+        };
+        assert!((srgba.red - 0.20).abs() < 0.01, "red channel mismatch");
+        assert!((srgba.green - 0.50).abs() < 0.01, "green channel mismatch");
+        assert!((srgba.blue - 1.00).abs() < 0.01, "blue channel mismatch");
     }
 }

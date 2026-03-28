@@ -404,4 +404,58 @@ mod tests {
         assert!(game.stack().is_empty());
         assert_eq!(game.battlefield(&p1).unwrap().len(), 1);
     }
+
+    /// End-to-end test: cast a Bear ({1}{G}) with real mana, pass priority from
+    /// both players, and verify the creature appears on the battlefield.
+    ///
+    /// This test pins the full engine chain:
+    ///   play 2 Forests → tap both → cast Bear → pass priority × 2 → battlefield
+    #[test]
+    fn bear_with_mana_cost_resolves_onto_battlefield() {
+        use crate::domain::cards::catalog;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        // Build a Bear with cost {1}{G} — matching the catalog definition.
+        let mana_cost = ManaCost::parse("1G").unwrap();
+        let bear_def = catalog::bear().with_mana_cost(mana_cost);
+        let bear = CardInstance::new("bear-1", bear_def, &p1);
+        add_card_to_hand(&mut game, &p1, bear);
+
+        // Give P1 exactly {1}{G} in their mana pool (1 generic + 1 green).
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+        game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+
+        // Cast the Bear — mana should be consumed.
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("bear-1"),
+        })
+        .unwrap();
+
+        // Bear is on the stack; mana pool is now empty.
+        assert_eq!(game.stack().len(), 1);
+        assert_eq!(game.mana_pool(&p1).unwrap().total(), 0);
+
+        // P2 passes priority → P1 gets priority back.
+        game.apply(Action::PassPriority {
+            player_id: PlayerId::new(&p2),
+        })
+        .unwrap();
+        assert_eq!(game.priority_player_id(), Some(p1.as_str()));
+
+        // P1 passes priority → both have passed → stack resolves.
+        game.apply(Action::PassPriority {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        // Bear must be on the battlefield, stack must be empty.
+        assert!(game.stack().is_empty(), "Stack should be empty after resolution");
+        assert_eq!(
+            game.battlefield(&p1).unwrap().len(),
+            1,
+            "Bear should be on P1's battlefield"
+        );
+    }
 }

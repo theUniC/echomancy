@@ -27,6 +27,7 @@ pub use crate::domain::services::game_state_export::{
 
 pub use crate::domain::abilities::{ActivatedAbility, ActivationCost, Ability};
 pub use crate::domain::actions::Action;
+pub use crate::domain::services::mana_payment::can_pay_cost;
 pub use crate::domain::cards::card_definition::CardDefinition;
 pub use crate::domain::cards::card_instance::CardInstance;
 pub use crate::domain::cards::{catalog, prebuilt_decks};
