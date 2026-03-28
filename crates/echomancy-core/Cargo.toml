@@ -11,4 +11,3 @@ rand = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
-scryer-prolog = "0.10.0"
