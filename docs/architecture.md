@@ -22,9 +22,9 @@ Domain-Driven Design (DDD) approach to modeling Magic: The Gathering rules as a 
 
 ### Game is the Single Authority
 
-The Game class is the only component that evaluates triggers, activates abilities, puts items on the stack, resolves abilities, and mutates game state. All state changes flow through Game methods.
+The Game struct is the only component that evaluates triggers, activates abilities, puts items on the stack, resolves abilities, and mutates game state. All state changes flow through Game methods.
 
-**Critical rule**: Always use `game.enterBattlefield()` to put permanents on the battlefield, never push directly to arrays. Direct manipulation bypasses ETB trigger system.
+**Critical rule**: Always use `game.enter_battlefield()` to put permanents on the battlefield, never push directly to collections. Direct manipulation bypasses ETB trigger system.
 
 ### Evaluation Points are Explicit
 
@@ -43,22 +43,22 @@ Abilities are never evaluated continuously or reactively. No global event bus ex
 
 Implementation organized by DDD patterns:
 
-**Value Objects** (`domainmodel/game/valueobjects/`)
+**Value Objects** (`crates/echomancy-core/src/domain/value_objects/`)
 - ManaPool - Immutable mana management
 - PermanentState - Permanent state (tap, counters, creature stats)
 - TurnState - Turn tracking (player, step, turn number)
 - CombatState - Attacker/blocker assignments
 
-**Entities** (`domainmodel/game/entities/`)
+**Entities** (`crates/echomancy-core/src/domain/entities/`)
 - Battlefield, Hand, Graveyard - Zone management
 - TheStack - LIFO stack for spells/abilities
 
-**Domain Services** (`domainmodel/game/services/`)
+**Domain Services** (`crates/echomancy-core/src/domain/services/`)
 - CombatResolution - Damage calculation
 - TriggerEvaluation - Match triggers to events
 - StateBasedActions - Identify creatures to destroy
 
-**Specifications** (`domainmodel/game/specifications/`)
+**Specifications** (`crates/echomancy-core/src/domain/specifications/`)
 - CanPlayLand, CanCastSpell - Validation rules
 - CanDeclareAttacker, CanDeclareBlocker - Combat rules
 - CanActivateAbility, HasPriority - Activation rules
@@ -71,16 +71,15 @@ Implementation organized by DDD patterns:
 
 ### Error Handling
 
-Domain errors extend GameError class. Each type corresponds to specific rule violations (invalid step, resource limits, card not found, state violations).
+Domain errors use `thiserror` typed errors. Each type corresponds to specific rule violations (invalid step, resource limits, card not found, state violations).
 
-See `src/domainmodel/game/errors/` for implementation.
+See `crates/echomancy-core/src/domain/errors.rs` for implementation.
 
 ## Rules
 
 - Game is the only entity that mutates state
 - Abilities are data structures, not active code
 - All player actions use command pattern via `game.apply()`
-- Effects use Game methods (`drawCards()`, `enterBattlefield()`), never direct state mutation
+- Effects use Game methods (`draw_cards()`, `enter_battlefield()`), never direct state mutation
 - Evaluation points are explicit and deterministic
 - No global event system or pub/sub
-

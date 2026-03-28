@@ -10,47 +10,56 @@ Write the test first. Watch it fail. Write minimal code to pass.
 ## Project Context
 
 **Test helpers** (use these, don't reinvent):
-```typescript
-import { createStartedGame, createTestCreature, addCreatureToBattlefield, resolveStack } from './helpers'
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-const { game, player1, player2 } = createStartedGame()
-const creature = createTestCreature(player1.id)
-addCreatureToBattlefield(game, player1.id, creature)
+    let (game, player1, player2) = create_started_game();
+    let creature = create_test_creature(&player1.id);
+    add_creature_to_battlefield(&mut game, &player1.id, creature);
+}
 ```
 
 **Always resolve stack before asserting:**
-```typescript
-game.apply({ type: "CAST_SPELL", playerId, cardId, targets: [] })
-resolveStack(game, player2.id, player1.id)
-expect(game.getStack()).toHaveLength(0)
+```rust
+game.apply(Action::CastSpell { player_id, card_id, targets: vec![] })?;
+resolve_stack(&mut game, &player2.id, &player1.id);
+assert_eq!(game.get_stack().len(), 0);
 ```
 
 **Run tests:**
 ```bash
-bun test path/to/test.test.ts
+cargo test -- <test_name>
 ```
 
-## The Cycle: Red → Green → Refactor
+## The Cycle: Red -> Green -> Refactor
 
 ### 1. RED: Write failing test
 
-```typescript
-test('creature with flying can only be blocked by creatures with flying or reach', () => {
-  const { game, player1, player2 } = createStartedGame()
-  const flyer = createTestCreature(player1.id, { keywords: ['flying'] })
-  const groundBlocker = createTestCreature(player2.id)
+```rust
+#[test]
+fn creature_with_flying_can_only_be_blocked_by_creatures_with_flying_or_reach() {
+    let (mut game, player1, player2) = create_started_game();
+    let flyer = create_test_creature_with_keywords(&player1.id, vec![StaticAbility::Flying]);
+    let ground_blocker = create_test_creature(&player2.id);
 
-  addCreatureToBattlefield(game, player1.id, flyer)
-  addCreatureToBattlefield(game, player2.id, groundBlocker)
+    add_creature_to_battlefield(&mut game, &player1.id, flyer.clone());
+    add_creature_to_battlefield(&mut game, &player2.id, ground_blocker.clone());
 
-  // Declare flyer as attacker
-  game.apply({ type: "DECLARE_ATTACKERS", playerId: player1.id, attackers: [flyer.id] })
+    // Declare flyer as attacker
+    game.apply(Action::DeclareAttackers {
+        player_id: player1.id.clone(),
+        attackers: vec![flyer.id.clone()],
+    }).unwrap();
 
-  // Try to block with ground creature - should fail
-  expect(() => {
-    game.apply({ type: "DECLARE_BLOCKERS", playerId: player2.id, blockers: { [flyer.id]: groundBlocker.id } })
-  }).toThrow()
-})
+    // Try to block with ground creature - should fail
+    let result = game.apply(Action::DeclareBlockers {
+        player_id: player2.id.clone(),
+        blockers: vec![(flyer.id.clone(), ground_blocker.id.clone())],
+    });
+    assert!(result.is_err());
+}
 ```
 
 **Run it. Confirm it fails for the right reason.**
@@ -72,7 +81,7 @@ Next test for next behavior.
 - **One behavior per test** - If name has "and", split it
 - **Clear name** - Describes what should happen
 - **Real code** - Use actual `Game`, not mocks
-- **Use helpers** - `createStartedGame()`, `createTestCreature()`, etc.
+- **Use helpers** - `create_started_game()`, `create_test_creature()`, etc.
 
 ## Red Flags
 
@@ -87,4 +96,4 @@ Before done:
 - [ ] Test existed and failed before implementation
 - [ ] Test failed for the right reason
 - [ ] Wrote minimal code to pass
-- [ ] All tests pass: `bun test`
+- [ ] All tests pass: `cargo test`

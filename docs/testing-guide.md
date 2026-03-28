@@ -4,64 +4,64 @@ Testing patterns and helpers for the Echomancy game engine.
 
 ## Key Concepts
 
-- **Test Helpers** - Reusable functions in `__tests__/helpers.ts` for consistent setup
+- **Test Helpers** - Reusable functions in `#[cfg(test)]` modules for consistent setup
 - **Arrange-Act-Assert** - Standard test structure (setup, action, verify)
-- **Stack Resolution** - Must call `resolveStack()` before asserting on spell effects
-- **No Mocks** - Use actual Game class, not mocks
+- **Stack Resolution** - Must resolve the stack before asserting on spell effects
+- **No Mocks** - Use actual Game struct, not mocks
 
 ## How It Works
 
 **Running Tests**:
-- `bun test` - Run all tests
-- `bun test <pattern>` - Run tests matching pattern
-- `bun test --watch` - Watch mode
+- `cargo test` - Run all tests
+- `cargo test <pattern>` - Run tests matching pattern
+- `cargo test -- --nocapture` - Show println output
 
-**Before Committing**: Always run `bun test && bun run lint && bun run format`
+**Before Committing**: Always run `cargo test && cargo clippy`
 
-**Test Helpers** (see `__tests__/helpers.ts` for implementations):
+**Test Helpers** (see `#[cfg(test)]` modules for implementations):
 
 **Game Setup**:
-- `createStartedGame()` - 2-player game in UNTAP step
-- `createGameInMainPhase()` - Game advanced to FIRST_MAIN
-- `advanceToStep()` - Advance to any step
+- `create_started_game()` - 2-player game in UNTAP step
+- `create_game_in_main_phase()` - Game advanced to FIRST_MAIN
+- `advance_to_step()` - Advance to any step
 
 **Card Creation**:
-- `createTestCreature()` - Basic creature
-- `createTestSpell()` - Basic instant
-- `createCreatureWithETBTrigger()` - Creature with ETB callback
-- Themed helpers: `createElvishVisionary()`, `createLlanowarElves()`, etc.
+- `create_test_creature()` - Basic creature
+- `create_test_spell()` - Basic instant
+- `create_creature_with_etb_trigger()` - Creature with ETB callback
+- Themed helpers: `create_elvish_visionary()`, `create_llanowar_elves()`, etc.
 
 **Zone Manipulation**:
-- `addCreatureToBattlefield()` - Properly adds creature (fires ETB triggers)
-- `addSpellToHand()` - Add spell to hand
-- `addCreatureToHand()` - Add creature to hand
+- `add_creature_to_battlefield()` - Properly adds creature (fires ETB triggers)
+- `add_spell_to_hand()` - Add spell to hand
+- `add_creature_to_hand()` - Add creature to hand
 
 **Combat**:
-- `setupCreatureInCombat()` - Create creature and advance to DECLARE_ATTACKERS
-- `setupMultipleCreatures()` - Add multiple creatures to battlefield
+- `setup_creature_in_combat()` - Create creature and advance to DECLARE_ATTACKERS
+- `setup_multiple_creatures()` - Add multiple creatures to battlefield
 
 **Stack**:
-- `resolveStack()` - Both players pass, top item resolves
-- `assertSpellAt()` - Type-safe stack inspection for spells
-- `assertAbilityAt()` - Type-safe stack inspection for abilities
+- `resolve_stack()` - Both players pass, top item resolves
+- `assert_spell_at()` - Type-safe stack inspection for spells
+- `assert_ability_at()` - Type-safe stack inspection for abilities
 
 **Extra Phases**:
-- `scheduleExtraCombatPhase()` - Schedule additional combat phase
+- `schedule_extra_combat_phase()` - Schedule additional combat phase
 
 ## Rules
 
 - Always use helpers instead of manual setup
-- Never push directly to battlefield arrays (use `addCreatureToBattlefield()`)
+- Never push directly to battlefield collections (use `add_creature_to_battlefield()`)
 - Always resolve stack before asserting on spell effects
-- Use `expect().toThrow()` for error validation
+- Use `assert!(matches!(...))` or `assert_eq!` for assertions
 - Follow Arrange-Act-Assert pattern
 - One behavior per test
 
 ## Common Mistakes
 
-- Using `new Game()` directly (use helpers)
-- Pushing to battlefield without calling `enterBattlefield()`
-- Asserting before calling `resolveStack()`
+- Constructing `Game` directly (use helpers)
+- Pushing to battlefield without calling `enter_battlefield()`
+- Asserting before resolving the stack
 - Testing multiple unrelated behaviors in one test
 
-**Test Organization**: Tests are in `__tests__/` organized by feature (Game.test.ts, Game.triggers.test.ts, etc.)
+**Test Organization**: Unit tests are inline `#[cfg(test)] mod tests` in the same file. Integration tests are in `crates/echomancy-core/tests/`.

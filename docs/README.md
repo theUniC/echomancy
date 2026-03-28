@@ -1,6 +1,6 @@
 # Echomancy Documentation
 
-Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design principles in TypeScript.
+Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design principles in Rust.
 
 ## Documentation Index
 
@@ -9,8 +9,7 @@ Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design 
 | Document | Description |
 |----------|-------------|
 | [Architecture](./architecture.md) | Core design principles and architectural patterns |
-| [UI Architecture](./ui-architecture.md) | How UI interacts with the game engine |
-| [API Conventions](./api-conventions.md) | RESTful API design and route handlers |
+| [UI Architecture](./ui-architecture.md) | How the Bevy UI interacts with the game engine |
 | [Commands and Queries](./commands-and-queries.md) | CQRS-lite pattern for application layer |
 | [Turn Structure](./turn-structure.md) | Game phases, steps, and turn progression |
 | [Zones and Cards](./zones-and-cards.md) | Game zones, card definitions, and instances |
@@ -70,20 +69,23 @@ Echomancy is in MVP phase, focusing on fundamental game mechanics:
 ## Source Code Structure
 
 ```
-src/echomancy/
-├── domainmodel/     # Core game engine (closed, stable)
-│   ├── abilities/       # Ability system
-│   ├── cards/           # Card definitions and instances
-│   ├── costs/           # Cost system
-│   │   └── impl/        # Concrete cost types (ManaCost, TapSelfCost, etc.)
-│   ├── effects/         # Effect interface and implementations
-│   │   └── impl/        # Concrete effect classes
-│   ├── game/            # Core game engine
-│   │   └── __tests__/   # Test suite
-│   ├── targets/         # Targeting system
-│   ├── triggers/        # Trigger definitions
-│   └── zones/           # Game zones
-└── infrastructure/  # UI-facing infrastructure
-    └── ui/              # Game snapshot and UI contracts
-        └── __tests__/   # Snapshot tests
+crates/
+├── echomancy-core/src/          # Core game engine (pure Rust library, zero Bevy dependency)
+│   ├── domain/                  # Domain model
+│   │   ├── abilities.rs         # Ability system
+│   │   ├── cards/               # Card definitions and instances
+│   │   ├── costs.rs             # Cost system
+│   │   ├── effects.rs           # Effect interface and implementations
+│   │   ├── entities/            # Zone entities (Battlefield, Hand, etc.)
+│   │   ├── game/                # Core game engine (aggregate root)
+│   │   ├── services/            # Domain services
+│   │   ├── specifications/      # Business rule specifications
+│   │   ├── targets.rs           # Targeting system
+│   │   ├── triggers.rs          # Trigger definitions
+│   │   └── value_objects/       # Value objects (ManaPool, PermanentState, etc.)
+│   ├── application/             # Application layer (commands/queries)
+│   └── infrastructure/          # Infrastructure (UI contracts, repositories)
+└── echomancy-bevy/src/          # Bevy binary (UI rendering)
+    ├── main.rs                  # Entry point
+    └── plugins/                 # Bevy plugins (Game, UI, HUD, etc.)
 ```

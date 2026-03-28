@@ -11,9 +11,9 @@ The creature stats system models power, toughness, and counters for creatures on
 
 ## How It Works
 
-See `src/echomancy/domainmodel/game/Game.ts` for implementation details.
+See `crates/echomancy-core/src/domain/game/` for implementation details.
 
-**Initialization**: Stats are set when a creature enters the battlefield via `initializeCreatureStateIfNeeded()`. Values come from the card definition. Defaults: power = 0, toughness = 1.
+**Initialization**: Stats are set when a creature enters the battlefield via `initialize_creature_state_if_needed()`. Values come from the card definition. Defaults: power = 0, toughness = 1.
 
 **Calculation**: Current power/toughness = base value + counters. Calculated on demand, no caching.
 
@@ -33,4 +33,4 @@ See `src/echomancy/domainmodel/game/Game.ts` for implementation details.
 - Stats don't depend on turn, phase, or stack state
 - Counters are lost when creatures change zones
 
-**Testing**: See `Game.creatureStats.test.ts` for comprehensive test coverage.
+**Testing**: See creature stats tests in `crates/echomancy-core/src/domain/`.

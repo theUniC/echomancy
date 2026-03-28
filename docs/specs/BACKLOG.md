@@ -122,7 +122,7 @@ These enable real game flow. Must be done in order.
 - Debug console (Phase 0)
 - Route & data pipeline (Phase 1a)
 - Basic game info - turn, phase, life (Phase 1b)
-- Battlefield display with PixiJS (Phase 1c)
+- Battlefield display (Phase 1c)
 - Hand display (Phase 1d)
 - Graveyard count (Phase 1e)
 - Play land interaction (Phase 2)
@@ -207,7 +207,7 @@ Echomancy prioritizes:
 1. **Correctness over performance** - Rules must be right
 2. **Explicitness over convenience** - No hidden magic
 3. **Testability over flexibility** - Everything must be testable
-4. **Type safety** - TypeScript strict mode everywhere
+4. **Type safety** - Rust's type system enforces invariants at compile time
 
 ---
 

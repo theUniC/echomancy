@@ -8,7 +8,7 @@ Consultative keyword abilities that modify game rule checks and validations.
 - **Keywords**: Data on card definitions (Flying, Reach, Vigilance)
 - **Local queries**: Each check queries the permanent directly, no global registry
 - **No layers (MVP)**: Full 7-layer system deferred for simplicity
-- **Type-safe**: Typed constants prevent typos, enable autocomplete
+- **Type-safe**: Enum variants prevent typos, enable exhaustive matching
 
 ## How It Works
 
@@ -32,9 +32,9 @@ Static abilities are declared on card definitions as keyword constants. When the
 | Declare blocker | Flying, Reach | If attacker has Flying, blocker needs Flying or Reach |
 
 **Implementation**:
-- Card definitions: `CardDefinition.staticAbilities` in `src/echomancy/domainmodel/cards/CardDefinition.ts`
-- Validation: `Game.declareAttacker()` and `Game.declareBlocker()` in `src/echomancy/domainmodel/game/Game.ts`
-- Tests: `Game.staticAbilities.test.ts`
+- Card definitions: `CardDefinition.static_abilities` in `crates/echomancy-core/src/domain/cards/`
+- Validation: `game.declare_attacker()` and `game.declare_blocker()` in `crates/echomancy-core/src/domain/game/`
+- Tests: Static ability tests in `crates/echomancy-core/src/domain/`
 
 ## Rules
 
@@ -60,10 +60,10 @@ MVP keywords don't have these requirements.
 
 ### Type Safety
 
-Uses typed constants instead of strings:
-```typescript
-// See StaticAbilities constant in CardDefinition.ts
-if (hasStaticAbility(card, StaticAbilities.FLYING)) { ... }
+Uses enum variants instead of strings:
+```rust
+// See StaticAbility enum in cards module
+if has_static_ability(card, StaticAbility::Flying) { ... }
 ```
 
-Benefits: autocomplete, compile-time checking, refactoring safety, runtime typo detection.
+Benefits: exhaustive matching, compile-time checking, refactoring safety.

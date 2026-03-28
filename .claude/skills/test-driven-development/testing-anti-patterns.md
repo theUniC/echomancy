@@ -14,19 +14,20 @@ Tests must verify real behavior, not mock behavior. Mocks are a means to isolate
 
 ```
 1. NEVER test mock behavior
-2. NEVER add test-only methods to production classes
+2. NEVER add test-only methods to production structs
 3. NEVER mock without understanding dependencies
 ```
 
 ## Anti-Pattern 1: Testing Mock Behavior
 
 **The violation:**
-```typescript
-// ❌ BAD: Testing that the mock exists
-test('renders sidebar', () => {
-  render(<Page />);
-  expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument();
-});
+```rust
+// BAD: Testing that the mock exists
+#[test]
+fn renders_sidebar() {
+    let mock_sidebar = MockSidebar::new();
+    assert!(mock_sidebar.is_visible()); // Testing the mock, not real code!
+}
 ```
 
 **Why this is wrong:**
@@ -37,15 +38,13 @@ test('renders sidebar', () => {
 **your human partner's correction:** "Are we testing the behavior of a mock?"
 
 **The fix:**
-```typescript
-// ✅ GOOD: Test real component or don't mock it
-test('renders sidebar', () => {
-  render(<Page />);  // Don't mock sidebar
-  expect(screen.getByRole('navigation')).toBeInTheDocument();
-});
-
-// OR if sidebar must be mocked for isolation:
-// Don't assert on the mock - test Page's behavior with sidebar present
+```rust
+// GOOD: Test real component behavior
+#[test]
+fn page_includes_sidebar() {
+    let page = Page::new();
+    assert!(page.has_sidebar());
+}
 ```
 
 ### Gate Function
@@ -55,7 +54,7 @@ BEFORE asserting on any mock element:
   Ask: "Am I testing real component behavior or just mock existence?"
 
   IF testing mock existence:
-    STOP - Delete the assertion or unmock the component
+    STOP - Delete the assertion or use the real component
 
   Test real behavior instead
 ```
@@ -63,72 +62,72 @@ BEFORE asserting on any mock element:
 ## Anti-Pattern 2: Test-Only Methods in Production
 
 **The violation:**
-```typescript
-// ❌ BAD: destroy() only used in tests
-class Session {
-  async destroy() {  // Looks like production API!
-    await this._workspaceManager?.destroyWorkspace(this.id);
-    // ... cleanup
-  }
+```rust
+// BAD: destroy() only used in tests
+impl Session {
+    pub fn destroy(&mut self) {  // Looks like production API!
+        self.workspace_manager.destroy_workspace(&self.id);
+        // ... cleanup
+    }
 }
 
 // In tests
-afterEach(() => session.destroy());
+fn teardown(session: &mut Session) {
+    session.destroy();
+}
 ```
 
 **Why this is wrong:**
-- Production class polluted with test-only code
+- Production struct polluted with test-only code
 - Dangerous if accidentally called in production
 - Violates YAGNI and separation of concerns
 - Confuses object lifecycle with entity lifecycle
 
 **The fix:**
-```typescript
-// ✅ GOOD: Test utilities handle test cleanup
+```rust
+// GOOD: Test utilities handle test cleanup
 // Session has no destroy() - it's stateless in production
 
-// In test-utils/
-export async function cleanupSession(session: Session) {
-  const workspace = session.getWorkspaceInfo();
-  if (workspace) {
-    await workspaceManager.destroyWorkspace(workspace.id);
-  }
+// In test_helpers module
+#[cfg(test)]
+pub(crate) fn cleanup_session(session: &Session, manager: &mut WorkspaceManager) {
+    if let Some(workspace) = session.get_workspace_info() {
+        manager.destroy_workspace(&workspace.id);
+    }
 }
-
-// In tests
-afterEach(() => cleanupSession(session));
 ```
 
 ### Gate Function
 
 ```
-BEFORE adding any method to production class:
+BEFORE adding any method to production struct:
   Ask: "Is this only used by tests?"
 
   IF yes:
     STOP - Don't add it
-    Put it in test utilities instead
+    Put it in #[cfg(test)] test utilities instead
 
-  Ask: "Does this class own this resource's lifecycle?"
+  Ask: "Does this struct own this resource's lifecycle?"
 
   IF no:
-    STOP - Wrong class for this method
+    STOP - Wrong struct for this method
 ```
 
 ## Anti-Pattern 3: Mocking Without Understanding
 
 **The violation:**
-```typescript
-// ❌ BAD: Mock breaks test logic
-test('detects duplicate server', () => {
-  // Mock prevents config write that test depends on!
-  vi.mock('ToolCatalog', () => ({
-    discoverAndCacheTools: vi.fn().mockResolvedValue(undefined)
-  }));
+```rust
+// BAD: Mock breaks test logic
+#[test]
+fn detects_duplicate_server() {
+    // Mock prevents config write that test depends on!
+    let mock_catalog = MockToolCatalog::new();
+    mock_catalog.expect_discover_and_cache_tools()
+        .returning(|_| Ok(()));
 
-  await addServer(config);
-  await addServer(config);  // Should throw - but won't!
-});
+    add_server(&config).unwrap();
+    add_server(&config).unwrap();  // Should error - but won't!
+}
 ```
 
 **Why this is wrong:**
@@ -137,15 +136,17 @@ test('detects duplicate server', () => {
 - Test passes for wrong reason or fails mysteriously
 
 **The fix:**
-```typescript
-// ✅ GOOD: Mock at correct level
-test('detects duplicate server', () => {
-  // Mock the slow part, preserve behavior test needs
-  vi.mock('MCPServerManager'); // Just mock slow server startup
+```rust
+// GOOD: Mock at correct level
+#[test]
+fn detects_duplicate_server() {
+    // Mock the slow part, preserve behavior test needs
+    let mock_manager = MockServerManager::new(); // Just mock slow server startup
 
-  await addServer(config);  // Config written
-  await addServer(config);  // Duplicate detected ✓
-});
+    add_server(&config).unwrap();  // Config written
+    let result = add_server(&config);  // Duplicate detected
+    assert!(result.is_err());
+}
 ```
 
 ### Gate Function
@@ -177,15 +178,16 @@ BEFORE mocking any method:
 ## Anti-Pattern 4: Incomplete Mocks
 
 **The violation:**
-```typescript
-// ❌ BAD: Partial mock - only fields you think you need
-const mockResponse = {
-  status: 'success',
-  data: { userId: '123', name: 'Alice' }
-  // Missing: metadata that downstream code uses
+```rust
+// BAD: Partial mock - only fields you think you need
+let mock_response = Response {
+    status: Status::Success,
+    data: Data { user_id: "123".into(), name: "Alice".into() },
+    // Missing: metadata that downstream code uses
+    ..Default::default()
 };
 
-// Later: breaks when code accesses response.metadata.requestId
+// Later: panics when code accesses response.metadata.request_id
 ```
 
 **Why this is wrong:**
@@ -197,13 +199,13 @@ const mockResponse = {
 **The Iron Rule:** Mock the COMPLETE data structure as it exists in reality, not just fields your immediate test uses.
 
 **The fix:**
-```typescript
-// ✅ GOOD: Mirror real API completeness
-const mockResponse = {
-  status: 'success',
-  data: { userId: '123', name: 'Alice' },
-  metadata: { requestId: 'req-789', timestamp: 1234567890 }
-  // All fields real API returns
+```rust
+// GOOD: Mirror real API completeness
+let mock_response = Response {
+    status: Status::Success,
+    data: Data { user_id: "123".into(), name: "Alice".into() },
+    metadata: Metadata { request_id: "req-789".into(), timestamp: 1234567890 },
+    // All fields real API returns
 };
 ```
 
@@ -211,10 +213,10 @@ const mockResponse = {
 
 ```
 BEFORE creating mock responses:
-  Check: "What fields does the real API response contain?"
+  Check: "What fields does the real struct/API response contain?"
 
   Actions:
-    1. Examine actual API response from docs/examples
+    1. Examine actual struct definition or API response
     2. Include ALL fields system might consume downstream
     3. Verify mock matches real response schema completely
 
@@ -229,8 +231,8 @@ BEFORE creating mock responses:
 
 **The violation:**
 ```
-✅ Implementation complete
-❌ No tests written
+Implementation complete
+No tests written
 "Ready for testing"
 ```
 
@@ -263,10 +265,10 @@ TDD cycle:
 ## TDD Prevents These Anti-Patterns
 
 **Why TDD helps:**
-1. **Write test first** → Forces you to think about what you're actually testing
-2. **Watch it fail** → Confirms test tests real behavior, not mocks
-3. **Minimal implementation** → No test-only methods creep in
-4. **Real dependencies** → You see what the test actually needs before mocking
+1. **Write test first** -> Forces you to think about what you're actually testing
+2. **Watch it fail** -> Confirms test tests real behavior, not mocks
+3. **Minimal implementation** -> No test-only methods creep in
+4. **Real dependencies** -> You see what the test actually needs before mocking
 
 **If you're testing mock behavior, you violated TDD** - you added mocks without watching test fail against real code first.
 
@@ -274,16 +276,16 @@ TDD cycle:
 
 | Anti-Pattern | Fix |
 |--------------|-----|
-| Assert on mock elements | Test real component or unmock it |
-| Test-only methods in production | Move to test utilities |
+| Assert on mock elements | Test real component or remove mock |
+| Test-only methods in production | Move to `#[cfg(test)]` utilities |
 | Mock without understanding | Understand dependencies first, mock minimally |
-| Incomplete mocks | Mirror real API completely |
+| Incomplete mocks | Mirror real struct/API completely |
 | Tests as afterthought | TDD - tests first |
 | Over-complex mocks | Consider integration tests |
 
 ## Red Flags
 
-- Assertion checks for `*-mock` test IDs
+- Assertions check mock state instead of real behavior
 - Methods only called in test files
 - Mock setup is >50% of test
 - Test fails when you remove mock

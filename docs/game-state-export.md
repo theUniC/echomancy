@@ -15,13 +15,13 @@ Raw, complete, unfiltered representation of game state for serialization, replay
 GameStateExport is the boundary between the game engine and all external consumers:
 
 ```
-Game (domain logic) → GameStateExport → [GameSnapshot | Network | Replay | AI]
+Game (domain logic) -> GameStateExport -> [GameSnapshot | Network | Replay | AI]
 ```
 
 The export contains everything needed to reconstruct or observe the complete game state:
 
 - **Game metadata**: ID, turn number, active player, current step
-- **Priority**: Who has priority (null if none)
+- **Priority**: Who has priority (None if nobody)
 - **Turn order**: Player IDs in turn order
 - **Player states**: Life totals, mana pools, lands played, all zones (including hidden hand and library)
 - **Stack**: All stack items with sources, controllers, targets
@@ -29,8 +29,8 @@ The export contains everything needed to reconstruct or observe the complete gam
 
 **For player-specific views with visibility filtering**: See `game-snapshot.md`
 
-**Implementation**: `Game.exportState()` in `src/echomancy/domainmodel/game/Game.ts`
-**Tests**: `src/echomancy/domainmodel/game/__tests__/GameStateExport.test.ts`
+**Implementation**: `game.export_state()` in `crates/echomancy-core/src/domain/game/`
+**Tests**: Inline `#[cfg(test)]` modules
 
 ## Rules
 
@@ -39,7 +39,7 @@ The export contains everything needed to reconstruct or observe the complete gam
 - Contains every card exactly once
 - All references are IDs (instance IDs, player IDs, card definition IDs)
 - No circular references
-- Fully type-safe with TypeScript definitions
+- Fully type-safe with Rust struct definitions
 
 ### What to Export
 - ALL zones for ALL players (hand, library, battlefield, graveyard, exile)
@@ -55,8 +55,8 @@ The export contains everything needed to reconstruct or observe the complete gam
 - Engine references or domain objects
 
 ### Usage
-```typescript
-const game = Game.start({ id, players, startingPlayerId })
+```rust
+let game = Game::start(config);
 // ... play some turns ...
-const exported = game.exportState()
+let exported = game.export_state();
 ```

@@ -16,7 +16,7 @@ UI-facing game state representation that provides player-relative, visibility-fi
 GameSnapshot sits between the raw engine export and the UI layer:
 
 ```
-Game → GameStateExport → GameSnapshot → UI Components
+Game -> GameStateExport -> GameSnapshot -> Bevy UI Systems
 ```
 
 The snapshot transforms the complete, unfiltered export into a view appropriate for a specific player. It contains:
@@ -27,13 +27,13 @@ The snapshot transforms the complete, unfiltered export into a view appropriate 
 - **VisibleStack**: Stack items with human-readable names and targets
 - **UIHints**: Optional convenience flags (can pass priority, highlighted creatures)
 
-**Implementation**: `src/echomancy/infrastructure/ui/GameSnapshot.ts`
-**Tests**: `src/echomancy/infrastructure/ui/__tests__/GameSnapshot.test.ts`
+**Implementation**: `crates/echomancy-core/src/infrastructure/`
+**Tests**: Inline `#[cfg(test)]` modules
 
 ## Rules
 
 ### Creation
-- Snapshot is created by calling `createGameSnapshot(exportedState, playerId, cardRegistry)`
+- Snapshot is created by calling `create_game_snapshot(exported_state, player_id, card_registry)`
 - Requires a GameStateExport, viewer player ID, and card registry for name resolution
 - CardRegistry resolves card definition IDs to display names ("Lightning Bolt" vs "card-def-12345")
 

@@ -12,7 +12,7 @@ The combat system implements Magic's combat phases: declaring attackers and bloc
 
 ## How It Works
 
-See `src/echomancy/domainmodel/game/Game.ts` for implementation.
+See `crates/echomancy-core/src/domain/game/` for implementation.
 
 **Combat Flow**:
 1. DECLARE_ATTACKERS: Active player declares attackers (must be untapped, become tapped)
@@ -21,13 +21,13 @@ See `src/echomancy/domainmodel/game/Game.ts` for implementation.
    - Blocked attackers: attacker and blocker deal damage to each other (simultaneous)
    - Unblocked attackers: deal damage to defending player
 4. State-Based Actions: Creatures with damage >= toughness are destroyed (moved to graveyard)
-5. END_OF_COMBAT: Combat state cleared (isAttacking, blockingCreatureId, blockedBy)
-6. CLEANUP: Damage cleared (damageMarkedThisTurn reset to 0)
+5. END_OF_COMBAT: Combat state cleared (is_attacking, blocking_creature_id, blocked_by)
+6. CLEANUP: Damage cleared (damage_marked_this_turn reset to 0)
 
 **Damage Assignment**:
-- Uses `getCurrentPower()` for damage amount
-- Damage accumulates in `damageMarkedThisTurn` on each creature
-- Compared to `getCurrentToughness()` for lethal damage checks
+- Uses `get_current_power()` for damage amount
+- Damage accumulates in `damage_marked_this_turn` on each creature
+- Compared to `get_current_toughness()` for lethal damage checks
 
 **Player Damage**:
 - Starting life: 20
@@ -47,4 +47,4 @@ See `src/echomancy/domainmodel/game/Game.ts` for implementation.
 - Damage clears at CLEANUP (once per turn)
 - Counters on creatures affect damage calculations
 
-**Testing**: See `Game.combatResolution.test.ts` for full test suite.
+**Testing**: See combat resolution tests in `crates/echomancy-core/src/domain/`.

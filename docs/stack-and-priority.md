@@ -12,7 +12,7 @@ The stack resolves spells and abilities in Last In, First Out (LIFO) order. Prio
 
 ## How It Works
 
-See `src/echomancy/domainmodel/game/Game.ts` for implementation.
+See `crates/echomancy-core/src/domain/game/` for implementation.
 
 **Stack Items**:
 - **Spells**: Card being cast with controller and targets. Resolves by executing effect and moving card to graveyard or battlefield.
@@ -23,7 +23,7 @@ See `src/echomancy/domainmodel/game/Game.ts` for implementation.
 1. Player casts spell or activates ability (item goes on stack)
 2. Active player receives priority
 3. Players can respond or pass
-4. All players pass in succession → top item resolves
+4. All players pass in succession -> top item resolves
 5. Active player receives priority again
 6. Repeat until stack empty and all players pass
 
@@ -41,4 +41,4 @@ See `src/echomancy/domainmodel/game/Game.ts` for implementation.
 - Last Known Information applies to activated abilities
 - Auto-pass intent is per-player and clears each turn
 
-**Testing**: See `Game.priorityAndStackResolution.test.ts` for comprehensive coverage.
+**Testing**: See priority and stack resolution tests in `crates/echomancy-core/src/domain/`.

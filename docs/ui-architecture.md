@@ -1,43 +1,51 @@
 # UI Architecture
 
-How the React UI layer interacts with the game engine through HTTP boundaries.
+How the Bevy UI layer interacts with the game engine through the ECS boundary.
 
 ## Key Concepts
 
-- **Network Boundary** - Frontend and backend are separated by HTTP
-- **No Direct Imports** - React cannot import server-side code
-- **API Routes** - Next.js routes handle HTTP and call application layer
+- **ECS Boundary** - Game engine lives as a Bevy Resource, UI reads derived state
+- **No Direct Imports** - Bevy systems read from Resources/Components, not Game directly
+- **Event-Driven Actions** - Player actions become Bevy Events applied to the Game resource
 - **Data Contracts** - GameSnapshot (player-relative) and GameStateExport (complete state)
 
 ## How It Works
 
 **Layer Structure**:
 ```
-src/app/                         # Next.js (client + API routes)
-├── (client components)          # React UI - HTTP requests only
-└── api/                         # API routes - calls application layer
+crates/echomancy-bevy/src/       # Bevy binary (UI rendering)
+├── main.rs                      # Entry point
+└── plugins/                     # Bevy plugins
+    ├── game_plugin              # GameState resource, action handling
+    ├── ui_plugin                # Camera, root layout
+    ├── hud_plugin               # Turn info, life totals, buttons
+    ├── battlefield_plugin       # Card rendering on battlefield
+    ├── hand_plugin              # Hand display, card interactions
+    └── error_plugin             # Error message display
 
-src/echomancy/application/       # Commands/Queries (server-only)
-    ↓
-src/echomancy/domainmodel/       # Game engine (server-only)
-    ↓
-src/echomancy/infrastructure/    # Repositories (server-only)
+crates/echomancy-core/src/       # Pure Rust library (no Bevy dependency)
+├── domain/                      # Game engine (domain model)
+├── application/                 # Commands/Queries
+└── infrastructure/              # UI contracts (GameSnapshot, etc.)
 ```
 
-**Communication Flow**: React → fetch() → API route → CommandHandler/QueryHandler → Game → Repository
+**Communication Flow**: Bevy Input System -> Bevy Event -> Action Handler System -> game.apply() -> GameState Resource mutated -> Snapshot refresh system -> UI systems read snapshot
 
-**Import Rules**:
-- React: No server imports. Use fetch() to call API routes.
-- API routes: Can import application/ and infrastructure/
-- Commands/Queries: Can import domainmodel/ and infrastructure/
-- Domain model: Can import infrastructure/ interfaces only
+**Data Flow**:
+- Game state wrapped as `Resource<GameState>`
+- `GameSnapshot` derived when `GameState` changes
+- UI systems read the snapshot resource to render
+- Player actions dispatched as Bevy Events
 
-See `docs/api-conventions.md` for REST API design and `docs/commands-and-queries.md` for application layer patterns.
+See `docs/commands-and-queries.md` for application layer patterns.
 
 ## Rules
 
-- Client and server communicate only via HTTP/JSON
-- Client receives plain JSON objects, never class instances
-- API routes are the boundary (parse HTTP, call handlers, return JSON)
+- echomancy-core has zero Bevy dependency (pure Rust library)
+- Bevy systems never call domain methods directly on Game — use the action event pattern
 - GameSnapshot is filtered and player-relative
 - GameStateExport is complete and unfiltered
+- Plugin architecture: one EchomancyPlugin composed of sub-plugins
+- Game aggregate lives as a Bevy Resource
+- Player actions become Bevy Events
+- Use States enum for game phases, StateScoped for cleanup

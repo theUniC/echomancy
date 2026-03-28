@@ -58,7 +58,7 @@ Task tool:
 
     Constraints:
     - Read AGENTS.md for project rules
-    - Use bun test (not npm)
+    - Use cargo test / cargo clippy
     - Follow TDD
 
     Report back: What you implemented, test results, files changed
@@ -90,22 +90,22 @@ Task tool:
 ### 5. Finalize
 
 After all tasks complete:
-- Run full test suite: `bun test`
+- Run full test suite: `cargo test`
 - Use `/git-workflow` to commit
 
 ## Example: UI + Backend in Parallel
 
 ```
 Task 1 (parallel): ui-engineer
-  "Implement HandDisplay component showing cards in player's hand"
+  "Implement HandDisplay Bevy plugin showing cards in player's hand"
 
 Task 2 (parallel): senior-backend-engineer
-  "Add getHand query to return player's hand from GameSnapshot"
+  "Add get_hand query to return player's hand from GameSnapshot"
 
 [Both complete]
 
 Task 3: mtg-code-reviewer
-  "Review HandDisplay and getHand implementations"
+  "Review HandDisplay and get_hand implementations"
 
 [Fix any issues]
 
@@ -115,9 +115,9 @@ Task 3: mtg-code-reviewer
 ## Red Flags
 
 **Stop if:**
-- Subagent is stuck or confused → provide more context
-- Tasks are conflicting → make sequential instead
-- Scope is growing → pause and re-plan
+- Subagent is stuck or confused -> provide more context
+- Tasks are conflicting -> make sequential instead
+- Scope is growing -> pause and re-plan
 
 **Never:**
 - Skip code review

@@ -8,7 +8,7 @@ The zone system and card model in Echomancy.
 - **CardDefinition** - Shared template/blueprint for all copies of a card
 - **CardInstance** - Specific copy in the game with unique ID and owner
 - **Zone Transitions** - Cards move between zones via game actions
-- **Enter the Battlefield** - Must use `game.enterBattlefield()` to trigger ETB system
+- **Enter the Battlefield** - Must use `game.enter_battlefield()` to trigger ETB system
 
 ## How It Works
 
@@ -21,7 +21,7 @@ The zone system and card model in Echomancy.
 - **LIBRARY** - Draw pile (private, ordered)
 - **EXILE** - Removed from game zone
 
-Constants available in `src/echomancy/domainmodel/game/Game.ts` via ZoneNames object.
+Constants available in `crates/echomancy-core/src/domain/enums.rs` via ZoneName enum.
 
 ### Player Zones
 
@@ -31,7 +31,7 @@ Each player has isolated zones: hand, battlefield, graveyard. Library and exile 
 
 **CardDefinition** is the shared template containing:
 - Unique identifier, display name, card types
-- Optional spell effect, activated ability, triggered abilities array
+- Optional spell effect, activated ability, triggered abilities
 
 **CardInstance** is a specific copy with:
 - Unique instance ID (different each game)
@@ -42,7 +42,7 @@ This separation allows multiple copies while maintaining individual identity for
 
 ### Supported Card Types
 
-CREATURE, INSTANT, SORCERY, ARTIFACT, ENCHANTMENT, PLANESWALKER, LAND.
+Creature, Instant, Sorcery, Artifact, Enchantment, Planeswalker, Land.
 
 Cards can have multiple types (e.g., Artifact Creature). All permanent types fully supported in MVP (can enter battlefield, have abilities, move between zones, be targeted).
 
@@ -51,23 +51,23 @@ Cards can have multiple types (e.g., Artifact Creature). All permanent types ful
 ### Zone Transitions
 
 **Playing a Land:**
-HAND → BATTLEFIELD directly (doesn't use stack).
+HAND -> BATTLEFIELD directly (doesn't use stack).
 
 **Casting a Spell:**
-HAND → STACK → Resolution:
-- Instants/Sorceries → GRAVEYARD
-- Permanents → BATTLEFIELD
+HAND -> STACK -> Resolution:
+- Instants/Sorceries -> GRAVEYARD
+- Permanents -> BATTLEFIELD
 
 **Enter the Battlefield:**
-Always use `game.enterBattlefield()`, never push directly to battlefield array. Direct manipulation bypasses ETB trigger system and causes silent bugs.
+Always use `game.enter_battlefield()`, never push directly to battlefield collections. Direct manipulation bypasses ETB trigger system and causes silent bugs.
 
-See `src/echomancy/domainmodel/game/Game.ts` for implementation.
+See `crates/echomancy-core/src/domain/game/` for implementation.
 
 ### Zone Change Events
 
 ZONE_CHANGED event emitted when cards move. Enables triggers:
 - **ETB** - Destination zone is BATTLEFIELD
-- **Dies** - BATTLEFIELD → GRAVEYARD
+- **Dies** - BATTLEFIELD -> GRAVEYARD
 - **Leaves battlefield** - Source zone is BATTLEFIELD
 
 See `docs/game-events.md` for event details.
@@ -76,7 +76,7 @@ See `docs/game-events.md` for event details.
 
 - Each player has isolated zones (hand, battlefield, graveyard)
 - Cards move between zones via game actions only
-- Use `game.enterBattlefield()` for all battlefield entry
+- Use `game.enter_battlefield()` for all battlefield entry
 - CardInstances have unique IDs; CardDefinitions are shared templates
 - Cards can have multiple types simultaneously
 - Zone change events trigger abilities

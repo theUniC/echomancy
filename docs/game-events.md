@@ -25,8 +25,8 @@ Cards declare triggers with conditions and effects. They do not subscribe to eve
 **ZoneChangedEvent**
 Emitted when card moves between zones. Foundation for:
 - ETB triggers (entering battlefield from hand/stack)
-- Dies triggers (battlefield → graveyard)
-- Leaves battlefield triggers (battlefield → any zone)
+- Dies triggers (battlefield -> graveyard)
+- Leaves battlefield triggers (battlefield -> any zone)
 
 Includes: card, origin zone, destination zone, controller.
 
@@ -59,19 +59,19 @@ Emitted after spell resolves from stack. Fires after effect applied and card mov
 
 | Game Method | Event Emitted |
 |-------------|---------------|
-| enterBattlefield() | ZONE_CHANGED |
-| declareAttacker() | CREATURE_DECLARED_ATTACKER |
-| resolveSpell() | SPELL_RESOLVED |
-| advanceStep() | STEP_STARTED |
-| endCombat() | COMBAT_ENDED |
+| enter_battlefield() | ZONE_CHANGED |
+| declare_attacker() | CREATURE_DECLARED_ATTACKER |
+| resolve_spell() | SPELL_RESOLVED |
+| advance_step() | STEP_STARTED |
+| end_combat() | COMBAT_ENDED |
 
-See `src/domainmodel/game/game.ts` for implementation.
+See `crates/echomancy-core/src/domain/game/` for implementation.
 
 ### Event Type Constants
 
-GameEventTypes object provides constants: ZONE_CHANGED, STEP_STARTED, CREATURE_DECLARED_ATTACKER, COMBAT_ENDED, SPELL_RESOLVED.
+GameEventType enum provides variants: ZoneChanged, StepStarted, CreatureDeclaredAttacker, CombatEnded, SpellResolved.
 
-Use these instead of string literals. Located in `src/echomancy/domainmodel/game/GameEvents.ts`.
+Use these instead of string literals. Located in `crates/echomancy-core/src/domain/events.rs`.
 
 ## Rules
 
@@ -79,4 +79,4 @@ Use these instead of string literals. Located in `src/echomancy/domainmodel/game
 - Triggers evaluated synchronously after event occurs
 - Same game state + action = same events (deterministic)
 - Cards declare triggers, don't subscribe to events
-- Use GameEventTypes constants, never string literals
+- Use GameEventType enum variants, never string literals

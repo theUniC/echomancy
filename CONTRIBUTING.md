@@ -62,7 +62,7 @@ Please do NOT:
 The engine:
 - Validates all actions
 - Owns all state transitions
-- Exposes state via `Game.exportState()`
+- Exposes state via `game.export_state()`
 
 The UI:
 - Consumes exported state

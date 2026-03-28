@@ -11,7 +11,7 @@ The mana system models resource production and consumption for casting spells an
 
 ## How It Works
 
-See `src/echomancy/domainmodel/game/Game.ts` for implementation.
+See `crates/echomancy-core/src/domain/game/` for implementation.
 
 **Pool Structure**: Each player has one mana pool tracking integer amounts per color (all start at 0).
 
@@ -35,4 +35,4 @@ See `src/echomancy/domainmodel/game/Game.ts` for implementation.
 - Pools clear at CLEANUP step (MVP)
 - Pools initialize empty (all colors at 0) when game starts
 
-**Testing**: See `Game.manaPool.test.ts` for comprehensive test coverage.
+**Testing**: See mana pool tests in `crates/echomancy-core/src/domain/`.

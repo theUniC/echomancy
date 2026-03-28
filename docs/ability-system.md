@@ -42,19 +42,19 @@ Automatic abilities that fire when trigger condition is met.
 
 Condition is pure function with no side effects. Receives game state, event, source card; returns boolean.
 
-See `src/echomancy/domainmodel/game/Game.ts` for trigger evaluation implementation.
+See `crates/echomancy-core/src/domain/game/` for trigger evaluation implementation.
 
 ### Type Guards
 
-- `isActivatedAbility()` - Checks for cost and effect properties
-- `isTrigger()` - Checks for eventType and condition properties
+- `is_activated_ability()` - Checks for cost and effect properties
+- `is_trigger()` - Checks for event_type and condition properties
 
-Located in ability type definitions.
+Located in ability type definitions in `crates/echomancy-core/src/domain/abilities.rs`.
 
 ### Adding Abilities to Cards
 
 Cards can have:
-- `activatedAbility` property - Single activated ability
+- `activated_ability` property - Single activated ability
 - `triggers` array - Multiple triggered abilities
 
 MVP doesn't support multiple activated abilities per card.
@@ -65,6 +65,5 @@ MVP doesn't support multiple activated abilities per card.
 - Never use `game.apply()` inside an effect (reserved for player actions)
 - Trigger conditions must be pure functions
 - Abilities don't store mutable state
-- Use constants (GameEventTypes, ZoneNames) instead of string literals
+- Use enums (GameEventType, ZoneName) instead of string literals
 - Game evaluates triggers at explicit points only (no continuous evaluation)
-

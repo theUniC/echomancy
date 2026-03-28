@@ -13,13 +13,13 @@ Finalize work by running verification, committing changes, and optionally creati
 
 **Required commands before commit:**
 ```bash
-bun test && bun run lint && bun run format
+cargo test && cargo clippy
 ```
 
 **Check if docs need updating:**
-- New functionality → Update relevant `docs/*.md`
-- New specs → Save to `docs/specs/`
-- Changed behavior → Update affected documentation
+- New functionality -> Update relevant `docs/*.md`
+- New specs -> Save to `docs/specs/`
+- Changed behavior -> Update affected documentation
 
 ## Process
 
@@ -28,10 +28,10 @@ bun test && bun run lint && bun run format
 Run all checks:
 
 ```bash
-bun test && bun run lint && bun run format
+cargo test && cargo clippy
 ```
 
-**All three must pass.** If any fails:
+**Both must pass.** If either fails:
 - Fix the issue
 - Re-run verification
 - Do not proceed until green
@@ -39,9 +39,9 @@ bun test && bun run lint && bun run format
 ### 2. Check Documentation
 
 Ask yourself:
-- Did I add new functionality? → Update `docs/`
-- Did I change existing behavior? → Update affected docs
-- Did I add a new feature? → Spec should already exist in `docs/specs/`
+- Did I add new functionality? -> Update `docs/`
+- Did I change existing behavior? -> Update affected docs
+- Did I add a new feature? -> Spec should already exist in `docs/specs/`
 
 ### 3. Review Changes
 
@@ -106,7 +106,7 @@ EOF
 
 ```bash
 # Full workflow
-bun test && bun run lint && bun run format
+cargo test && cargo clippy
 git add <files>
 git commit -m "<type>: <description>"
 
@@ -119,7 +119,7 @@ gh pr create --title "<title>" --body "<body>"
 
 **Stop and fix if:**
 - Tests failing
-- Lint errors
+- Clippy warnings
 - Committing `.env` or credentials
 - Large unrelated changes in diff
 - Missing documentation for new features
@@ -133,9 +133,8 @@ gh pr create --title "<title>" --body "<body>"
 ## Verification Checklist
 
 Before marking work complete:
-- [ ] `bun test` passes
-- [ ] `bun run lint` passes
-- [ ] `bun run format` applied
+- [ ] `cargo test` passes
+- [ ] `cargo clippy` passes
 - [ ] Documentation updated (if applicable)
 - [ ] Commit message follows convention
 - [ ] No secrets in committed files

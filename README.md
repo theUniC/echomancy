@@ -4,7 +4,7 @@ A Magic: The Gathering game engine built with Domain-Driven Design principles.
 
 ## About
 
-TypeScript implementation of MTG game engine, focusing on clean architecture and robust domain modeling.
+Rust implementation of MTG game engine, focusing on clean architecture and robust domain modeling.
 
 **Current Features:**
 - Turn system with all phases (Untap, Upkeep, Draw, Main, Combat, Cleanup)
@@ -17,29 +17,31 @@ TypeScript implementation of MTG game engine, focusing on clean architecture and
 - Domain-driven design with comprehensive test coverage
 
 **Tech Stack:**
-- Next.js 16 with App Router
-- React 19 with React Compiler
-- TypeScript (strict mode)
-- Tailwind CSS v4
-- Biome (linting & formatting)
-- Vitest (testing)
-- Bun runtime
+- Rust (latest stable)
+- Bevy 0.18 (game engine / UI)
+- Cargo workspace (echomancy-core + echomancy-bevy)
+- thiserror (typed errors)
+- serde (serialization)
+- cargo clippy (linting)
+- cargo test (testing)
 
 ## Development
 
 ```bash
-# Install dependencies
-bun install
+# Build the project
+cargo build
 
-# Run development server
-bun dev
+# Run the game
+cargo run -p echomancy-bevy
 
 # Run tests
-bun test
+cargo test
 
-# Lint & format
-bun run lint
-bun run format
+# Lint
+cargo clippy
+
+# Build release
+cargo build --release
 ```
 
 ## Documentation
@@ -62,12 +64,11 @@ bun run format
 - [Game Events](docs/game-events.md) - Event types and trigger system
 - [Cost System](docs/cost-system.md) - Cost types and payment
 - [Commands and Queries](docs/commands-and-queries.md) - Application layer patterns
-- [API Conventions](docs/api-conventions.md) - REST API design
 - [Game Snapshot](docs/game-snapshot.md) - UI-facing game state views
 - [Game State Export](docs/game-state-export.md) - Raw engine state export
-- [UI Architecture](docs/ui-architecture.md) - Frontend structure
+- [UI Architecture](docs/ui-architecture.md) - Bevy UI structure
 - [Testing Guide](docs/testing-guide.md) - Test helpers and patterns
 
 ## Project Management
 
-See [BACKLOG.md](BACKLOG.md) for current status, MVP scope, and active work.
+See [BACKLOG.md](docs/specs/BACKLOG.md) for current status, MVP scope, and active work.

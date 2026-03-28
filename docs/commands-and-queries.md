@@ -4,56 +4,53 @@ CQRS-lite pattern for application-level operations in Echomancy.
 
 ## Key Concepts
 
-- **Command**: Immutable data class representing an intention to change state
+- **Command**: Data structure representing an intention to change state
 - **CommandHandler**: Validates and executes the command
-- **Commands are fire-and-forget**: No return value (void)
+- **Commands are fire-and-forget**: No return value
 - **Queries** (future): Read operations that return data without mutating state
-- **Application boundary**: Commands cross the boundary between API and domain
-
-**For REST API design**: See `api-conventions.md`
+- **Application boundary**: Commands cross the boundary between UI and domain
 
 ## How It Works
 
-Each command lives in its own folder with a single file containing both Command and CommandHandler classes:
+Commands and handlers live in the application layer:
 
 ```
-src/echomancy/application/command/
-├── create-game/
-│   ├── CreateGameCommand.ts
-│   └── CreateGameCommand.test.ts
-└── join-game/
-    ├── JoinGameCommand.ts
-    └── JoinGameCommand.test.ts
+crates/echomancy-core/src/application/
+├── mod.rs
+└── commands/
+    ├── create_game.rs
+    └── join_game.rs
 ```
 
-### Command Class
+### Command Pattern
 
-Simple data transfer object:
+Commands are simple data transfer structs:
 
-```typescript
-export class CreateGameCommand {
-  constructor(public id: string) {}
+```rust
+pub(crate) struct CreateGameCommand {
+    pub id: String,
 }
 ```
 
-### CommandHandler Class
+### CommandHandler
 
 Validation + execution:
 
-```typescript
-export class CreateGameCommandHandler {
-  constructor(private gameRepository: GameRepository) {}
+```rust
+pub(crate) struct CreateGameCommandHandler<'a> {
+    game_repository: &'a dyn GameRepository,
+}
 
-  handle(message: CreateGameCommand) {
-    // Validate, execute, persist
-  }
+impl<'a> CreateGameCommandHandler<'a> {
+    pub fn handle(&self, command: CreateGameCommand) -> Result<(), GameError> {
+        // Validate, execute, persist
+    }
 }
 ```
 
 ## Rules
 
 ### Command Structure
-- Use `public` constructor parameters
 - All parameters are primitives or value objects
 - Immutable after construction
 - No methods, no logic
@@ -61,8 +58,7 @@ export class CreateGameCommandHandler {
 ### Naming Convention
 - Command: `{Action}{Entity}Command` (e.g., `CreateGameCommand`)
 - Handler: `{Action}{Entity}CommandHandler`
-- File: `{Action}{Entity}Command.ts`
-- Folder: `{action}-{entity}/` (kebab-case)
+- Module: `{action}_{entity}.rs` (snake_case)
 
 ### Validation Order
 
@@ -72,50 +68,38 @@ Handlers validate in this order:
 2. **Existence checks**: Verify required entities exist
 3. **Domain validation**: Let domain model enforce its rules
 
-Example:
-```typescript
-handle(message: JoinGameCommand) {
-  // 1. Input validation
-  if (!isValidUUID(message.gameId)) {
-    throw new InvalidGameIdError(message.gameId)
-  }
-
-  // 2. Existence check
-  const game = this.gameRepository.byId(message.gameId)
-  if (!game) throw new GameNotFoundError(message.gameId)
-
-  // 3. Domain validation (throws if invalid)
-  game.addPlayer(new Player(message.playerId, message.playerName))
-}
-```
-
 ### Error Handling
 
-Commands throw domain-specific errors:
+Commands return `Result<(), GameError>` with typed errors:
 
 | Error | When |
 |-------|------|
-| `InvalidGameIdError` | Game ID not valid UUID |
-| `InvalidPlayerIdError` | Player ID not valid UUID |
+| `InvalidGameIdError` | Game ID not valid |
+| `InvalidPlayerIdError` | Player ID not valid |
 | `GameNotFoundError` | Game doesn't exist |
 | `DuplicatePlayerError` | Player already in game |
 
-**Implementation**: All errors extend `GameError` in `src/echomancy/domainmodel/game/errors/`
+**Implementation**: All errors defined in `crates/echomancy-core/src/domain/errors.rs`
 
 ### Testing
 
-Each command has comprehensive tests:
+Each command has comprehensive tests in inline `#[cfg(test)]` modules:
 
-```typescript
-describe("JoinGameCommand", () => {
-  it("throws when game ID is invalid", () => {
-    // Test input validation
-  })
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-  it("adds player to existing game", () => {
-    // Test happy path
-  })
-})
+    #[test]
+    fn throws_when_game_id_is_invalid() {
+        // Test input validation
+    }
+
+    #[test]
+    fn adds_player_to_existing_game() {
+        // Test happy path
+    }
+}
 ```
 
-**Full examples**: See `*Command.test.ts` files in `src/echomancy/application/command/`
+**Full examples**: See command modules in `crates/echomancy-core/src/application/`

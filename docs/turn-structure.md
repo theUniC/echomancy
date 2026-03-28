@@ -40,15 +40,15 @@ ENDING PHASE
 
 ### Step Constants
 
-The Step object provides type-safe references: UNTAP, UPKEEP, DRAW, FIRST_MAIN, BEGINNING_OF_COMBAT, DECLARE_ATTACKERS, DECLARE_BLOCKERS, COMBAT_DAMAGE, END_OF_COMBAT, SECOND_MAIN, END_STEP, CLEANUP.
+The Step enum provides type-safe variants: Untap, Upkeep, Draw, FirstMain, BeginningOfCombat, DeclareAttackers, DeclareBlockers, CombatDamage, EndOfCombat, SecondMain, EndStep, Cleanup.
 
-See `src/echomancy/domainmodel/game/Steps.ts`.
+See `crates/echomancy-core/src/domain/enums.rs`.
 
 ### Step Progression
 
-StepMachine advances steps. Returns next step plus a flag indicating whether turn passes to next player (CLEANUP → UNTAP transition).
+StepMachine advances steps. Returns next step plus a flag indicating whether turn passes to next player (CLEANUP -> UNTAP transition).
 
-See `src/echomancy/domainmodel/game/StepMachine.ts`.
+See `crates/echomancy-core/src/domain/game/`.
 
 ### Step Behaviors
 
@@ -94,4 +94,4 @@ Engine supports scheduling extra phases for effects like "take an extra combat p
 - Sorceries and creatures cast during main phases only
 - Instants cast whenever player has priority
 - Untap step has no priority
-- Turn passes to next player on CLEANUP → UNTAP transition
+- Turn passes to next player on CLEANUP -> UNTAP transition
