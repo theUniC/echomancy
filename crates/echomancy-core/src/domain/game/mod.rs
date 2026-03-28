@@ -156,6 +156,12 @@ pub struct Game {
     players_who_attempted_empty_library_draw: HashSet<String>,
     /// The outcome when the game finishes.
     outcome: Option<GameOutcome>,
+    /// The ID of the player who goes first (set during `start()`).
+    ///
+    /// Per MTG Rule 103.7a, only this player skips their draw on the very first
+    /// Draw step of the game (turn 1, their turn). All other players draw
+    /// normally on their first turn.
+    starting_player_id: String,
 }
 
 impl Game {
@@ -183,6 +189,7 @@ impl Game {
             events: Vec::new(),
             players_who_attempted_empty_library_draw: HashSet::new(),
             outcome: None,
+            starting_player_id: String::new(),
         }
     }
 
@@ -288,6 +295,9 @@ impl Game {
                 self.draw_cards_internal(pid, 7);
             }
         }
+
+        // Record the starting player (MTG 103.7a — they skip their first draw).
+        self.starting_player_id = starting_player_id.to_owned();
 
         // Initialize turn state
         self.turn_state = TurnState::initial(PlayerId::new(starting_player_id));

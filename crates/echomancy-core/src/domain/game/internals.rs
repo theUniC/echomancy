@@ -546,11 +546,14 @@ impl Game {
             self.auto_untap_for_current_player();
         }
 
-        // Automatic draw during DRAW step (MTG 504.1 — not using stack)
-        // First turn player skips their first draw (MTG 103.8a)
+        // Automatic draw during DRAW step (MTG 504.1 — not using stack).
+        // MTG Rule 103.7a: only the STARTING player skips their draw on the very
+        // first Draw step of the game. All other players (including P2 on turn 1)
+        // draw normally.
         if step == Step::Draw {
-            let is_first_turn = self.turn_state.turn_number() == 1;
-            if !is_first_turn {
+            let is_starting_player_first_turn = self.turn_state.turn_number() == 1
+                && self.turn_state.current_player_id().as_str() == self.starting_player_id;
+            if !is_starting_player_first_turn {
                 let current_player = self.turn_state.current_player_id().as_str().to_owned();
                 let draw_events = self.draw_cards_internal(&current_player, 1);
                 events.extend(draw_events);
