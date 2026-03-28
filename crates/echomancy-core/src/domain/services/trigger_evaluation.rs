@@ -126,6 +126,11 @@ fn event_matches_trigger_type(event: &GameEvent, event_type: &TriggerEventType) 
             false
         }
         (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::CombatEnded) => false,
+        // Non-matching combinations — ManaAdded event (no trigger type maps to it yet).
+        (GameEvent::ManaAdded { .. }, TriggerEventType::ZoneChanged) => false,
+        (GameEvent::ManaAdded { .. }, TriggerEventType::StepStarted) => false,
+        (GameEvent::ManaAdded { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
+        (GameEvent::ManaAdded { .. }, TriggerEventType::CombatEnded) => false,
     }
 }
 

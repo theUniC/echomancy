@@ -70,6 +70,11 @@ pub struct CardInstanceExport {
     pub creature_state: Option<CreatureStateExport>,
     /// Planeswalker state — placeholder for future expansion.
     pub is_planeswalker: bool,
+    /// Whether this permanent is tapped (valid for all permanents on the battlefield).
+    ///
+    /// `None` for cards that are not permanents or not on the battlefield.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_tapped: Option<bool>,
 }
 
 /// Zone export — all cards in a zone, unfiltered.
@@ -328,6 +333,9 @@ pub(crate) fn export_card_instance(
 
     let creature_state = permanent_state.and_then(export_creature_state);
 
+    // Expose tapped state for all permanents (not just creatures).
+    let is_tapped = permanent_state.map(|s| s.is_tapped());
+
     CardInstanceExport {
         instance_id: card.instance_id().to_owned(),
         owner_id: card.owner_id().to_owned(),
@@ -339,6 +347,7 @@ pub(crate) fn export_card_instance(
         toughness: def.toughness(),
         creature_state,
         is_planeswalker,
+        is_tapped,
     }
 }
 

@@ -6,36 +6,68 @@
 //!
 //! Mirrors the TypeScript `CardCatalog` from `cards/CardCatalog.ts`.
 
+use crate::domain::abilities::{ActivatedAbility, ActivationCost};
 use crate::domain::cards::card_definition::CardDefinition;
-use crate::domain::enums::CardType;
+use crate::domain::effects::Effect;
+use crate::domain::enums::{CardType, ManaColor};
 
 // ============================================================================
 // Basic Lands
 // ============================================================================
 
 /// Return the `Forest` basic land definition.
+///
+/// Activated ability: {T} → Add {G}.
 pub fn forest() -> CardDefinition {
     CardDefinition::new("forest", "Forest", vec![CardType::Land])
+        .with_activated_ability(ActivatedAbility {
+            cost: ActivationCost::Tap,
+            effect: Effect::AddMana { color: ManaColor::Green, amount: 1 },
+        })
 }
 
 /// Return the `Mountain` basic land definition.
+///
+/// Activated ability: {T} → Add {R}.
 pub fn mountain() -> CardDefinition {
     CardDefinition::new("mountain", "Mountain", vec![CardType::Land])
+        .with_activated_ability(ActivatedAbility {
+            cost: ActivationCost::Tap,
+            effect: Effect::AddMana { color: ManaColor::Red, amount: 1 },
+        })
 }
 
 /// Return the `Plains` basic land definition.
+///
+/// Activated ability: {T} → Add {W}.
 pub fn plains() -> CardDefinition {
     CardDefinition::new("plains", "Plains", vec![CardType::Land])
+        .with_activated_ability(ActivatedAbility {
+            cost: ActivationCost::Tap,
+            effect: Effect::AddMana { color: ManaColor::White, amount: 1 },
+        })
 }
 
 /// Return the `Island` basic land definition.
+///
+/// Activated ability: {T} → Add {U}.
 pub fn island() -> CardDefinition {
     CardDefinition::new("island", "Island", vec![CardType::Land])
+        .with_activated_ability(ActivatedAbility {
+            cost: ActivationCost::Tap,
+            effect: Effect::AddMana { color: ManaColor::Blue, amount: 1 },
+        })
 }
 
 /// Return the `Swamp` basic land definition.
+///
+/// Activated ability: {T} → Add {B}.
 pub fn swamp() -> CardDefinition {
     CardDefinition::new("swamp", "Swamp", vec![CardType::Land])
+        .with_activated_ability(ActivatedAbility {
+            cost: ActivationCost::Tap,
+            effect: Effect::AddMana { color: ManaColor::Black, amount: 1 },
+        })
 }
 
 // ============================================================================
@@ -84,6 +116,41 @@ mod tests {
         assert_eq!(f.name(), "Forest");
         assert!(f.is_land());
         assert!(f.mana_cost().is_none());
+    }
+
+    #[test]
+    fn forest_has_green_mana_ability() {
+        let f = forest();
+        let ability = f.activated_ability().expect("Forest should have an activated ability");
+        assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Green, amount: 1 });
+    }
+
+    #[test]
+    fn mountain_has_red_mana_ability() {
+        let m = mountain();
+        let ability = m.activated_ability().expect("Mountain should have an activated ability");
+        assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Red, amount: 1 });
+    }
+
+    #[test]
+    fn plains_has_white_mana_ability() {
+        let p = plains();
+        let ability = p.activated_ability().expect("Plains should have an activated ability");
+        assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::White, amount: 1 });
+    }
+
+    #[test]
+    fn island_has_blue_mana_ability() {
+        let i = island();
+        let ability = i.activated_ability().expect("Island should have an activated ability");
+        assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Blue, amount: 1 });
+    }
+
+    #[test]
+    fn swamp_has_black_mana_ability() {
+        let s = swamp();
+        let ability = s.activated_ability().expect("Swamp should have an activated ability");
+        assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Black, amount: 1 });
     }
 
     #[test]

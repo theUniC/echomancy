@@ -113,6 +113,10 @@ pub(crate) struct HudPlayerGraveyard;
 #[derive(Component)]
 pub(crate) struct HudOpponentGraveyard;
 
+/// Marks the mana pool label.
+#[derive(Component)]
+pub(crate) struct HudManaPool;
+
 /// Marks the error message text node.
 #[derive(Component)]
 pub(crate) struct HudErrorText;
@@ -165,6 +169,28 @@ pub(crate) fn format_turn_label(turn_number: u32, step: Step) -> String {
 /// Example: `"Playing as: Player 1"`
 pub(crate) fn format_active_player_label(player_name: &str) -> String {
     format!("Playing as: {player_name}")
+}
+
+/// Format the mana pool display string from the snapshot's mana pool HashMap.
+///
+/// Displays each non-zero color in WUBRG order followed by colorless.
+/// Empty pool shows "Mana: —".
+///
+/// Example: `"Mana: GGR"` or `"Mana: —"`
+pub(crate) fn format_mana_pool(mana_pool: &std::collections::HashMap<String, u32>) -> String {
+    let mut parts = String::new();
+    let order = [("W", "W"), ("U", "U"), ("B", "B"), ("R", "R"), ("G", "G"), ("C", "C")];
+    for (key, symbol) in &order {
+        let amount = mana_pool.get(*key).copied().unwrap_or(0);
+        for _ in 0..amount {
+            parts.push_str(symbol);
+        }
+    }
+    if parts.is_empty() {
+        "Mana: \u{2014}".to_owned()
+    } else {
+        format!("Mana: {parts}")
+    }
 }
 
 // ============================================================================
@@ -375,6 +401,28 @@ pub(crate) fn spawn_hud(mut commands: Commands) {
                 BackgroundColor(Color::srgb(0.30, 0.30, 0.35)),
             ));
 
+            // Mana pool
+            panel.spawn((
+                HudManaPool,
+                Text::new("Mana: \u{2014}"),
+                TextFont {
+                    font_size: 13.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.95, 0.85, 0.30)),
+            ));
+
+            // Separator
+            panel.spawn((
+                Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Px(1.0),
+                    margin: UiRect::vertical(Val::Px(4.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.30, 0.30, 0.35)),
+            ));
+
             // Error message box (always present, visibility-toggled)
             panel
                 .spawn((
@@ -474,6 +522,23 @@ type OppGraveyardQuery<'w, 's> = Query<
     ),
 >;
 
+type ManaPoolQuery<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut Text,
+    (
+        With<HudManaPool>,
+        Without<HudOpponentGraveyard>,
+        Without<HudPlayerGraveyard>,
+        Without<HudOpponentHandCount>,
+        Without<HudOpponentLife>,
+        Without<HudPlayerLife>,
+        Without<HudPriorityLabel>,
+        Without<HudTurnLabel>,
+        Without<HudActivePlayerLabel>,
+    ),
+>;
+
 // ============================================================================
 // Update systems
 // ============================================================================
@@ -496,6 +561,7 @@ pub(crate) fn update_hud(
     mut opp_hand_q: OppHandQuery,
     mut player_gy_q: PlayerGraveyardQuery,
     mut opp_gy_q: OppGraveyardQuery,
+    mut mana_pool_q: ManaPoolQuery,
 ) {
     if snapshot_changed.read().count() == 0 {
         return;
@@ -569,6 +635,11 @@ pub(crate) fn update_hud(
 
     if let Ok(mut text) = player_gy_q.single_mut() {
         *text = Text::new(format!("Your GY: {}", priv_state.graveyard.len()));
+    }
+
+    // Mana pool
+    if let Ok(mut text) = mana_pool_q.single_mut() {
+        *text = Text::new(format_mana_pool(&priv_state.mana_pool));
     }
 }
 
@@ -787,5 +858,37 @@ mod tests {
     fn format_active_player_label_includes_player_2_name() {
         let label = format_active_player_label("Player 2");
         assert_eq!(label, "Playing as: Player 2");
+    }
+
+    // ---- format_mana_pool --------------------------------------------------
+
+    #[test]
+    fn empty_mana_pool_shows_dash() {
+        let pool = std::collections::HashMap::new();
+        assert_eq!(format_mana_pool(&pool), "Mana: \u{2014}");
+    }
+
+    #[test]
+    fn one_green_mana_shows_g() {
+        let mut pool = std::collections::HashMap::new();
+        pool.insert("G".to_owned(), 1);
+        assert_eq!(format_mana_pool(&pool), "Mana: G");
+    }
+
+    #[test]
+    fn two_red_mana_shows_rr() {
+        let mut pool = std::collections::HashMap::new();
+        pool.insert("R".to_owned(), 2);
+        assert_eq!(format_mana_pool(&pool), "Mana: RR");
+    }
+
+    #[test]
+    fn mixed_mana_shows_in_wubrg_order() {
+        let mut pool = std::collections::HashMap::new();
+        pool.insert("G".to_owned(), 1);
+        pool.insert("R".to_owned(), 1);
+        pool.insert("W".to_owned(), 1);
+        // Order should be W, U, B, R, G
+        assert_eq!(format_mana_pool(&pool), "Mana: WRG");
     }
 }

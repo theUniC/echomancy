@@ -103,7 +103,28 @@ pub(crate) struct CardSpawnData<'a> {
 
 /// Spawn a card as a Bevy UI node subtree and return its root `Entity`.
 pub(crate) fn spawn_card(commands: &mut Commands, data: &CardSpawnData<'_>) -> Entity {
-    let border_color = card_border_color(data.types);
+    spawn_card_inner(commands, data, None).id()
+}
+
+/// Spawn a card as a Bevy UI node subtree and return the `EntityCommands` for the root.
+///
+/// `override_border` overrides the default type-based border color (e.g. gold for
+/// tappable lands).
+pub(crate) fn spawn_card_with_tappable<'a>(
+    commands: &'a mut Commands,
+    data: &CardSpawnData<'_>,
+    override_border: Option<Color>,
+) -> EntityCommands<'a> {
+    spawn_card_inner(commands, data, override_border)
+}
+
+/// Internal implementation: spawn the card node subtree and return `EntityCommands`.
+fn spawn_card_inner<'a>(
+    commands: &'a mut Commands,
+    data: &CardSpawnData<'_>,
+    override_border: Option<Color>,
+) -> EntityCommands<'a> {
+    let border_color = override_border.unwrap_or_else(|| card_border_color(data.types));
     let bg_color = card_background_color(data.types);
     let alpha = if data.is_tapped { TAPPED_ALPHA } else { 1.0 };
 
@@ -120,71 +141,72 @@ pub(crate) fn spawn_card(commands: &mut Commands, data: &CardSpawnData<'_>) -> E
     let pt_text = card_pt_text(data.power, data.toughness);
     let name = data.name.to_owned();
 
-    commands
-        .spawn((
-            CardNode,
-            Node {
-                width: Val::Px(CARD_WIDTH),
-                height: Val::Px(CARD_HEIGHT),
-                border: UiRect::all(Val::Px(CARD_BORDER)),
-                flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(4.0)),
-                flex_shrink: 0.0,
-                overflow: Overflow::clip(),
+    let mut ec = commands.spawn((
+        CardNode,
+        Node {
+            width: Val::Px(CARD_WIDTH),
+            height: Val::Px(CARD_HEIGHT),
+            border: UiRect::all(Val::Px(CARD_BORDER)),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(Val::Px(4.0)),
+            flex_shrink: 0.0,
+            overflow: Overflow::clip(),
+            ..default()
+        },
+        BorderColor::all(border_color),
+        BackgroundColor(bg_color.with_alpha(alpha)),
+        Transform::from_rotation(Quat::from_rotation_z(rotation_z)),
+    ));
+
+    ec.with_children(|parent| {
+        // Card name
+        parent.spawn((
+            Text::new(name),
+            TextFont {
+                font_size: 12.0,
                 ..default()
             },
-            BorderColor::all(border_color),
-            BackgroundColor(bg_color.with_alpha(alpha)),
-            Transform::from_rotation(Quat::from_rotation_z(rotation_z)),
-        ))
-        .with_children(|parent| {
-            // Card name
+            TextColor(Color::WHITE),
+        ));
+
+        // Art placeholder (fills remaining space)
+        parent.spawn((
+            Node {
+                flex_grow: 1.0,
+                width: Val::Percent(100.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgb(0.12, 0.12, 0.14)),
+        ));
+
+        // Type line
+        parent.spawn((
+            Text::new(type_line),
+            TextFont {
+                font_size: 10.0,
+                ..default()
+            },
+            TextColor(Color::srgb(0.7, 0.7, 0.7)),
+        ));
+
+        // Power/toughness — creatures only
+        if let Some(pt) = pt_text {
             parent.spawn((
-                Text::new(name),
+                Text::new(pt),
                 TextFont {
-                    font_size: 12.0,
+                    font_size: 14.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),
-            ));
-
-            // Art placeholder (fills remaining space)
-            parent.spawn((
                 Node {
-                    flex_grow: 1.0,
-                    width: Val::Percent(100.0),
+                    align_self: AlignSelf::FlexEnd,
                     ..default()
                 },
-                BackgroundColor(Color::srgb(0.12, 0.12, 0.14)),
             ));
+        }
+    });
 
-            // Type line
-            parent.spawn((
-                Text::new(type_line),
-                TextFont {
-                    font_size: 10.0,
-                    ..default()
-                },
-                TextColor(Color::srgb(0.7, 0.7, 0.7)),
-            ));
-
-            // Power/toughness — creatures only
-            if let Some(pt) = pt_text {
-                parent.spawn((
-                    Text::new(pt),
-                    TextFont {
-                        font_size: 14.0,
-                        ..default()
-                    },
-                    TextColor(Color::WHITE),
-                    Node {
-                        align_self: AlignSelf::FlexEnd,
-                        ..default()
-                    },
-                ));
-            }
-        })
-        .id()
+    ec
 }
 
 // ============================================================================

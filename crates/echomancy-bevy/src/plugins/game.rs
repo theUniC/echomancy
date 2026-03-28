@@ -202,7 +202,9 @@ pub(crate) fn compute_snapshot(
 
     // Compute which land cards are playable right now for this viewer.
     let playable_lands = compute_playable_lands(game, viewer_player_id);
-    let result = AllowedActionsResult { playable_lands };
+    // Compute which battlefield lands can be tapped for mana right now.
+    let tappable_lands = compute_tappable_lands(game, viewer_player_id);
+    let result = AllowedActionsResult { playable_lands, tappable_lands };
 
     Ok((snapshot, result))
 }
@@ -237,6 +239,42 @@ fn compute_playable_lands(game: &Game, player_id: &str) -> Vec<String> {
     hand.iter()
         .filter(|c| c.definition().types().contains(&CardType::Land))
         .map(|c| c.instance_id().to_owned())
+        .collect()
+}
+
+/// Returns the instance IDs of untapped lands on the player's battlefield
+/// that can be tapped for mana right now.
+///
+/// Mana abilities (CR 605) can be activated whenever the player has priority,
+/// regardless of the game step.
+fn compute_tappable_lands(game: &Game, player_id: &str) -> Vec<String> {
+    // Player must have priority.
+    if game.priority_player_id() != Some(player_id) {
+        return Vec::new();
+    }
+
+    let battlefield = match game.battlefield(player_id) {
+        Ok(bf) => bf,
+        Err(_) => return Vec::new(),
+    };
+
+    battlefield
+        .iter()
+        .filter(|card| {
+            let is_land = card.definition().types().contains(&CardType::Land);
+            let has_mana_ability = card
+                .definition()
+                .activated_ability()
+                .is_some_and(|ab| ab.effect.is_mana_ability());
+            if !is_land || !has_mana_ability {
+                return false;
+            }
+            let is_tapped = game
+                .permanent_state(card.instance_id())
+                .is_some_and(|s| s.is_tapped());
+            !is_tapped
+        })
+        .map(|card| card.instance_id().to_owned())
         .collect()
 }
 

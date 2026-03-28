@@ -58,6 +58,9 @@ impl GetGameState {
 pub struct AllowedActionsResult {
     /// Instance IDs of land cards in the player's hand that can be played now.
     pub playable_lands: Vec<String>,
+    /// Instance IDs of untapped lands on the player's battlefield that can be
+    /// tapped to produce mana right now.
+    pub tappable_lands: Vec<String>,
 }
 
 /// Query that returns which actions a player can take right now.
@@ -104,9 +107,14 @@ impl GetAllowedActions {
         // the domain specification (CanPlayLand). If not allowed, return empty.
         let can_play_land = can_player_play_land(game, &self.player_id);
 
+        // Collect untapped lands on the player's battlefield that can produce mana.
+        // These are always tappable as long as the player has priority and they are untapped.
+        let tappable_lands = collect_tappable_lands(game, &self.player_id);
+
         if !can_play_land {
             return Ok(AllowedActionsResult {
                 playable_lands: Vec::new(),
+                tappable_lands,
             });
         }
 
@@ -119,7 +127,7 @@ impl GetAllowedActions {
             .map(|c| c.instance_id().to_owned())
             .collect();
 
-        Ok(AllowedActionsResult { playable_lands })
+        Ok(AllowedActionsResult { playable_lands, tappable_lands })
     }
 }
 
@@ -202,6 +210,40 @@ fn can_player_play_land(game: &Game, player_id: &str) -> bool {
     }
 
     true
+}
+
+/// Collect instance IDs of untapped lands on the player's battlefield that have
+/// a mana-producing activated ability.
+///
+/// Tapping lands for mana is possible whenever the player has priority,
+/// regardless of the game step (CR 605).
+fn collect_tappable_lands(game: &Game, player_id: &str) -> Vec<String> {
+    // Player must have priority to activate mana abilities.
+    if game.priority_player_id() != Some(player_id) {
+        return Vec::new();
+    }
+
+    game.battlefield(player_id)
+        .unwrap_or(&[])
+        .iter()
+        .filter(|card| {
+            // Must be a land with a mana ability.
+            let is_land = card.definition().types().contains(&CardType::Land);
+            let has_mana_ability = card
+                .definition()
+                .activated_ability()
+                .is_some_and(|ab| ab.effect.is_mana_ability());
+            if !is_land || !has_mana_ability {
+                return false;
+            }
+            // Must be untapped.
+            let is_tapped = game
+                .permanent_state(card.instance_id())
+                .is_some_and(|s| s.is_tapped());
+            !is_tapped
+        })
+        .map(|card| card.instance_id().to_owned())
+        .collect()
 }
 
 /// Build a `GameSummary` from a `&Game`.

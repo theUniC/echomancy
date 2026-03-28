@@ -7,6 +7,7 @@
 //! Mirrors the TypeScript `Effect` interface and its implementations from
 //! `effects/Effect.ts`, `effects/impl/DrawCardsEffect.ts`, etc.
 
+use crate::domain::enums::ManaColor;
 use crate::domain::targets::Target;
 
 /// Context carried with every effect resolution.
@@ -69,6 +70,13 @@ pub enum Effect {
     /// Draw `amount` cards for the first `Target::Player` in the context.
     DrawTargetPlayer { amount: u32 },
 
+    /// Add `amount` mana of the given color to the controller's pool.
+    ///
+    /// Per MTG CR 605, mana abilities resolve immediately without using the
+    /// stack. The `activate_ability` handler checks for this variant and
+    /// bypasses the stack entirely.
+    AddMana { color: ManaColor, amount: u32 },
+
     /// No-op — does nothing on resolution.
     NoOp,
 }
@@ -82,6 +90,19 @@ impl Effect {
     /// Convenience constructor for `DrawTargetPlayer`.
     pub fn draw_target_player(amount: u32) -> Self {
         Effect::DrawTargetPlayer { amount }
+    }
+
+    /// Convenience constructor for `AddMana`.
+    pub fn add_mana(color: ManaColor, amount: u32) -> Self {
+        Effect::AddMana { color, amount }
+    }
+
+    /// Returns `true` if this effect is a mana ability.
+    ///
+    /// Per MTG CR 605, mana abilities resolve immediately without using the
+    /// stack. They also don't use the stack when activated.
+    pub fn is_mana_ability(&self) -> bool {
+        matches!(self, Effect::AddMana { .. })
     }
 }
 
@@ -99,6 +120,29 @@ mod tests {
     fn draw_target_player_constructor() {
         let e = Effect::draw_target_player(2);
         assert_eq!(e, Effect::DrawTargetPlayer { amount: 2 });
+    }
+
+    #[test]
+    fn add_mana_constructor() {
+        let e = Effect::add_mana(ManaColor::Green, 1);
+        assert_eq!(e, Effect::AddMana { color: ManaColor::Green, amount: 1 });
+    }
+
+    #[test]
+    fn add_mana_is_mana_ability() {
+        let e = Effect::add_mana(ManaColor::Red, 1);
+        assert!(e.is_mana_ability());
+    }
+
+    #[test]
+    fn draw_cards_is_not_mana_ability() {
+        let e = Effect::draw_cards(1);
+        assert!(!e.is_mana_ability());
+    }
+
+    #[test]
+    fn no_op_is_not_mana_ability() {
+        assert!(!Effect::NoOp.is_mana_ability());
     }
 
     #[test]

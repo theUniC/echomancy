@@ -327,7 +327,9 @@ fn make_card_snapshot(
                 Some(combat),
             )
         } else {
-            (None, None, None, None, None, None)
+            // For non-creature permanents (e.g. lands), expose the tapped state
+            // from the top-level `is_tapped` field populated by `export_card_instance`.
+            (card.is_tapped, None, None, None, None, None)
         };
 
     CardSnapshot {

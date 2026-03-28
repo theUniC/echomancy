@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::domain::enums::{Step, ZoneName};
+use crate::domain::enums::{ManaColor, Step, ZoneName};
 use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
 
 /// A snapshot of a card instance for event payloads.
@@ -69,6 +69,14 @@ pub enum GameEvent {
         card: CardInstanceSnapshot,
         #[serde(rename = "controllerId")]
         controller_id: PlayerId,
+    },
+
+    /// Mana was added to a player's pool (from a mana ability).
+    ManaAdded {
+        #[serde(rename = "playerId")]
+        player_id: PlayerId,
+        color: ManaColor,
+        amount: u32,
     },
 }
 

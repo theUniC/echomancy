@@ -1,10 +1,15 @@
 //! ActivateAbility handler — activate a permanent's activated ability.
+//!
+//! Mana abilities (per MTG CR 605) bypass the stack entirely: when the ability's
+//! effect is `AddMana`, the permanent is tapped, mana is added immediately, and
+//! priority is NOT passed to the opponent (the activating player retains priority).
 
 use crate::domain::abilities::ActivationCost;
+use crate::domain::effects::Effect;
 use crate::domain::entities::the_stack::{AbilityOnStack, StackItem};
 use crate::domain::errors::GameError;
 use crate::domain::events::GameEvent;
-use crate::domain::types::CardInstanceId;
+use crate::domain::types::{CardInstanceId, PlayerId};
 
 use super::Game;
 
@@ -65,7 +70,14 @@ pub(crate) fn handle(
     // 4. Pay the activation cost
     pay_activation_cost(game, permanent_id, &permanent_card, &ability.cost)?;
 
-    // Push ability onto the stack
+    // Per MTG CR 605, mana abilities resolve immediately without using the stack.
+    // The activating player retains priority after a mana ability resolves.
+    if ability.effect.is_mana_ability() {
+        let events = resolve_mana_ability_immediately(game, player_id, &ability.effect)?;
+        return Ok(events);
+    }
+
+    // Non-mana abilities go on the stack; priority passes to the opponent.
     game.push_stack(StackItem::Ability(AbilityOnStack {
         source_id: permanent_id.to_owned(),
         effect: ability.effect,
@@ -76,6 +88,29 @@ pub(crate) fn handle(
     // Give priority to opponent
     let events = game.give_priority_to_opponent_of(player_id);
     Ok(events)
+}
+
+/// Resolve a mana ability immediately, bypassing the stack (MTG CR 605).
+///
+/// Adds mana to the controller's pool and emits a `ManaAdded` event.
+/// The activating player retains priority after a mana ability.
+fn resolve_mana_ability_immediately(
+    game: &mut Game,
+    player_id: &str,
+    effect: &Effect,
+) -> Result<Vec<GameEvent>, GameError> {
+    let Effect::AddMana { color, amount } = effect else {
+        // Only AddMana is a mana ability; other effects should not reach here.
+        return Ok(Vec::new());
+    };
+
+    game.add_mana(player_id, *color, *amount)?;
+
+    Ok(vec![GameEvent::ManaAdded {
+        player_id: PlayerId::new(player_id),
+        color: *color,
+        amount: *amount,
+    }])
 }
 
 /// Pay the activation cost for an activated ability.
@@ -130,7 +165,7 @@ mod tests {
     use crate::domain::cards::card_definition::CardDefinition;
     use crate::domain::cards::card_instance::CardInstance;
     use crate::domain::effects::Effect;
-    use crate::domain::enums::{CardType, StaticAbility};
+    use crate::domain::enums::{CardType, ManaColor};
     use crate::domain::game::test_helpers::{
         add_permanent_to_battlefield, clear_summoning_sickness, make_game_in_first_main,
     };
@@ -141,6 +176,15 @@ mod tests {
             .with_activated_ability(ActivatedAbility {
                 cost: ActivationCost::Tap,
                 effect: Effect::NoOp,
+            });
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    fn make_mana_land(instance_id: &str, owner_id: &str, color: ManaColor) -> CardInstance {
+        let def = CardDefinition::new("forest", "Forest", vec![CardType::Land])
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Tap,
+                effect: Effect::AddMana { color, amount: 1 },
             });
         CardInstance::new(instance_id, def, owner_id)
     }
@@ -281,5 +325,108 @@ mod tests {
             })
             .unwrap_err();
         assert!(matches!(err, GameError::InvalidPlayerAction { .. }));
+    }
+
+    // ---- Mana ability (CR 605) tests ----------------------------------------
+
+    #[test]
+    fn tapping_forest_adds_green_mana_to_pool() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = make_mana_land("forest-1", &p1, ManaColor::Green);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("forest-1"),
+        })
+        .unwrap();
+
+        assert_eq!(game.mana_pool(&p1).unwrap().get(ManaColor::Green), 1);
+    }
+
+    #[test]
+    fn mana_ability_does_not_use_the_stack() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = make_mana_land("forest-1", &p1, ManaColor::Green);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("forest-1"),
+        })
+        .unwrap();
+
+        assert!(
+            game.stack().is_empty(),
+            "Mana abilities should resolve immediately and not use the stack"
+        );
+    }
+
+    #[test]
+    fn mana_ability_activating_player_retains_priority() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = make_mana_land("forest-1", &p1, ManaColor::Green);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("forest-1"),
+        })
+        .unwrap();
+
+        assert_eq!(
+            game.priority_player_id(),
+            Some(p1.as_str()),
+            "Activating player should retain priority after a mana ability"
+        );
+    }
+
+    #[test]
+    fn tapping_land_with_mana_ability_taps_the_permanent() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = make_mana_land("forest-1", &p1, ManaColor::Green);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("forest-1"),
+        })
+        .unwrap();
+
+        let state = game.permanent_state("forest-1").unwrap();
+        assert!(state.is_tapped(), "Land should be tapped after activating mana ability");
+    }
+
+    #[test]
+    fn mana_ability_emits_mana_added_event() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = make_mana_land("forest-1", &p1, ManaColor::Green);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        let events = game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("forest-1"),
+        })
+        .unwrap();
+
+        let mana_event = events.iter().find(|e| {
+            matches!(e, GameEvent::ManaAdded { color: ManaColor::Green, amount: 1, .. })
+        });
+        assert!(mana_event.is_some(), "Should emit a ManaAdded event");
+    }
+
+    #[test]
+    fn tapping_mountain_adds_red_mana() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let land = make_mana_land("mountain-1", &p1, ManaColor::Red);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("mountain-1"),
+        })
+        .unwrap();
+
+        assert_eq!(game.mana_pool(&p1).unwrap().get(ManaColor::Red), 1);
     }
 }
