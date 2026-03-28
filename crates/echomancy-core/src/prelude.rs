@@ -43,7 +43,8 @@ pub use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
 pub use crate::domain::value_objects::mana::{
     InsufficientManaError, ManaCost, ManaAddError, ManaPool, ManaPoolSnapshot, ManaSpendError,
 };
+pub use crate::domain::value_objects::creature_state::CreatureSubState;
 pub use crate::domain::value_objects::permanent_state::{
-    CreatureSubState, PermanentState, PermanentStateError, PermanentStateSnapshot,
+    PermanentState, PermanentStateError, PermanentStateSnapshot,
 };
 pub use crate::domain::value_objects::turn_state::{TurnState, TurnStateSnapshot};

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::domain::types::CardInstanceId;
+use crate::domain::value_objects::creature_state::CreatureSubState;
 
 // ============================================================================
 // PermanentStateError
@@ -13,26 +14,6 @@ use crate::domain::types::CardInstanceId;
 pub enum PermanentStateError {
     #[error("Cannot use creature-specific operation on non-creature permanent")]
     NotACreature,
-}
-
-// ============================================================================
-// CreatureSubState
-// ============================================================================
-
-/// Creature-specific state: combat flags, base stats, and damage.
-///
-/// Only present on permanents that are creatures.
-/// Mirrors the TypeScript `CreatureSubState` type from `PermanentState.ts`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CreatureSubState {
-    pub base_power: i32,
-    pub base_toughness: i32,
-    pub has_summoning_sickness: bool,
-    pub is_attacking: bool,
-    pub has_attacked_this_turn: bool,
-    pub damage_marked_this_turn: i32,
-    pub blocking_creature_id: Option<CardInstanceId>,
-    pub blocked_by: Option<CardInstanceId>,
 }
 
 // ============================================================================
@@ -86,16 +67,7 @@ impl PermanentState {
         Self {
             is_tapped: false,
             counters: HashMap::new(),
-            creature_state: Some(CreatureSubState {
-                base_power,
-                base_toughness,
-                has_summoning_sickness: true,
-                is_attacking: false,
-                has_attacked_this_turn: false,
-                damage_marked_this_turn: 0,
-                blocking_creature_id: None,
-                blocked_by: None,
-            }),
+            creature_state: Some(CreatureSubState::new(base_power, base_toughness)),
         }
     }
 
@@ -185,10 +157,7 @@ impl PermanentState {
     pub fn with_attacking(&self, attacking: bool) -> Result<Self, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let mut next = self.clone();
-        next.creature_state = Some(CreatureSubState {
-            is_attacking: attacking,
-            ..cs.clone()
-        });
+        next.creature_state = Some(cs.with_attacking(attacking));
         Ok(next)
     }
 
@@ -201,10 +170,7 @@ impl PermanentState {
     pub fn with_has_attacked_this_turn(&self, value: bool) -> Result<Self, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let mut next = self.clone();
-        next.creature_state = Some(CreatureSubState {
-            has_attacked_this_turn: value,
-            ..cs.clone()
-        });
+        next.creature_state = Some(cs.with_has_attacked_this_turn(value));
         Ok(next)
     }
 
@@ -217,10 +183,7 @@ impl PermanentState {
     pub fn with_summoning_sickness(&self, value: bool) -> Result<Self, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let mut next = self.clone();
-        next.creature_state = Some(CreatureSubState {
-            has_summoning_sickness: value,
-            ..cs.clone()
-        });
+        next.creature_state = Some(cs.with_summoning_sickness(value));
         Ok(next)
     }
 
@@ -234,10 +197,7 @@ impl PermanentState {
     pub fn with_damage(&self, damage: i32) -> Result<Self, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let mut next = self.clone();
-        next.creature_state = Some(CreatureSubState {
-            damage_marked_this_turn: damage,
-            ..cs.clone()
-        });
+        next.creature_state = Some(cs.with_damage(damage));
         Ok(next)
     }
 
@@ -253,10 +213,7 @@ impl PermanentState {
     ) -> Result<Self, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let mut next = self.clone();
-        next.creature_state = Some(CreatureSubState {
-            blocking_creature_id: id,
-            ..cs.clone()
-        });
+        next.creature_state = Some(cs.with_blocking_creature_id(id));
         Ok(next)
     }
 
@@ -269,10 +226,7 @@ impl PermanentState {
     pub fn with_blocked_by(&self, id: Option<CardInstanceId>) -> Result<Self, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let mut next = self.clone();
-        next.creature_state = Some(CreatureSubState {
-            blocked_by: id,
-            ..cs.clone()
-        });
+        next.creature_state = Some(cs.with_blocked_by(id));
         Ok(next)
     }
 
@@ -322,15 +276,7 @@ impl PermanentState {
     pub fn reset_for_new_turn(&self) -> Result<Self, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let mut next = self.clone();
-        next.creature_state = Some(CreatureSubState {
-            is_attacking: false,
-            has_attacked_this_turn: false,
-            damage_marked_this_turn: 0,
-            blocking_creature_id: None,
-            blocked_by: None,
-            has_summoning_sickness: false,
-            ..cs.clone()
-        });
+        next.creature_state = Some(cs.reset_for_new_turn());
         Ok(next)
     }
 
@@ -342,10 +288,7 @@ impl PermanentState {
     pub fn clear_damage(&self) -> Result<Self, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let mut next = self.clone();
-        next.creature_state = Some(CreatureSubState {
-            damage_marked_this_turn: 0,
-            ..cs.clone()
-        });
+        next.creature_state = Some(cs.clear_damage());
         Ok(next)
     }
 
@@ -358,12 +301,7 @@ impl PermanentState {
     pub fn clear_combat_state(&self) -> Result<Self, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let mut next = self.clone();
-        next.creature_state = Some(CreatureSubState {
-            is_attacking: false,
-            blocking_creature_id: None,
-            blocked_by: None,
-            ..cs.clone()
-        });
+        next.creature_state = Some(cs.clear_combat_state());
         Ok(next)
     }
 
