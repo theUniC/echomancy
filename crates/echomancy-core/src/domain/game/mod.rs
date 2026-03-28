@@ -23,6 +23,7 @@
 mod accessors;
 mod activate_ability;
 mod advance_step;
+pub mod automation;
 mod cast_spell;
 mod declare_attacker;
 mod declare_blocker;

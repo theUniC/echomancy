@@ -8,8 +8,9 @@
 
 use crate::domain::actions::Action;
 use crate::domain::enums::Step;
-use crate::domain::game::Game;
 use crate::domain::types::PlayerId;
+
+use super::Game;
 
 /// Returns `true` for steps that have no player interaction and should be
 /// automatically skipped.

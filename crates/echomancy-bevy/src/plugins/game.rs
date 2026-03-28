@@ -8,7 +8,7 @@
 //! - Set up a 2D camera on startup.
 
 use bevy::prelude::*;
-use echomancy_core::domain::services::game_automation::{
+use echomancy_core::domain::game::automation::{
     auto_advance_through_non_interactive, auto_advance_to_main_phase, auto_resolve_stack,
 };
 use echomancy_core::prelude::*;
