@@ -274,7 +274,7 @@ pub(crate) fn rebuild_battlefields(
                     power: card.power,
                     toughness: card.toughness,
                     is_tapped,
-                    flipped: false,
+                    is_opponent: false,
                 },
                 override_border,
             );
@@ -346,7 +346,7 @@ pub(crate) fn rebuild_battlefields(
                         power: card.power,
                         toughness: card.toughness,
                         is_tapped,
-                        flipped: true,
+                        is_opponent: true,
                     },
                 );
 

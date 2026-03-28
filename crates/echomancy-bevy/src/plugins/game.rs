@@ -510,6 +510,23 @@ fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<String> {
 }
 
 // ============================================================================
+// Error message humanization
+// ============================================================================
+
+/// Replace raw UUIDs in an error message string with human-readable player names.
+///
+/// Domain errors often embed player IDs like `"Player '6eee59fc-...' cannot act"`.
+/// This converts them to `"Player 1"` or `"Player 2"` so the HUD shows friendly text.
+///
+/// Only replaces IDs that appear in `player_ids`. Unknown UUIDs are left as-is.
+pub(crate) fn humanize_error(message: &str, player_ids: &PlayerIds) -> String {
+    let mut result = message.to_owned();
+    result = result.replace(&player_ids.p1.id, &player_ids.p1.name);
+    result = result.replace(&player_ids.p2.id, &player_ids.p2.name);
+    result
+}
+
+// ============================================================================
 // Systems
 // ============================================================================
 
@@ -580,6 +597,7 @@ pub(crate) fn send_initial_snapshot_message(
 ///
 /// On success, clears `ErrorMessage`. On failure, stores the error string in
 /// `ErrorMessage` so the HUD can display it.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_game_actions(
     mut game_state: ResMut<GameState>,
     mut active_player: ResMut<ActivePlayerId>,
@@ -588,6 +606,7 @@ pub(crate) fn handle_game_actions(
     mut playable_res: ResMut<PlayableCards>,
     mut snapshot_changed: MessageWriter<SnapshotChangedMessage>,
     mut error_message: ResMut<ErrorMessage>,
+    player_ids: Res<PlayerIds>,
 ) {
     let mut any_applied = false;
 
@@ -601,7 +620,7 @@ pub(crate) fn handle_game_actions(
             }
             Err(err) => {
                 warn!(%err, "GameActionMessage rejected by domain");
-                error_message.message = Some(err.to_string());
+                error_message.message = Some(humanize_error(&err.to_string(), &player_ids));
             }
         }
     }
@@ -993,7 +1012,7 @@ mod tests {
         assert_eq!(
             land_after.tapped,
             Some(true),
-            "Tapped land must have tapped == Some(true) so the UI can render it rotated 90°"
+            "Tapped land must have tapped == Some(true) so the UI can render it with a tilt"
         );
     }
 
@@ -1088,5 +1107,62 @@ mod tests {
                 "Castable card should be a Bear"
             );
         }
+    }
+
+    // ---- humanize_error -----------------------------------------------------
+
+    fn make_player_ids() -> PlayerIds {
+        PlayerIds {
+            p1: PlayerInfo { id: "uuid-aaa-111".to_owned(), name: "Player 1".to_owned() },
+            p2: PlayerInfo { id: "uuid-bbb-222".to_owned(), name: "Player 2".to_owned() },
+        }
+    }
+
+    #[test]
+    fn humanize_error_replaces_p1_uuid_with_display_name() {
+        let ids = make_player_ids();
+        let raw = "Player 'uuid-aaa-111' cannot perform action 'CAST_SPELL'";
+        let human = humanize_error(raw, &ids);
+        assert_eq!(human, "Player 'Player 1' cannot perform action 'CAST_SPELL'");
+    }
+
+    #[test]
+    fn humanize_error_replaces_p2_uuid_with_display_name() {
+        let ids = make_player_ids();
+        let raw = "Player 'uuid-bbb-222' cannot perform action 'PASS_PRIORITY'";
+        let human = humanize_error(raw, &ids);
+        assert_eq!(human, "Player 'Player 2' cannot perform action 'PASS_PRIORITY'");
+    }
+
+    #[test]
+    fn humanize_error_leaves_unknown_ids_intact() {
+        let ids = make_player_ids();
+        let raw = "Some error with unknown-uuid-xyz inside";
+        let human = humanize_error(raw, &ids);
+        assert_eq!(human, raw, "Unknown UUIDs should not be changed");
+    }
+
+    #[test]
+    fn humanize_error_replaces_all_occurrences_of_uuid() {
+        let ids = make_player_ids();
+        let raw = "uuid-aaa-111 vs uuid-aaa-111 conflict";
+        let human = humanize_error(raw, &ids);
+        assert_eq!(human, "Player 1 vs Player 1 conflict");
+    }
+
+    #[test]
+    fn humanize_error_handles_both_players_in_same_message() {
+        let ids = make_player_ids();
+        let raw = "uuid-aaa-111 attacked uuid-bbb-222";
+        let human = humanize_error(raw, &ids);
+        assert_eq!(human, "Player 1 attacked Player 2");
+    }
+
+    #[test]
+    fn humanize_error_message_with_no_uuid_unchanged() {
+        let ids = make_player_ids();
+        let raw = "Illegal action: stack is not empty";
+        let human = humanize_error(raw, &ids);
+        assert_eq!(human, raw);
     }
 }

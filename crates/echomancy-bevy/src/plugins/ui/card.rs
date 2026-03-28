@@ -9,7 +9,8 @@
 //!   └── P/T (Text: white bold 14px — creatures only)
 //! ```
 //!
-//! Tapped cards receive a 90-degree `Transform` rotation and 0.85 opacity.
+//! Tapped cards receive a small 10° tilt and 0.6 opacity so text stays readable.
+//! Opponent cards receive a darkened background color instead of a 180° rotation.
 
 use bevy::prelude::*;
 use echomancy_core::prelude::CardType;
@@ -28,8 +29,32 @@ pub(crate) const CARD_GAP: f32 = 20.0;
 /// Border width for the card outline.
 pub(crate) const CARD_BORDER: f32 = 3.0;
 
-/// Opacity applied to tapped cards.
-const TAPPED_ALPHA: f32 = 0.85;
+/// Opacity applied to tapped cards (reduced to visually indicate tap state).
+const TAPPED_ALPHA: f32 = 0.6;
+
+/// Small rotation angle applied to tapped cards (10 degrees in radians).
+///
+/// A subtle tilt keeps card text readable while still indicating tap state,
+/// unlike a full 90° rotation which makes text sideways and illegible.
+pub(crate) const TAPPED_ROTATION_RADIANS: f32 = std::f32::consts::PI / 18.0; // 10°
+
+/// Background color multiplier for opponent cards (darker, muted palette).
+///
+/// Returns a darkened version of the type-based background so opponent cards
+/// are visually distinct without rotating the text 180°.
+pub(crate) fn card_opponent_background_color(types: &[CardType]) -> Color {
+    // Take the normal background and darken it by ~40%.
+    let base = card_background_color(types);
+    let Color::Srgba(srgba) = base else {
+        return base;
+    };
+    Color::srgba(
+        srgba.red * 0.55,
+        srgba.green * 0.55,
+        srgba.blue * 0.55,
+        srgba.alpha,
+    )
+}
 
 // ============================================================================
 // Pure helper functions (testable)
@@ -97,8 +122,12 @@ pub(crate) struct CardSpawnData<'a> {
     pub(crate) power: Option<i32>,
     pub(crate) toughness: Option<i32>,
     pub(crate) is_tapped: bool,
-    /// Rotate the entire card 180° (used for opponent battlefield).
-    pub(crate) flipped: bool,
+    /// Render this card as belonging to the opponent (muted background, no rotation).
+    ///
+    /// Previously this applied a 180° rotation which made text upside-down and
+    /// unreadable. Now we apply a darker background color instead so the card
+    /// position (top of screen) already contextualises whose card it is.
+    pub(crate) is_opponent: bool,
 }
 
 /// Spawn a card as a Bevy UI node subtree and return its root `Entity`.
@@ -125,17 +154,23 @@ fn spawn_card_inner<'a>(
     override_border: Option<Color>,
 ) -> EntityCommands<'a> {
     let border_color = override_border.unwrap_or_else(|| card_border_color(data.types));
-    let bg_color = card_background_color(data.types);
+    // Opponent cards use a darker, muted background so they stand out visually
+    // without rotating text into an unreadable orientation.
+    let bg_color = if data.is_opponent {
+        card_opponent_background_color(data.types)
+    } else {
+        card_background_color(data.types)
+    };
     let alpha = if data.is_tapped { TAPPED_ALPHA } else { 1.0 };
 
-    // Rotation: tapped = 90°, flipped = 180°, both = 270°.
-    // Bevy 0.18 UI nodes use UiTransform (with Rot2) for visual rotation,
-    // not the 3D Transform component. Using Transform here has no visual effect.
-    let rotation_angle: f32 = match (data.is_tapped, data.flipped) {
-        (false, false) => 0.0,
-        (true, false) => std::f32::consts::FRAC_PI_2,
-        (false, true) => std::f32::consts::PI,
-        (true, true) => std::f32::consts::FRAC_PI_2 + std::f32::consts::PI,
+    // Tapped cards get a small 10° tilt so the text remains readable.
+    // We no longer rotate 90° (sideways text) or 180° (upside-down text).
+    // Opponent cards get no rotation — their position at the top of the
+    // screen already communicates ownership.
+    let rotation_angle: f32 = if data.is_tapped {
+        TAPPED_ROTATION_RADIANS
+    } else {
+        0.0
     };
 
     // Capture derived strings before the closure borrows `data`.
@@ -338,5 +373,55 @@ mod tests {
     #[test]
     fn pt_text_for_large_creature() {
         assert_eq!(card_pt_text(Some(10), Some(10)), Some("10/10".to_owned()));
+    }
+
+    // ---- TAPPED_ROTATION_RADIANS -------------------------------------------
+
+    #[test]
+    fn tapped_rotation_is_small_angle_not_ninety_degrees() {
+        // Must be less than 30° (π/6) so text remains readable.
+        let thirty_degrees = std::f32::consts::PI / 6.0;
+        assert!(
+            TAPPED_ROTATION_RADIANS < thirty_degrees,
+            "Tapped rotation {TAPPED_ROTATION_RADIANS:.4} rad should be a small tilt, not 90°"
+        );
+        assert!(
+            TAPPED_ROTATION_RADIANS > 0.0,
+            "Tapped rotation should be positive (non-zero tilt)"
+        );
+    }
+
+    // ---- card_opponent_background_color ------------------------------------
+
+    #[test]
+    fn opponent_creature_background_is_darker_than_normal() {
+        let normal = card_background_color(&[CardType::Creature]);
+        let opponent = card_opponent_background_color(&[CardType::Creature]);
+        let Color::Srgba(n) = normal else { panic!("Expected Srgba") };
+        let Color::Srgba(o) = opponent else { panic!("Expected Srgba") };
+        // All channels should be darker (lower value).
+        assert!(o.red < n.red, "Opponent red channel should be darker");
+        assert!(o.green < n.green, "Opponent green channel should be darker");
+        assert!(o.blue < n.blue, "Opponent blue channel should be darker");
+    }
+
+    #[test]
+    fn opponent_land_background_is_darker_than_normal() {
+        let normal = card_background_color(&[CardType::Land]);
+        let opponent = card_opponent_background_color(&[CardType::Land]);
+        let Color::Srgba(n) = normal else { panic!("Expected Srgba") };
+        let Color::Srgba(o) = opponent else { panic!("Expected Srgba") };
+        assert!(o.red < n.red, "Opponent land red should be darker");
+        assert!(o.green < n.green, "Opponent land green should be darker");
+    }
+
+    #[test]
+    fn opponent_background_preserves_alpha() {
+        let opponent = card_opponent_background_color(&[CardType::Creature]);
+        let Color::Srgba(o) = opponent else { panic!("Expected Srgba") };
+        assert!(
+            (o.alpha - 1.0).abs() < 0.01,
+            "Opponent background alpha should remain 1.0"
+        );
     }
 }
