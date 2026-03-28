@@ -1,3 +1,5 @@
+// NOTE: Not currently used by the Game aggregate. Kept for potential future direct-zone APIs.
+
 //! Graveyard zone entity.
 //!
 //! The graveyard is ordered — cards are stored bottom-to-top.

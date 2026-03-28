@@ -1,3 +1,5 @@
+// NOTE: Not currently used by the Game aggregate. Kept for potential future direct-zone APIs.
+
 //! Battlefield zone entity.
 //!
 //! The battlefield holds all permanents currently in play.

@@ -26,11 +26,10 @@ pub use crate::domain::cards::card_instance::CardInstance;
 pub use crate::domain::cards::{catalog, prebuilt_decks};
 pub use crate::domain::costs::{Cost, CostContext};
 pub use crate::domain::effects::{Effect, EffectContext};
-pub use crate::domain::entities::battlefield::Battlefield;
-pub use crate::domain::entities::graveyard::Graveyard;
-pub use crate::domain::entities::hand::Hand;
-pub use crate::domain::entities::library::Library;
-pub use crate::domain::entities::player::{Player, PlayerState};
+// NOTE: Battlefield, Graveyard, Hand, Library, Player, PlayerState are not
+// exported here — they are not used by the Game aggregate (which uses
+// GamePlayerState with Vec<CardInstance> directly). Kept in their modules for
+// potential future direct-zone APIs.
 pub use crate::domain::entities::the_stack::{AbilityOnStack, SpellOnStack, StackItem, TheStack};
 pub use crate::domain::enums::{
     CardType, GameLifecycleState, GraveyardReason, ManaColor, StaticAbility, Step, ZoneName,

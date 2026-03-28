@@ -1,3 +1,5 @@
+// NOTE: Not currently used by the Game aggregate. Kept for potential future direct-zone APIs.
+
 //! Player entity and player state.
 //!
 //! Mirrors the TypeScript `Player` class from `game/Player.ts` and the

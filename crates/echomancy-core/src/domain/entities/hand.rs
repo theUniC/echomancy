@@ -1,3 +1,5 @@
+// NOTE: Not currently used by the Game aggregate. Kept for potential future direct-zone APIs.
+
 //! Hand zone entity — cards held by a player.
 //!
 //! Mirrors the TypeScript `Hand` class from `game/entities/Hand.ts`.

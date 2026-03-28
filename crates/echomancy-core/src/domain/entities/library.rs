@@ -1,3 +1,5 @@
+// NOTE: Not currently used by the Game aggregate. Kept for potential future direct-zone APIs.
+
 //! Library (deck) zone entity.
 //!
 //! The library is an ordered zone. Cards are drawn from the top (index 0).
