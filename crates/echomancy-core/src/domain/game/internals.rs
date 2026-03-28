@@ -255,7 +255,7 @@ impl Game {
     }
 
     /// Add mana to a player's pool.
-    pub fn add_mana(
+    pub(crate) fn add_mana(
         &mut self,
         player_id: &str,
         color: ManaColor,
