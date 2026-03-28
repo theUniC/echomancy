@@ -124,6 +124,7 @@ impl CardRegistry for CatalogRegistry {
             "swamp" => "Swamp".to_owned(),
             "bear" => "Bear".to_owned(),
             "elite-vanguard" => "Elite Vanguard".to_owned(),
+            "goblin" => "Goblin".to_owned(),
             "giant-growth" => "Giant Growth".to_owned(),
             "lightning-strike" => "Lightning Strike".to_owned(),
             other => other.to_owned(),

@@ -49,7 +49,7 @@ pub fn green_deck(owner_id: &str) -> Vec<CardInstance> {
 ///
 /// Composition:
 /// - 24x Mountain
-/// - 20x Elite Vanguard (2/1)
+/// - 20x Goblin (1/1)
 /// - 16x Lightning Strike (instant)
 pub fn red_deck(owner_id: &str) -> Vec<CardInstance> {
     let mut deck = Vec::with_capacity(60);
@@ -65,7 +65,7 @@ pub fn red_deck(owner_id: &str) -> Vec<CardInstance> {
     for _ in 0..20 {
         deck.push(CardInstance::new(
             Uuid::new_v4().to_string(),
-            catalog::elite_vanguard(),
+            catalog::goblin(),
             owner_id,
         ));
     }
@@ -128,9 +128,9 @@ mod tests {
             .iter()
             .filter(|c| c.definition().id() == "mountain")
             .count();
-        let vanguards = deck
+        let goblins = deck
             .iter()
-            .filter(|c| c.definition().id() == "elite-vanguard")
+            .filter(|c| c.definition().id() == "goblin")
             .count();
         let strikes = deck
             .iter()
@@ -138,7 +138,7 @@ mod tests {
             .count();
 
         assert_eq!(mountains, 24);
-        assert_eq!(vanguards, 20);
+        assert_eq!(goblins, 20);
         assert_eq!(strikes, 16);
     }
 

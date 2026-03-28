@@ -87,9 +87,23 @@ pub fn bear() -> CardDefinition {
 }
 
 /// Return the `Elite Vanguard` (2/1 creature) definition.
+///
+/// Mana cost: {W} (1 white), matching the original card.
 pub fn elite_vanguard() -> CardDefinition {
+    let cost = ManaCost::parse("W").expect("elite vanguard mana cost is valid");
     CardDefinition::new("elite-vanguard", "Elite Vanguard", vec![CardType::Creature])
         .with_power_toughness(2, 1)
+        .with_mana_cost(cost)
+}
+
+/// Return the `Goblin` (1/1 creature) definition.
+///
+/// Mana cost: {R} (1 red). A simple red creature for the red starter deck.
+pub fn goblin() -> CardDefinition {
+    let cost = ManaCost::parse("R").expect("goblin mana cost is valid");
+    CardDefinition::new("goblin", "Goblin", vec![CardType::Creature])
+        .with_power_toughness(1, 1)
+        .with_mana_cost(cost)
 }
 
 // ============================================================================
@@ -97,18 +111,30 @@ pub fn elite_vanguard() -> CardDefinition {
 // ============================================================================
 
 /// Return the `Giant Growth` instant definition.
+///
+/// Mana cost: {G} (1 green).
 pub fn giant_growth() -> CardDefinition {
+    let cost = ManaCost::parse("G").expect("giant growth mana cost is valid");
     CardDefinition::new("giant-growth", "Giant Growth", vec![CardType::Instant])
+        .with_mana_cost(cost)
 }
 
 /// Return the `Lightning Strike` instant definition.
+///
+/// Mana cost: {1}{R} (1 generic + 1 red).
 pub fn lightning_strike() -> CardDefinition {
+    let cost = ManaCost::parse("1R").expect("lightning strike mana cost is valid");
     CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant])
+        .with_mana_cost(cost)
 }
 
 /// Return the `Divination` sorcery definition.
+///
+/// Mana cost: {2}{U} (2 generic + 1 blue).
 pub fn divination() -> CardDefinition {
+    let cost = ManaCost::parse("2U").expect("divination mana cost is valid");
     CardDefinition::new("divination", "Divination", vec![CardType::Sorcery])
+        .with_mana_cost(cost)
 }
 
 #[cfg(test)]
