@@ -841,4 +841,82 @@ mod tests {
         assert_eq!(snap1.opponent_states[0].player_id, p2);
         assert_eq!(snap2.opponent_states[0].player_id, p1);
     }
+
+    // ---- Tapped land visibility (bug regression) ---------------------------
+
+    /// Verify that after tapping a land for mana, the export shows `is_tapped: Some(true)`
+    /// and the resulting `CardSnapshot.tapped` is `Some(true)`.
+    ///
+    /// This test covers the full data-flow pipeline:
+    /// ActivateAbility → tap_permanent → export_state → is_tapped field → create_game_snapshot → CardSnapshot.tapped
+    #[test]
+    fn tapping_land_for_mana_is_reflected_in_card_snapshot_tapped_field() {
+        use crate::domain::abilities::{ActivatedAbility, ActivationCost};
+        use crate::domain::effects::Effect;
+        use crate::domain::enums::ManaColor;
+        use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
+        use crate::domain::types::{CardInstanceId, PlayerId};
+
+        let (mut game, p1, _) = make_game_in_first_main();
+
+        // Build a Forest with a {T}: Add {G} mana ability.
+        let forest_def = CardDefinition::new("forest", "Forest", vec![CardType::Land])
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Tap,
+                effect: Effect::AddMana { color: ManaColor::Green, amount: 1 },
+            });
+        let forest = CardInstance::new("forest-1", forest_def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, forest);
+
+        // Sanity: before activation, export shows not tapped.
+        let export_before = game.export_state();
+        let p1_battlefield_before = &export_before.players[&p1].zones.battlefield.cards;
+        let forest_export_before = p1_battlefield_before
+            .iter()
+            .find(|c| c.instance_id == "forest-1")
+            .expect("forest-1 should be on the battlefield");
+        assert_eq!(
+            forest_export_before.is_tapped,
+            Some(false),
+            "Land should start untapped in the export"
+        );
+
+        // Activate the mana ability (tap the forest).
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("forest-1"),
+        })
+        .unwrap();
+
+        // Step 1: Verify domain state is tapped.
+        let domain_state = game.permanent_state("forest-1").unwrap();
+        assert!(domain_state.is_tapped(), "Domain: permanent_state should be tapped after ActivateAbility");
+
+        // Step 2: Verify export shows is_tapped: Some(true).
+        let export_after = game.export_state();
+        let p1_battlefield = &export_after.players[&p1].zones.battlefield.cards;
+        let forest_export = p1_battlefield
+            .iter()
+            .find(|c| c.instance_id == "forest-1")
+            .expect("forest-1 should still be on the battlefield after tapping");
+        assert_eq!(
+            forest_export.is_tapped,
+            Some(true),
+            "Export: is_tapped should be Some(true) after tapping for mana"
+        );
+
+        // Step 3: Verify the GameSnapshot CardSnapshot.tapped is Some(true).
+        let snapshot = create_game_snapshot(&export_after, &p1, &MockRegistry).unwrap();
+        let forest_snapshot = snapshot
+            .private_player_state
+            .battlefield
+            .iter()
+            .find(|c| c.instance_id == "forest-1")
+            .expect("forest-1 should appear in player battlefield snapshot");
+        assert_eq!(
+            forest_snapshot.tapped,
+            Some(true),
+            "CardSnapshot.tapped should be Some(true) so the UI can render the card as rotated 90°"
+        );
+    }
 }

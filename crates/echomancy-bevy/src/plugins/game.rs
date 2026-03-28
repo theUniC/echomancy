@@ -666,4 +666,73 @@ mod tests {
         let registry = CatalogRegistry;
         assert_eq!(registry.card_name("some-unknown-card"), "some-unknown-card");
     }
+
+    // ---- Tapped land snapshot (regression: UI should show rotated land) -----
+
+    /// After playing a land and activating its mana ability, `compute_snapshot`
+    /// must produce a `CardSnapshot` with `tapped == Some(true)` for that land.
+    ///
+    /// This test pins the full bridge: domain Game → compute_snapshot → CardSnapshot.tapped
+    /// so that the Bevy UI has the correct value to pass to `spawn_card_inner`.
+    #[test]
+    fn compute_snapshot_reflects_tapped_land_after_activate_ability() {
+        let (mut game, p1, _) = make_started_game();
+
+        // Advance to FirstMain so we can play a land and activate abilities.
+        for _ in 0..3 {
+            game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        }
+
+        // Find the first forest in P1's hand (green deck has 24 Forests).
+        let forest_id = {
+            let hand = game.hand(&p1).unwrap();
+            hand.iter()
+                .find(|c| c.definition().types().contains(&CardType::Land))
+                .expect("green deck should have lands in hand")
+                .instance_id()
+                .to_owned()
+        };
+
+        // Play the land onto the battlefield.
+        game.apply(Action::PlayLand {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new(&forest_id),
+        })
+        .unwrap();
+
+        // Sanity: land is now on the battlefield and should appear as untapped.
+        let (snap_before, _) = compute_snapshot(&game, &p1).unwrap();
+        let land_before = snap_before
+            .private_player_state
+            .battlefield
+            .iter()
+            .find(|c| c.instance_id == forest_id)
+            .expect("land should be on battlefield after PlayLand");
+        assert_eq!(
+            land_before.tapped,
+            Some(false),
+            "Newly played land should show tapped == Some(false)"
+        );
+
+        // Activate the land's mana ability (tap it for green mana).
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new(&forest_id),
+        })
+        .unwrap();
+
+        // The snapshot must now reflect the tapped state.
+        let (snap_after, _) = compute_snapshot(&game, &p1).unwrap();
+        let land_after = snap_after
+            .private_player_state
+            .battlefield
+            .iter()
+            .find(|c| c.instance_id == forest_id)
+            .expect("land should still be on battlefield after tapping");
+        assert_eq!(
+            land_after.tapped,
+            Some(true),
+            "Tapped land must have tapped == Some(true) so the UI can render it rotated 90°"
+        );
+    }
 }

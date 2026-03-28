@@ -129,7 +129,9 @@ fn spawn_card_inner<'a>(
     let alpha = if data.is_tapped { TAPPED_ALPHA } else { 1.0 };
 
     // Rotation: tapped = 90°, flipped = 180°, both = 270°.
-    let rotation_z: f32 = match (data.is_tapped, data.flipped) {
+    // Bevy 0.18 UI nodes use UiTransform (with Rot2) for visual rotation,
+    // not the 3D Transform component. Using Transform here has no visual effect.
+    let rotation_angle: f32 = match (data.is_tapped, data.flipped) {
         (false, false) => 0.0,
         (true, false) => std::f32::consts::FRAC_PI_2,
         (false, true) => std::f32::consts::PI,
@@ -155,7 +157,7 @@ fn spawn_card_inner<'a>(
         },
         BorderColor::all(border_color),
         BackgroundColor(bg_color.with_alpha(alpha)),
-        Transform::from_rotation(Quat::from_rotation_z(rotation_z)),
+        UiTransform::from_rotation(Rot2::radians(rotation_angle)),
     ));
 
     ec.with_children(|parent| {
