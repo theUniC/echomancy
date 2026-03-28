@@ -8,6 +8,9 @@
 //! - Set up a 2D camera on startup.
 
 use bevy::prelude::*;
+use echomancy_core::domain::services::game_automation::{
+    auto_advance_through_non_interactive, auto_advance_to_main_phase, auto_resolve_stack,
+};
 use echomancy_core::prelude::*;
 use uuid::Uuid;
 
@@ -161,92 +164,6 @@ pub(crate) fn resolve_ui_player_id<'a>(
         }
     }
     current_player_id
-}
-
-// ============================================================================
-// Auto-advance helper
-// ============================================================================
-
-/// Returns `true` for steps that have no player interaction and should be
-/// automatically skipped by the UI.
-///
-/// Interactive steps (where players must act or choose to pass) are:
-/// - `FirstMain`, `SecondMain` — land play, spell casting.
-/// - `DeclareAttackers` — active player declares attackers.
-/// - `DeclareBlockers` — defending player declares blockers.
-/// - `CombatDamage` — (auto-resolved by the engine on entry; but we stop
-///   here to let the engine emit damage events before advancing).
-///
-/// Everything else is auto-skipped.
-fn is_non_interactive_step(step: Step) -> bool {
-    matches!(
-        step,
-        Step::Untap
-            | Step::Upkeep
-            | Step::Draw
-            | Step::BeginningOfCombat
-            | Step::EndOfCombat
-            | Step::EndStep
-            | Step::Cleanup
-    )
-}
-
-/// Advance through all non-interactive steps until an interactive step or a
-/// turn change occurs.
-///
-/// Called after any action is applied and after turn changes so the player
-/// always lands on a step where they can act (or see the result).
-fn auto_advance_through_non_interactive(game: &mut Game, player_id: &str) {
-    let mut iterations = 0;
-    while is_non_interactive_step(game.current_step()) && iterations < 20 {
-        if game
-            .apply(Action::AdvanceStep {
-                player_id: PlayerId::new(player_id),
-            })
-            .is_err()
-        {
-            break;
-        }
-        iterations += 1;
-    }
-}
-
-/// Advance through non-interactive steps (Untap, Upkeep, Draw) to reach
-/// FirstMain where the player can actually take actions.
-///
-/// This is called both at startup (for P1) and whenever the active player
-/// changes (for P2, P1 again, etc.). Without this, the player would need
-/// to manually click "Pass Priority" through steps where nothing happens.
-fn auto_advance_to_main_phase(game: &mut Game, player_id: &str) {
-    auto_advance_through_non_interactive(game, player_id);
-}
-
-// ============================================================================
-// Stack auto-resolve helper
-// ============================================================================
-
-/// Auto-pass priority for both players until the stack empties.
-///
-/// In the MVP, no player has counterspells or instant-speed responses, so
-/// when a spell is cast, we immediately resolve it by passing priority from
-/// whoever has it until the stack is empty. This avoids requiring the user
-/// to manually switch perspectives and click "Pass Priority" multiple times.
-///
-/// Max iterations guard prevents infinite loops.
-fn auto_resolve_stack(game: &mut Game) {
-    let mut iterations = 0;
-    while game.stack_has_items() && iterations < 20 {
-        if let Some(priority_holder) = game.priority_player_id().map(str::to_owned) {
-            if game.apply(Action::PassPriority {
-                player_id: PlayerId::new(&priority_holder),
-            }).is_err() {
-                break;
-            }
-        } else {
-            break;
-        }
-        iterations += 1;
-    }
 }
 
 // ============================================================================

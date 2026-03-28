@@ -9,6 +9,7 @@
 //! tested via `#[cfg(test)]` modules in each file.
 #![allow(dead_code)]
 
+pub mod game_automation;
 pub(crate) mod combat_declarations;
 pub(crate) mod combat_resolution;
 pub mod game_state_export;
