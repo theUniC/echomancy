@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 use crate::domain::enums::{CardType, GameLifecycleState, StaticAbility, Step};
-use crate::domain::services::game_state_export::{
+use crate::infrastructure::game_state_export::{
     CardInstanceExport, GameOutcomeExport, GameStateExport, StackItemExport, StackItemKind,
 };
 
@@ -504,7 +504,7 @@ fn phase_from_step(step: Step) -> String {
 
 /// Convert a `ManaPoolExport` to a `HashMap<String, u32>` (W, U, B, R, G, C).
 fn mana_pool_to_map(
-    pool: &crate::domain::services::game_state_export::ManaPoolExport,
+    pool: &crate::infrastructure::game_state_export::ManaPoolExport,
 ) -> HashMap<String, u32> {
     let mut map = HashMap::new();
     map.insert("W".to_owned(), pool.white);

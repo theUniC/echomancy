@@ -12,7 +12,6 @@
 pub mod game_automation;
 pub(crate) mod combat_declarations;
 pub(crate) mod combat_resolution;
-pub mod game_state_export;
 pub(crate) mod mana_payment;
 pub(crate) mod spell_timing;
 pub(crate) mod state_based_actions;

@@ -20,7 +20,7 @@ pub use crate::infrastructure::in_memory_repo::InMemoryGameRepository;
 pub use crate::domain::game::Game;
 
 // Domain — export types
-pub use crate::domain::services::game_state_export::{
+pub use crate::infrastructure::game_state_export::{
     CardInstanceExport, CreatureStateExport, DrawOutcomeExport, GameOutcomeExport,
     GameStateExport, ManaPoolExport, PlayerStateExport, StackItemExport, StackItemKind,
     WinOutcomeExport,

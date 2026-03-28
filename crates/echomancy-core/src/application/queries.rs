@@ -9,7 +9,7 @@ use crate::application::repository::GameRepository;
 use crate::application::validation::validate_uuid;
 use crate::domain::enums::{CardType, GameLifecycleState, Step};
 use crate::domain::game::Game;
-use crate::domain::services::game_state_export::GameStateExport;
+use crate::infrastructure::game_state_export::GameStateExport;
 
 // ============================================================================
 // GetGameState

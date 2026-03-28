@@ -8,7 +8,7 @@ use crate::domain::cards::card_instance::CardInstance;
 use crate::domain::entities::the_stack::StackItem;
 use crate::domain::enums::{GameLifecycleState, StaticAbility, Step};
 use crate::domain::services::combat_declarations::CombatValidationContext;
-use crate::domain::services::game_state_export::{
+use crate::infrastructure::game_state_export::{
     DrawOutcomeExport, ExportableGameContext, GameOutcomeExport, StackItemExport, StackItemKind,
     WinOutcomeExport,
 };
