@@ -165,11 +165,11 @@ mod tests {
 
         let blocker_state = game.permanent_state("blocker-1").unwrap();
         let blocker_cs = blocker_state.creature_state().unwrap();
-        assert!(blocker_cs.blocking_creature_id.is_some());
+        assert!(blocker_cs.blocking_creature_id().is_some());
 
         let attacker_state = game.permanent_state("attacker-1").unwrap();
         let attacker_cs = attacker_state.creature_state().unwrap();
-        assert!(attacker_cs.blocked_by.is_some());
+        assert!(attacker_cs.blocked_by().is_some());
     }
 
     #[test]
@@ -287,6 +287,6 @@ mod tests {
         .unwrap();
 
         let state = game.permanent_state("reach-1").unwrap();
-        assert!(state.creature_state().unwrap().blocking_creature_id.is_some());
+        assert!(state.creature_state().unwrap().blocking_creature_id().is_some());
     }
 }

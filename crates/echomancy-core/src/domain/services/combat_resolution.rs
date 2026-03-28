@@ -57,7 +57,7 @@ pub(crate) fn calculate_damage_assignments(
 
     for entry in attackers {
         let cs = match entry.state.creature_state() {
-            Some(cs) if cs.is_attacking => cs,
+            Some(cs) if cs.is_attacking() => cs,
             _ => continue, // Not a creature or not attacking — skip.
         };
 
@@ -67,7 +67,7 @@ pub(crate) fn calculate_damage_assignments(
             Err(_) => continue, // Not a creature — skip (should not happen).
         };
 
-        match &cs.blocked_by {
+        match cs.blocked_by() {
             None => {
                 // Unblocked: damage goes to the defending player.
                 assignments.push(DamageAssignment {
@@ -91,7 +91,7 @@ pub(crate) fn calculate_damage_assignments(
                 // MVP: blockers are supplied in the same slice as attackers
                 // when the caller flattens all battlefield creatures.
                 assignments.push(DamageAssignment {
-                    target_id: blocker_id.as_str().to_owned(),
+                    target_id: blocker_id.to_owned(),
                     amount: power,
                     is_player: false,
                 });
@@ -127,7 +127,7 @@ pub(crate) fn calculate_all_combat_damage(
 
     for entry in all_creatures {
         let cs = match entry.state.creature_state() {
-            Some(cs) if cs.is_attacking => cs,
+            Some(cs) if cs.is_attacking() => cs,
             _ => continue,
         };
 
@@ -136,7 +136,7 @@ pub(crate) fn calculate_all_combat_damage(
             Err(_) => continue,
         };
 
-        match &cs.blocked_by {
+        match cs.blocked_by() {
             None => {
                 // Unblocked attacker damages the defending player.
                 assignments.push(DamageAssignment {
@@ -149,7 +149,7 @@ pub(crate) fn calculate_all_combat_damage(
                 // Find the blocker in the slice to get its power.
                 let blocker_entry = all_creatures
                     .iter()
-                    .find(|e| e.instance_id == blocker_id.as_str());
+                    .find(|e| e.instance_id == blocker_id);
 
                 let blocker_power = match blocker_entry {
                     Some(blocker) => match blocker.state.current_power() {
@@ -162,7 +162,7 @@ pub(crate) fn calculate_all_combat_damage(
 
                 // Attacker damages blocker.
                 assignments.push(DamageAssignment {
-                    target_id: blocker_id.as_str().to_owned(),
+                    target_id: blocker_id.to_owned(),
                     amount: attacker_power,
                     is_player: false,
                 });

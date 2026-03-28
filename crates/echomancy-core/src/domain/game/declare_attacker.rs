@@ -105,8 +105,8 @@ mod tests {
 
         let state = game.permanent_state("bear-1").unwrap();
         let cs = state.creature_state().unwrap();
-        assert!(cs.is_attacking);
-        assert!(cs.has_attacked_this_turn);
+        assert!(cs.is_attacking());
+        assert!(cs.has_attacked_this_turn());
         assert!(state.is_tapped());
     }
 
@@ -160,7 +160,7 @@ mod tests {
         .unwrap();
 
         let state = game.permanent_state("bear-1").unwrap();
-        assert!(state.creature_state().unwrap().is_attacking);
+        assert!(state.creature_state().unwrap().is_attacking());
     }
 
     #[test]

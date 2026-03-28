@@ -140,7 +140,7 @@ fn pay_activation_cost(
 
             // Check summoning sickness for creatures
             if let Some(cs) = state.creature_state() {
-                if cs.has_summoning_sickness
+                if cs.has_summoning_sickness()
                     && !permanent_card
                         .definition()
                         .has_static_ability(crate::domain::enums::StaticAbility::Haste)

@@ -240,7 +240,7 @@ impl PermanentState {
     pub fn current_power(&self) -> Result<i32, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let plus_counters = self.get_counters("PLUS_ONE_PLUS_ONE") as i32;
-        Ok(cs.base_power + plus_counters)
+        Ok(cs.base_power() + plus_counters)
     }
 
     /// Returns the current toughness, including +1/+1 counter bonuses.
@@ -251,7 +251,7 @@ impl PermanentState {
     pub fn current_toughness(&self) -> Result<i32, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let plus_counters = self.get_counters("PLUS_ONE_PLUS_ONE") as i32;
-        Ok(cs.base_toughness + plus_counters)
+        Ok(cs.base_toughness() + plus_counters)
     }
 
     /// Returns `true` if the creature has taken lethal damage this turn.
@@ -262,7 +262,7 @@ impl PermanentState {
     pub fn has_lethal_damage(&self) -> Result<bool, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let toughness = self.current_toughness()?;
-        Ok(cs.damage_marked_this_turn >= toughness)
+        Ok(cs.damage_marked_this_turn() >= toughness)
     }
 
     // ---- turn reset operations ---------------------------------------------
@@ -332,13 +332,13 @@ mod tests {
         let state = PermanentState::for_creature(2, 3);
         assert!(!state.is_tapped());
         let cs = state.creature_state().expect("should have creature state");
-        assert!(cs.has_summoning_sickness);
-        assert!(!cs.is_attacking);
-        assert_eq!(cs.base_power, 2);
-        assert_eq!(cs.base_toughness, 3);
-        assert_eq!(cs.damage_marked_this_turn, 0);
-        assert!(cs.blocking_creature_id.is_none());
-        assert!(cs.blocked_by.is_none());
+        assert!(cs.has_summoning_sickness());
+        assert!(!cs.is_attacking());
+        assert_eq!(cs.base_power(), 2);
+        assert_eq!(cs.base_toughness(), 3);
+        assert_eq!(cs.damage_marked_this_turn(), 0);
+        assert!(cs.blocking_creature_id().is_none());
+        assert!(cs.blocked_by().is_none());
     }
 
     // ---- for_non_creature --------------------------------------------------
@@ -414,8 +414,8 @@ mod tests {
     fn with_attacking_sets_flag() {
         let state = PermanentState::for_creature(2, 2);
         let attacking = state.with_attacking(true).unwrap();
-        assert!(attacking.creature_state().unwrap().is_attacking);
-        assert!(!state.creature_state().unwrap().is_attacking); // original unchanged
+        assert!(attacking.creature_state().unwrap().is_attacking());
+        assert!(!state.creature_state().unwrap().is_attacking()); // original unchanged
     }
 
     #[test]
@@ -428,14 +428,14 @@ mod tests {
     fn with_summoning_sickness_updates_flag() {
         let state = PermanentState::for_creature(1, 1);
         let no_sick = state.with_summoning_sickness(false).unwrap();
-        assert!(!no_sick.creature_state().unwrap().has_summoning_sickness);
+        assert!(!no_sick.creature_state().unwrap().has_summoning_sickness());
     }
 
     #[test]
     fn with_damage_updates_damage() {
         let state = PermanentState::for_creature(3, 3);
         let damaged = state.with_damage(2).unwrap();
-        assert_eq!(damaged.creature_state().unwrap().damage_marked_this_turn, 2);
+        assert_eq!(damaged.creature_state().unwrap().damage_marked_this_turn(), 2);
     }
 
     // ---- derived stats -----------------------------------------------------
@@ -487,17 +487,17 @@ mod tests {
             .unwrap();
         let reset = state.reset_for_new_turn().unwrap();
         let cs = reset.creature_state().unwrap();
-        assert!(!cs.is_attacking);
-        assert!(!cs.has_attacked_this_turn);
-        assert_eq!(cs.damage_marked_this_turn, 0);
-        assert!(!cs.has_summoning_sickness);
+        assert!(!cs.is_attacking());
+        assert!(!cs.has_attacked_this_turn());
+        assert_eq!(cs.damage_marked_this_turn(), 0);
+        assert!(!cs.has_summoning_sickness());
     }
 
     #[test]
     fn clear_damage_zeroes_damage() {
         let state = PermanentState::for_creature(2, 2).with_damage(3).unwrap();
         let cleared = state.clear_damage().unwrap();
-        assert_eq!(cleared.creature_state().unwrap().damage_marked_this_turn, 0);
+        assert_eq!(cleared.creature_state().unwrap().damage_marked_this_turn(), 0);
     }
 
     #[test]
@@ -510,8 +510,8 @@ mod tests {
             .unwrap();
         let cleared = state.clear_combat_state().unwrap();
         let cs = cleared.creature_state().unwrap();
-        assert!(!cs.is_attacking);
-        assert!(cs.blocking_creature_id.is_none());
+        assert!(!cs.is_attacking());
+        assert!(cs.blocking_creature_id().is_none());
     }
 
     // ---- clear_combat_state preserves damage --------------------------------
@@ -524,7 +524,7 @@ mod tests {
             .with_attacking(true)
             .unwrap();
         let cleared = state.clear_combat_state().unwrap();
-        assert_eq!(cleared.creature_state().unwrap().damage_marked_this_turn, 3);
+        assert_eq!(cleared.creature_state().unwrap().damage_marked_this_turn(), 3);
     }
 
     // ---- has_lethal_damage with +1/+1 counters ------------------------------

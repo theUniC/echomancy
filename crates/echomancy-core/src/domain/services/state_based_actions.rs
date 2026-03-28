@@ -59,7 +59,7 @@ pub(crate) fn find_creatures_to_destroy(
         };
 
         // Check lethal damage.
-        if cs.damage_marked_this_turn >= current_toughness {
+        if cs.damage_marked_this_turn() >= current_toughness {
             to_destroy.push(entry.instance_id.to_owned());
             continue;
         }

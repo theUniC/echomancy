@@ -366,17 +366,14 @@ pub(crate) fn export_creature_state(state: &PermanentState) -> Option<CreatureSt
 
     Some(CreatureStateExport {
         is_tapped: state.is_tapped(),
-        is_attacking: cs.is_attacking,
-        has_attacked_this_turn: cs.has_attacked_this_turn,
-        has_summoning_sickness: cs.has_summoning_sickness,
+        is_attacking: cs.is_attacking(),
+        has_attacked_this_turn: cs.has_attacked_this_turn(),
+        has_summoning_sickness: cs.has_summoning_sickness(),
         power,
         toughness,
-        damage_marked_this_turn: cs.damage_marked_this_turn,
-        blocking_creature_id: cs
-            .blocking_creature_id
-            .as_ref()
-            .map(|id| id.as_str().to_owned()),
-        blocked_by: cs.blocked_by.as_ref().map(|id| id.as_str().to_owned()),
+        damage_marked_this_turn: cs.damage_marked_this_turn(),
+        blocking_creature_id: cs.blocking_creature_id().map(str::to_owned),
+        blocked_by: cs.blocked_by().map(str::to_owned),
         counters,
     })
 }

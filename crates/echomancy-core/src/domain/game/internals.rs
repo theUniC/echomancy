@@ -255,7 +255,10 @@ impl Game {
     }
 
     /// Add mana to a player's pool.
-    pub(crate) fn add_mana(
+    ///
+    /// `pub` because cross-crate tests need it for test setup.
+    /// In production, mana is only added via `ActivateAbility` (mana abilities).
+    pub fn add_mana(
         &mut self,
         player_id: &str,
         color: ManaColor,
@@ -359,7 +362,7 @@ impl Game {
     pub(crate) fn mark_damage_on_creature(&mut self, creature_id: &str, damage: i32) {
         if let Some(state) = self.permanent_states.get(creature_id) {
             if let Some(cs) = state.creature_state() {
-                let new_damage = cs.damage_marked_this_turn + damage;
+                let new_damage = cs.damage_marked_this_turn() + damage;
                 if let Ok(new_state) = state.with_damage(new_damage) {
                     self.permanent_states.insert(creature_id.to_owned(), new_state);
                 }
@@ -782,7 +785,7 @@ impl Game {
             .iter()
             .filter(|(_, s)| {
                 s.creature_state()
-                    .map(|cs| cs.is_attacking)
+                    .map(|cs| cs.is_attacking())
                     .unwrap_or(false)
             })
             .map(|(id, s)| (id.clone(), s.clone()))

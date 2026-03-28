@@ -129,7 +129,7 @@ pub(crate) fn validate_declare_attacker(
     })?;
 
     // 6. Summoning sickness check (Haste bypasses it).
-    if cs.has_summoning_sickness && !ctx.has_static_ability(creature, StaticAbility::Haste) {
+    if cs.has_summoning_sickness() && !ctx.has_static_ability(creature, StaticAbility::Haste) {
         return Err(GameError::CreatureHasSummoningSickness {
             creature_id: CardInstanceId::new(creature_id),
         });
@@ -143,7 +143,7 @@ pub(crate) fn validate_declare_attacker(
     }
 
     // 8. Must not have already attacked this turn.
-    if cs.has_attacked_this_turn {
+    if cs.has_attacked_this_turn() {
         return Err(GameError::CreatureAlreadyAttacked {
             creature_id: CardInstanceId::new(creature_id),
         });
@@ -245,7 +245,7 @@ pub(crate) fn validate_declare_blocker(
     }
 
     // 5. Blocker must not already be blocking.
-    if blocker_cs.blocking_creature_id.is_some() {
+    if blocker_cs.blocking_creature_id().is_some() {
         return Err(GameError::CreatureAlreadyBlocking {
             creature_id: CardInstanceId::new(blocker_id),
         });
@@ -264,14 +264,14 @@ pub(crate) fn validate_declare_blocker(
             permanent_id: CardInstanceId::new(attacker_id),
         })?;
 
-    if !attacker_cs.is_attacking {
+    if !attacker_cs.is_attacking() {
         return Err(GameError::CannotBlockNonAttackingCreature {
             attacker_id: CardInstanceId::new(attacker_id),
         });
     }
 
     // 8. MVP: only one blocker per attacker.
-    if attacker_cs.blocked_by.is_some() {
+    if attacker_cs.blocked_by().is_some() {
         return Err(GameError::AttackerAlreadyBlocked {
             attacker_id: CardInstanceId::new(attacker_id),
         });
@@ -440,8 +440,8 @@ mod tests {
 
         let result = validate_declare_attacker(&ctx, "p1", "a1").unwrap();
         let cs = result.new_state.creature_state().unwrap();
-        assert!(cs.is_attacking);
-        assert!(cs.has_attacked_this_turn);
+        assert!(cs.is_attacking());
+        assert!(cs.has_attacked_this_turn());
         assert!(result.new_state.is_tapped()); // tapped by default (no Vigilance)
     }
 
@@ -555,8 +555,8 @@ mod tests {
                 .new_blocker_state
                 .creature_state()
                 .unwrap()
-                .blocking_creature_id,
-            Some(CardInstanceId::new("a1"))
+                .blocking_creature_id(),
+            Some("a1")
         );
         // Attacker now has blocked_by = b1.
         assert_eq!(
@@ -564,8 +564,8 @@ mod tests {
                 .new_attacker_state
                 .creature_state()
                 .unwrap()
-                .blocked_by,
-            Some(CardInstanceId::new("b1"))
+                .blocked_by(),
+            Some("b1")
         );
     }
 

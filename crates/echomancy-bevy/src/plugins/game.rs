@@ -374,10 +374,10 @@ fn compute_attackable_creatures(game: &Game, player_id: &str) -> Vec<String> {
             let Some(cs) = state.creature_state() else {
                 return false;
             };
-            if cs.has_attacked_this_turn {
+            if cs.has_attacked_this_turn() {
                 return false;
             }
-            if cs.has_summoning_sickness
+            if cs.has_summoning_sickness()
                 && !card
                     .definition()
                     .static_abilities()
@@ -420,7 +420,7 @@ fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<String> {
             let Some(cs) = state.creature_state() else {
                 return false;
             };
-            cs.blocking_creature_id.is_none()
+            cs.blocking_creature_id().is_none()
         })
         .map(|card| card.instance_id().to_owned())
         .collect()

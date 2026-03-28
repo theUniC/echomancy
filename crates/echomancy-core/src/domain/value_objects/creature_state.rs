@@ -12,14 +12,14 @@ use crate::domain::types::CardInstanceId;
 /// Mirrors the TypeScript `CreatureSubState` type from `PermanentState.ts`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatureSubState {
-    pub base_power: i32,
-    pub base_toughness: i32,
-    pub has_summoning_sickness: bool,
-    pub is_attacking: bool,
-    pub has_attacked_this_turn: bool,
-    pub damage_marked_this_turn: i32,
-    pub blocking_creature_id: Option<CardInstanceId>,
-    pub blocked_by: Option<CardInstanceId>,
+    pub(crate) base_power: i32,
+    pub(crate) base_toughness: i32,
+    pub(crate) has_summoning_sickness: bool,
+    pub(crate) is_attacking: bool,
+    pub(crate) has_attacked_this_turn: bool,
+    pub(crate) damage_marked_this_turn: i32,
+    pub(crate) blocking_creature_id: Option<CardInstanceId>,
+    pub(crate) blocked_by: Option<CardInstanceId>,
 }
 
 impl CreatureSubState {
@@ -38,6 +38,50 @@ impl CreatureSubState {
             blocked_by: None,
         }
     }
+
+    // ---- public accessors --------------------------------------------------
+
+    /// Returns the base power of the creature (before counters or continuous effects).
+    pub fn base_power(&self) -> i32 {
+        self.base_power
+    }
+
+    /// Returns the base toughness of the creature (before counters or continuous effects).
+    pub fn base_toughness(&self) -> i32 {
+        self.base_toughness
+    }
+
+    /// Returns `true` if the creature is currently attacking.
+    pub fn is_attacking(&self) -> bool {
+        self.is_attacking
+    }
+
+    /// Returns `true` if the creature has already attacked this turn.
+    pub fn has_attacked_this_turn(&self) -> bool {
+        self.has_attacked_this_turn
+    }
+
+    /// Returns `true` if the creature has summoning sickness.
+    pub fn has_summoning_sickness(&self) -> bool {
+        self.has_summoning_sickness
+    }
+
+    /// Returns the amount of damage marked on the creature this turn.
+    pub fn damage_marked_this_turn(&self) -> i32 {
+        self.damage_marked_this_turn
+    }
+
+    /// Returns the instance ID of the creature this creature is blocking, if any.
+    pub fn blocking_creature_id(&self) -> Option<&str> {
+        self.blocking_creature_id.as_ref().map(|id| id.as_str())
+    }
+
+    /// Returns the instance ID of the creature blocking this creature, if any.
+    pub fn blocked_by(&self) -> Option<&str> {
+        self.blocked_by.as_ref().map(|id| id.as_str())
+    }
+
+    // ---- builder methods ---------------------------------------------------
 
     /// Returns a new `CreatureSubState` with `is_attacking` set to `attacking`.
     pub(crate) fn with_attacking(&self, attacking: bool) -> Self {
@@ -131,43 +175,43 @@ mod tests {
     #[test]
     fn new_creature_state_has_summoning_sickness() {
         let cs = CreatureSubState::new(2, 3);
-        assert!(cs.has_summoning_sickness);
-        assert!(!cs.is_attacking);
-        assert_eq!(cs.base_power, 2);
-        assert_eq!(cs.base_toughness, 3);
-        assert_eq!(cs.damage_marked_this_turn, 0);
-        assert!(cs.blocking_creature_id.is_none());
-        assert!(cs.blocked_by.is_none());
+        assert!(cs.has_summoning_sickness());
+        assert!(!cs.is_attacking());
+        assert_eq!(cs.base_power(), 2);
+        assert_eq!(cs.base_toughness(), 3);
+        assert_eq!(cs.damage_marked_this_turn(), 0);
+        assert!(cs.blocking_creature_id().is_none());
+        assert!(cs.blocked_by().is_none());
     }
 
     #[test]
     fn with_attacking_returns_new_original_unchanged() {
         let cs = CreatureSubState::new(2, 2);
         let attacking = cs.with_attacking(true);
-        assert!(attacking.is_attacking);
-        assert!(!cs.is_attacking);
+        assert!(attacking.is_attacking());
+        assert!(!cs.is_attacking());
     }
 
     #[test]
     fn with_has_attacked_this_turn_updates_flag() {
         let cs = CreatureSubState::new(1, 1);
         let attacked = cs.with_has_attacked_this_turn(true);
-        assert!(attacked.has_attacked_this_turn);
-        assert!(!cs.has_attacked_this_turn);
+        assert!(attacked.has_attacked_this_turn());
+        assert!(!cs.has_attacked_this_turn());
     }
 
     #[test]
     fn with_summoning_sickness_updates_flag() {
         let cs = CreatureSubState::new(1, 1);
         let no_sick = cs.with_summoning_sickness(false);
-        assert!(!no_sick.has_summoning_sickness);
+        assert!(!no_sick.has_summoning_sickness());
     }
 
     #[test]
     fn with_damage_updates_damage() {
         let cs = CreatureSubState::new(3, 3);
         let damaged = cs.with_damage(2);
-        assert_eq!(damaged.damage_marked_this_turn, 2);
+        assert_eq!(damaged.damage_marked_this_turn(), 2);
     }
 
     #[test]
@@ -175,8 +219,8 @@ mod tests {
         let id = CardInstanceId::new("blocker-1");
         let cs = CreatureSubState::new(2, 2);
         let blocking = cs.with_blocking_creature_id(Some(id.clone()));
-        assert_eq!(blocking.blocking_creature_id, Some(id));
-        assert!(cs.blocking_creature_id.is_none());
+        assert_eq!(blocking.blocking_creature_id(), Some("blocker-1"));
+        assert!(cs.blocking_creature_id().is_none());
     }
 
     #[test]
@@ -184,8 +228,8 @@ mod tests {
         let id = CardInstanceId::new("attacker-1");
         let cs = CreatureSubState::new(2, 2);
         let blocked = cs.with_blocked_by(Some(id.clone()));
-        assert_eq!(blocked.blocked_by, Some(id));
-        assert!(cs.blocked_by.is_none());
+        assert_eq!(blocked.blocked_by(), Some("attacker-1"));
+        assert!(cs.blocked_by().is_none());
     }
 
     #[test]
@@ -195,20 +239,20 @@ mod tests {
             .with_damage(1)
             .with_has_attacked_this_turn(true);
         let reset = cs.reset_for_new_turn();
-        assert!(!reset.is_attacking);
-        assert!(!reset.has_attacked_this_turn);
-        assert_eq!(reset.damage_marked_this_turn, 0);
-        assert!(!reset.has_summoning_sickness);
-        assert!(reset.blocking_creature_id.is_none());
-        assert!(reset.blocked_by.is_none());
+        assert!(!reset.is_attacking());
+        assert!(!reset.has_attacked_this_turn());
+        assert_eq!(reset.damage_marked_this_turn(), 0);
+        assert!(!reset.has_summoning_sickness());
+        assert!(reset.blocking_creature_id().is_none());
+        assert!(reset.blocked_by().is_none());
     }
 
     #[test]
     fn clear_damage_zeroes_damage() {
         let cs = CreatureSubState::new(2, 2).with_damage(5);
         let cleared = cs.clear_damage();
-        assert_eq!(cleared.damage_marked_this_turn, 0);
-        assert_eq!(cs.damage_marked_this_turn, 5);
+        assert_eq!(cleared.damage_marked_this_turn(), 0);
+        assert_eq!(cs.damage_marked_this_turn(), 5);
     }
 
     #[test]
@@ -218,8 +262,8 @@ mod tests {
             .with_attacking(true)
             .with_blocking_creature_id(Some(id));
         let cleared = cs.clear_combat_state();
-        assert!(!cleared.is_attacking);
-        assert!(cleared.blocking_creature_id.is_none());
+        assert!(!cleared.is_attacking());
+        assert!(cleared.blocking_creature_id().is_none());
     }
 
     #[test]
@@ -228,6 +272,6 @@ mod tests {
             .with_damage(3)
             .with_attacking(true);
         let cleared = cs.clear_combat_state();
-        assert_eq!(cleared.damage_marked_this_turn, 3);
+        assert_eq!(cleared.damage_marked_this_turn(), 3);
     }
 }
