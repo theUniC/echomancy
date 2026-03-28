@@ -1,139 +1,11 @@
-//! GamePlugin — bridge between the echomancy-core domain and Bevy's ECS.
+//! Pure snapshot-computation helpers.
 //!
-//! Responsibilities:
-//! - Hold the domain `Game` as a Bevy `Resource` (`GameState`).
-//! - Mirror the snapshot and allowed actions as resources (`CurrentSnapshot`, `PlayableCards`).
-//! - Register `GameActionMessage` for UI systems to send actions.
-//! - Register `SnapshotChangedMessage` so UI systems know when to rebuild.
-//! - Set up a 2D camera on startup.
+//! All functions here are stateless: they take `&Game` plus a player ID and
+//! return derived data. They have no Bevy dependency and are easy to unit-test.
 
-use bevy::prelude::*;
-use echomancy_core::domain::game::automation::{
-    auto_advance_through_non_interactive, auto_advance_to_main_phase, auto_resolve_stack,
-};
 use echomancy_core::prelude::*;
-use uuid::Uuid;
 
-// ============================================================================
-// Resources
-// ============================================================================
-
-/// Holds the live domain `Game` aggregate.
-///
-/// All state mutations go through `GameActionMessage` → `handle_game_actions`.
-/// UI systems read `CurrentSnapshot` instead of this directly.
-#[derive(Resource)]
-pub(crate) struct GameState {
-    pub(crate) game: Game,
-}
-
-/// The most recent player-relative snapshot, recomputed after every mutation.
-///
-/// UI plugins (Phase 8.2+) read `snapshot` to rebuild rendered card state.
-#[derive(Resource)]
-#[allow(dead_code)]
-pub(crate) struct CurrentSnapshot {
-    pub(crate) snapshot: GameSnapshot,
-}
-
-/// The most recent allowed-actions result, recomputed after every mutation.
-///
-/// UI plugins (Phase 8.2+) read `result` to highlight playable cards.
-#[derive(Resource)]
-#[allow(dead_code)]
-pub(crate) struct PlayableCards {
-    pub(crate) result: AllowedActionsResult,
-}
-
-/// The player whose perspective drives the UI (updated whenever priority changes).
-#[derive(Resource)]
-pub(crate) struct ActivePlayerId {
-    pub(crate) player_id: String,
-}
-
-/// A single player's identity info: their ID and display name.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PlayerInfo {
-    pub(crate) id: String,
-    pub(crate) name: String,
-}
-
-/// Stores both players' IDs and display names so the HUD can label whose
-/// perspective is currently shown.
-#[derive(Resource)]
-pub(crate) struct PlayerIds {
-    pub(crate) p1: PlayerInfo,
-    pub(crate) p2: PlayerInfo,
-}
-
-impl PlayerIds {
-    /// Return the display name of the player with the given ID, or `"Unknown"`.
-    pub(crate) fn name_for(&self, player_id: &str) -> &str {
-        if self.p1.id == player_id {
-            &self.p1.name
-        } else if self.p2.id == player_id {
-            &self.p2.name
-        } else {
-            "Unknown"
-        }
-    }
-}
-
-/// Stores the most recent domain error message to display in the HUD.
-///
-/// Set to `Some(msg)` when an action is rejected; cleared to `None` on the
-/// next successful action. The HUD reads this resource to render a red alert.
-#[derive(Resource, Default)]
-pub(crate) struct ErrorMessage {
-    pub(crate) message: Option<String>,
-}
-
-// ============================================================================
-// Messages
-// ============================================================================
-
-/// Sent by UI systems when the local player performs a game action.
-///
-/// `handle_game_actions` reads this, applies it to `GameState`, and
-/// recomputes the snapshot.
-#[derive(Message, Clone)]
-pub(crate) struct GameActionMessage(pub(crate) Action);
-
-/// Sent after the snapshot is recomputed.
-///
-/// UI systems should listen for this message to trigger a full rebuild of
-/// any rendered card state.
-#[derive(Message)]
-pub(crate) struct SnapshotChangedMessage;
-
-// ============================================================================
-// Card registry for snapshot creation
-// ============================================================================
-
-/// Simple card registry that resolves definition IDs to human-readable names.
-///
-/// In the MVP the catalog is a small static set. This delegates to the
-/// catalog's naming convention: the definition ID is the canonical name source.
-struct CatalogRegistry;
-
-impl CardRegistry for CatalogRegistry {
-    fn card_name(&self, definition_id: &str) -> String {
-        // Map known definition IDs to display names.
-        match definition_id {
-            "forest" => "Forest".to_owned(),
-            "mountain" => "Mountain".to_owned(),
-            "plains" => "Plains".to_owned(),
-            "island" => "Island".to_owned(),
-            "swamp" => "Swamp".to_owned(),
-            "bear" => "Bear".to_owned(),
-            "elite-vanguard" => "Elite Vanguard".to_owned(),
-            "goblin" => "Goblin".to_owned(),
-            "giant-growth" => "Giant Growth".to_owned(),
-            "lightning-strike" => "Lightning Strike".to_owned(),
-            other => other.to_owned(),
-        }
-    }
-}
+use super::{AllowedActionsResult, CatalogRegistry};
 
 // ============================================================================
 // Priority-based perspective helper
@@ -167,7 +39,7 @@ pub(crate) fn resolve_ui_player_id<'a>(
 }
 
 // ============================================================================
-// Snapshot helper
+// Snapshot computation
 // ============================================================================
 
 /// Compute a fresh `GameSnapshot` and `AllowedActionsResult` for the given viewer.
@@ -207,7 +79,7 @@ pub(crate) fn compute_snapshot(
 ///
 /// Replicates the domain rule from `GetAllowedActions` without going through
 /// the repository layer (we hold the `Game` directly in the Bevy resource).
-fn compute_playable_lands(game: &Game, player_id: &str) -> Vec<String> {
+pub(crate) fn compute_playable_lands(game: &Game, player_id: &str) -> Vec<String> {
     // Active player only.
     if game.current_player_id() != player_id {
         return Vec::new();
@@ -241,7 +113,7 @@ fn compute_playable_lands(game: &Game, player_id: &str) -> Vec<String> {
 ///
 /// Mana abilities (CR 605) can be activated whenever the player has priority,
 /// regardless of the game step.
-fn compute_tappable_lands(game: &Game, player_id: &str) -> Vec<String> {
+pub(crate) fn compute_tappable_lands(game: &Game, player_id: &str) -> Vec<String> {
     // Player must have priority.
     if game.priority_player_id() != Some(player_id) {
         return Vec::new();
@@ -285,7 +157,7 @@ fn compute_tappable_lands(game: &Game, player_id: &str) -> Vec<String> {
 /// 3. Current step is a main phase.
 /// 4. Stack is empty.
 /// 5. Player can pay the mana cost from their current pool.
-fn compute_castable_spells(game: &Game, player_id: &str) -> Vec<String> {
+pub(crate) fn compute_castable_spells(game: &Game, player_id: &str) -> Vec<String> {
     use echomancy_core::prelude::{ManaCost, can_pay_cost};
 
     // 1. Must have priority.
@@ -346,7 +218,7 @@ fn compute_castable_spells(game: &Game, player_id: &str) -> Vec<String> {
 
 /// Returns instance IDs of untapped, non-summoning-sick creatures the player
 /// can declare as attackers during the `DeclareAttackers` step.
-fn compute_attackable_creatures(game: &Game, player_id: &str) -> Vec<String> {
+pub(crate) fn compute_attackable_creatures(game: &Game, player_id: &str) -> Vec<String> {
     use echomancy_core::prelude::StaticAbility;
 
     if game.current_step() != Step::DeclareAttackers {
@@ -393,7 +265,7 @@ fn compute_attackable_creatures(game: &Game, player_id: &str) -> Vec<String> {
 
 /// Returns instance IDs of untapped creatures on the defending player's
 /// battlefield that can be declared as blockers during `DeclareBlockers`.
-fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<String> {
+pub(crate) fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<String> {
     if game.current_step() != Step::DeclareBlockers {
         return Vec::new();
     }
@@ -436,187 +308,11 @@ fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<String> {
 /// This converts them to `"Player 1"` or `"Player 2"` so the HUD shows friendly text.
 ///
 /// Only replaces IDs that appear in `player_ids`. Unknown UUIDs are left as-is.
-pub(crate) fn humanize_error(message: &str, player_ids: &PlayerIds) -> String {
+pub(crate) fn humanize_error(message: &str, player_ids: &super::PlayerIds) -> String {
     let mut result = message.to_owned();
     result = result.replace(&player_ids.p1.id, &player_ids.p1.name);
     result = result.replace(&player_ids.p2.id, &player_ids.p2.name);
     result
-}
-
-// ============================================================================
-// Systems
-// ============================================================================
-
-/// Startup system: create a 2-player game, assign prebuilt decks, start it,
-/// and compute the initial snapshot. Inserts all resources.
-pub(crate) fn setup_game(mut commands: Commands) {
-    let p1_id = Uuid::new_v4().to_string();
-    let p2_id = Uuid::new_v4().to_string();
-
-    let p1_name = "Player 1".to_owned();
-    let p2_name = "Player 2".to_owned();
-
-    let mut game = Game::create(Uuid::new_v4().to_string());
-    game.add_player(&p1_id, &p1_name).expect("add player 1");
-    game.add_player(&p2_id, &p2_name).expect("add player 2");
-
-    game.assign_deck(&p1_id, prebuilt_decks::green_deck(&p1_id))
-        .expect("assign green deck");
-    game.assign_deck(&p2_id, prebuilt_decks::red_deck(&p2_id))
-        .expect("assign red deck");
-
-    // Use OS entropy for shuffling (non-deterministic, as expected in production).
-    game.start(&p1_id, None).expect("start game");
-
-    // Auto-advance through Untap → Upkeep → Draw → FirstMain so the player
-    // immediately sees playable lands on startup.
-    auto_advance_to_main_phase(&mut game, &p1_id);
-
-    let (snapshot, playable_cards) =
-        compute_snapshot(&game, &p1_id).expect("initial snapshot");
-
-    info!(
-        player1_id = %p1_id,
-        player2_id = %p2_id,
-        turn = snapshot.public_game_state.turn_number,
-        step = ?snapshot.public_game_state.current_step,
-        "Game created and started"
-    );
-
-    commands.insert_resource(PlayerIds {
-        p1: PlayerInfo { id: p1_id.clone(), name: p1_name },
-        p2: PlayerInfo { id: p2_id.clone(), name: p2_name },
-    });
-    commands.insert_resource(ActivePlayerId {
-        player_id: p1_id.clone(),
-    });
-    commands.insert_resource(GameState { game });
-    commands.insert_resource(CurrentSnapshot { snapshot });
-    commands.insert_resource(PlayableCards {
-        result: playable_cards,
-    });
-    commands.insert_resource(ErrorMessage::default());
-}
-
-/// One-shot system that fires after startup to notify UI of initial state.
-pub(crate) fn send_initial_snapshot_message(
-    mut snapshot_changed: MessageWriter<SnapshotChangedMessage>,
-) {
-    snapshot_changed.write(SnapshotChangedMessage);
-}
-
-/// Update system: drain `GameActionMessage`s, apply each to the domain game,
-/// recompute the snapshot, and send `SnapshotChangedMessage`.
-///
-/// After each action, checks whether the active player has changed (e.g.,
-/// after `EndTurn`) and updates `ActivePlayerId` accordingly so the UI always
-/// shows the perspective of the player whose turn it currently is.
-///
-/// On success, clears `ErrorMessage`. On failure, stores the error string in
-/// `ErrorMessage` so the HUD can display it.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn handle_game_actions(
-    mut game_state: ResMut<GameState>,
-    mut active_player: ResMut<ActivePlayerId>,
-    mut action_messages: MessageReader<GameActionMessage>,
-    mut snapshot_res: ResMut<CurrentSnapshot>,
-    mut playable_res: ResMut<PlayableCards>,
-    mut snapshot_changed: MessageWriter<SnapshotChangedMessage>,
-    mut error_message: ResMut<ErrorMessage>,
-    player_ids: Res<PlayerIds>,
-) {
-    let mut any_applied = false;
-
-    for message in action_messages.read() {
-        match game_state.game.apply(message.0.clone()) {
-            Ok(events) => {
-                debug!(event_count = events.len(), "Game action applied");
-                any_applied = true;
-                // Clear any previous error on success.
-                error_message.message = None;
-            }
-            Err(err) => {
-                warn!(%err, "GameActionMessage rejected by domain");
-                error_message.message = Some(humanize_error(&err.to_string(), &player_ids));
-            }
-        }
-    }
-
-    if any_applied {
-        // Auto-resolve the stack when no player can respond.
-        // In the MVP, neither player has counterspells or instant-speed responses,
-        // so we auto-pass priority for both players until the stack empties.
-        auto_resolve_stack(&mut game_state.game);
-
-        // Auto-advance through non-interactive steps on every action, not just
-        // on perspective changes. This handles the case where the active player
-        // clicks "Pass Priority" from FirstMain and the engine enters
-        // BeginningOfCombat, which must be auto-skipped to reach DeclareAttackers.
-        // Combat damage (CombatDamage step) is auto-calculated by the engine's
-        // on_enter_step hook; EndOfCombat, EndStep, Cleanup are also non-interactive.
-        let current_player_for_advance = game_state.game.current_player_id().to_owned();
-        auto_advance_through_non_interactive(&mut game_state.game, &current_player_for_advance);
-
-        // Determine which player's perspective the UI should show.
-        // During DeclareBlockers the defending player (priority holder) drives the UI.
-        // Otherwise the active (current) player drives it.
-        let new_ui_player = resolve_ui_player_id(
-            game_state.game.priority_player_id(),
-            game_state.game.current_player_id(),
-            game_state.game.current_step(),
-        )
-        .to_owned();
-
-        let perspective_changed = new_ui_player != active_player.player_id;
-        if perspective_changed {
-            info!(
-                old = %active_player.player_id,
-                new = %new_ui_player,
-                "UI perspective switched to new active player"
-            );
-            active_player.player_id = new_ui_player.clone();
-
-            // When a new player takes over the UI (e.g. after EndTurn or after
-            // P1's cleanup wraps to P2's Untap), auto-advance through any
-            // remaining non-interactive steps so P2 starts in an interactive step.
-            auto_advance_through_non_interactive(&mut game_state.game, &new_ui_player);
-        }
-
-        match compute_snapshot(&game_state.game, &active_player.player_id) {
-            Ok((snapshot, playable_cards)) => {
-                *snapshot_res = CurrentSnapshot { snapshot };
-                *playable_res = PlayableCards {
-                    result: playable_cards,
-                };
-                snapshot_changed.write(SnapshotChangedMessage);
-            }
-            Err(err) => {
-                error!(%err, "Failed to compute snapshot after action");
-            }
-        }
-    }
-}
-
-/// Startup system: spawn a 2D camera so Bevy renders the window.
-pub(crate) fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2d);
-}
-
-// ============================================================================
-// Plugin
-// ============================================================================
-
-/// Registers all game-related resources, messages, and systems.
-pub(crate) struct GamePlugin;
-
-impl Plugin for GamePlugin {
-    fn build(&self, app: &mut App) {
-        app.add_message::<GameActionMessage>()
-            .add_message::<SnapshotChangedMessage>()
-            .add_systems(Startup, (setup_camera, setup_game))
-            .add_systems(PostStartup, send_initial_snapshot_message)
-            .add_systems(Update, handle_game_actions);
-    }
 }
 
 // ============================================================================
@@ -626,7 +322,10 @@ impl Plugin for GamePlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use echomancy_core::prelude::*;
     use uuid::Uuid;
+
+    use crate::plugins::game::{PlayerIds, PlayerInfo};
 
     fn uuid() -> String {
         Uuid::new_v4().to_string()
@@ -729,35 +428,6 @@ mod tests {
         );
     }
 
-    // ---- PlayerIds ---------------------------------------------------------
-
-    #[test]
-    fn player_ids_name_for_returns_p1_name() {
-        let ids = PlayerIds {
-            p1: PlayerInfo { id: "id-1".to_owned(), name: "Alice".to_owned() },
-            p2: PlayerInfo { id: "id-2".to_owned(), name: "Bob".to_owned() },
-        };
-        assert_eq!(ids.name_for("id-1"), "Alice");
-    }
-
-    #[test]
-    fn player_ids_name_for_returns_p2_name() {
-        let ids = PlayerIds {
-            p1: PlayerInfo { id: "id-1".to_owned(), name: "Alice".to_owned() },
-            p2: PlayerInfo { id: "id-2".to_owned(), name: "Bob".to_owned() },
-        };
-        assert_eq!(ids.name_for("id-2"), "Bob");
-    }
-
-    #[test]
-    fn player_ids_name_for_returns_unknown_for_bad_id() {
-        let ids = PlayerIds {
-            p1: PlayerInfo { id: "id-1".to_owned(), name: "Alice".to_owned() },
-            p2: PlayerInfo { id: "id-2".to_owned(), name: "Bob".to_owned() },
-        };
-        assert_eq!(ids.name_for("bad-id"), "Unknown");
-    }
-
     // ---- resolve_ui_player_id ----------------------------------------------
 
     /// During non-combat steps the UI follows the current active player.
@@ -843,25 +513,6 @@ mod tests {
         let (snapshot, _) = compute_snapshot(&game, &p2).unwrap();
         assert_eq!(snapshot.public_game_state.current_player_id, p2,
             "P2 should be the active player after P1 ends turn");
-    }
-
-    // ---- CatalogRegistry --------------------------------------------------
-
-    #[test]
-    fn catalog_registry_resolves_known_cards() {
-        let registry = CatalogRegistry;
-        assert_eq!(registry.card_name("forest"), "Forest");
-        assert_eq!(registry.card_name("mountain"), "Mountain");
-        assert_eq!(registry.card_name("bear"), "Bear");
-        assert_eq!(registry.card_name("elite-vanguard"), "Elite Vanguard");
-        assert_eq!(registry.card_name("giant-growth"), "Giant Growth");
-        assert_eq!(registry.card_name("lightning-strike"), "Lightning Strike");
-    }
-
-    #[test]
-    fn catalog_registry_returns_raw_id_for_unknown_cards() {
-        let registry = CatalogRegistry;
-        assert_eq!(registry.card_name("some-unknown-card"), "some-unknown-card");
     }
 
     // ---- Tapped land snapshot (regression: UI should show rotated land) -----
