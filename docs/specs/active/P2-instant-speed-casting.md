@@ -177,7 +177,7 @@ The existing `resolve_ui_player_id` logic handles DeclareBlockers (defending pla
 - [ ] The creature resolves after, and lands on the battlefield.
 - [ ] During DeclareAttackers, the defending player (Player 2) can cast an instant targeting the attacking creature before damage.
 - [ ] During DeclareBlockers, the active player (Player 1) can cast an instant before damage.
-- [ ] Instants in hand are visually highlighted (castable) whenever the player has priority, not only during main phase.
+- [x] Instants in hand are visually highlighted (castable) whenever the player has priority, not only during main phase.
 - [ ] When Player 2 has no instants and no mana, the game auto-passes their priority without requiring a click.
 - [ ] When both players have no instants, spells still resolve automatically (same user-visible behaviour as before, but through legitimate double-pass rather than `auto_resolve_stack`).
 - [ ] The UI shows the priority holder's perspective whenever the priority holder differs from the active player.
@@ -186,7 +186,7 @@ The existing `resolve_ui_player_id` logic handles DeclareBlockers (defending pla
 - [ ] Stack depth >= 3 works correctly (P1 casts creature, P2 responds, P1 responds to the response).
 - [x] Players receive priority at Upkeep, Draw, BeginningOfCombat, EndOfCombat, and EndStep.
 - [x] Only Untap and Cleanup are truly non-interactive (no priority).
-- [ ] Sorcery-speed cards (creatures without Flash, sorceries) remain restricted to main phase / empty stack / active player's turn.
+- [x] Sorcery-speed cards (creatures without Flash, sorceries) remain restricted to main phase / empty stack / active player's turn.
 - [ ] "Pass Priority" button works correctly from both players' perspectives at any step.
 
 ---
