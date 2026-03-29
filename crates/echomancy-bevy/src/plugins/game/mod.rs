@@ -147,20 +147,20 @@ pub(crate) struct CatalogRegistry;
 
 impl CardRegistry for CatalogRegistry {
     fn card_name(&self, definition_id: &str) -> String {
-        // Map known definition IDs to display names.
-        match definition_id {
-            "forest" => "Forest".to_owned(),
-            "mountain" => "Mountain".to_owned(),
-            "plains" => "Plains".to_owned(),
-            "island" => "Island".to_owned(),
-            "swamp" => "Swamp".to_owned(),
-            "bear" => "Bear".to_owned(),
-            "elite-vanguard" => "Elite Vanguard".to_owned(),
-            "goblin" => "Goblin".to_owned(),
-            "giant-growth" => "Giant Growth".to_owned(),
-            "lightning-strike" => "Lightning Strike".to_owned(),
-            other => other.to_owned(),
-        }
+        // Convert kebab-case definition ID to Title Case display name.
+        // e.g. "lightning-strike" → "Lightning Strike", "forest" → "Forest".
+        // This derives the name from the ID rather than duplicating it here.
+        definition_id
+            .split('-')
+            .map(|word| {
+                let mut chars = word.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 }
 
@@ -215,8 +215,8 @@ mod tests {
     }
 
     #[test]
-    fn catalog_registry_returns_raw_id_for_unknown_cards() {
+    fn catalog_registry_formats_unknown_ids_as_title_case() {
         let registry = CatalogRegistry;
-        assert_eq!(registry.card_name("some-unknown-card"), "some-unknown-card");
+        assert_eq!(registry.card_name("some-unknown-card"), "Some Unknown Card");
     }
 }

@@ -38,7 +38,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::domain::actions::Action;
 use crate::domain::cards::card_instance::CardInstance;
-use crate::domain::enums::{GameLifecycleState, Step};
+use crate::domain::enums::{GameLifecycleState, ManaColor, Step};
 use crate::domain::errors::GameError;
 use crate::domain::events::GameEvent;
 use crate::domain::entities::the_stack::StackItem;
@@ -77,6 +77,13 @@ pub enum GameOutcome {
 // ============================================================================
 
 /// All zone state + mana pool for a single player, owned by the Game.
+///
+/// # Encapsulation note
+///
+/// NOTE: Fields are pub(crate) intentionally for the MVP. The Game aggregate
+/// is the sole owner and mutation entry point — handlers in this module are
+/// the only code that should mutate these fields. Making fields private and
+/// adding accessor methods is a future encapsulation improvement.
 #[derive(Debug, Clone)]
 pub(crate) struct GamePlayerState {
     /// The player's basic info (id, name, life total).
@@ -385,6 +392,31 @@ impl Game {
 
         self.events.extend_from_slice(&events);
         Ok(events)
+    }
+
+    // =========================================================================
+    // Test utilities (pub to allow cross-crate test setup)
+    // =========================================================================
+
+    /// Add mana directly to a player's pool, bypassing game rules.
+    ///
+    /// # Warning
+    ///
+    /// This method exists for test setup only. In a real game, mana is always
+    /// added through `Action::ActivateAbility` on a mana source. Calling this
+    /// in production code violates game rules and circumvents the rules engine.
+    ///
+    /// # Errors
+    ///
+    /// - `GameError::PlayerNotFound` if `player_id` is not in the game.
+    /// - `GameError::InvalidManaAmount` if `amount` is 0.
+    pub fn add_mana(
+        &mut self,
+        player_id: &str,
+        color: ManaColor,
+        amount: u32,
+    ) -> Result<(), GameError> {
+        self.add_mana_to_pool(player_id, color, amount)
     }
 }
 

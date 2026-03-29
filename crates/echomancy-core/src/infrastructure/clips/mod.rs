@@ -86,13 +86,24 @@ pub(crate) struct ClipsEngine {
     pending_input: Option<InputRequest>,
 }
 
-// SAFETY: CLIPS environments are single-threaded. We implement Send so that
-// ClipsEngine can be stored in Game (a Bevy Resource, which requires Send).
-// Bevy's schedule gives exclusive &mut access on the main thread, so the
-// pointer is never accessed from multiple threads concurrently.
-// We also implement Sync because Bevy Resources require Send + Sync.
-// The trait methods all take &mut self (exclusive access), so concurrent
-// shared access never occurs in practice.
+// SAFETY: CLIPS environments are single-threaded and must not be shared across
+// threads. These impls are sound exclusively because of the following invariant:
+//
+//   `ClipsEngine` is owned by `Game`, which is stored as a Bevy `Resource`
+//   (`GameState`). Bevy's ECS only ever grants access to a Resource via
+//   `Res<GameState>` or `ResMut<GameState>` on the main thread. The schedule
+//   guarantees exclusive access (`ResMut`) or shared read-only access (`Res`),
+//   never concurrent mutation from multiple threads.
+//
+// `Send` is sound because ownership moves to exactly one thread at a time.
+// `Sync` is sound because shared `&ClipsEngine` references are never granted
+//   concurrently — all RulesEngine trait methods take `&mut self` (exclusive),
+//   and Bevy never yields a `&GameState` to multiple threads simultaneously.
+//
+// WARNING: Do NOT wrap `ClipsEngine` in `Arc<RwLock<...>>` or share it across
+// threads — the CLIPS C library provides no thread-safety guarantees.
+// If multi-threaded access is ever needed, each thread must create its own
+// `ClipsEngine` with a separate `CreateEnvironment()` call.
 unsafe impl Send for ClipsEngine {}
 unsafe impl Sync for ClipsEngine {}
 
@@ -381,7 +392,8 @@ impl RulesEngine for ClipsEngine {
         // Load them now if this is the first evaluate() call.
         // We detect this by checking whether the "player" deftemplate exists.
         let player_template_exists = {
-            let c = std::ffi::CString::new("player").unwrap();
+            let c = CString::new("player")
+                .map_err(|_| RulesError::Internal("null byte in template name 'player'".to_owned()))?;
             let ptr = unsafe { clips_sys::FindDeftemplate(self.env, c.as_ptr()) };
             !ptr.is_null()
         };

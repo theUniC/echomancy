@@ -297,9 +297,9 @@ impl Game {
 
     /// Add mana to a player's pool.
     ///
-    /// `pub` because cross-crate tests need it for test setup.
-    /// In production, mana is only added via `ActivateAbility` (mana abilities).
-    pub fn add_mana(
+    /// Internal helper. In production, mana is only added via `ActivateAbility`
+    /// (mana abilities). Public callers should use `Game::add_mana` instead.
+    pub(crate) fn add_mana_to_pool(
         &mut self,
         player_id: &str,
         color: ManaColor,
@@ -797,7 +797,7 @@ impl Game {
             }
             RulesAction::AddMana { player, color, amount } => {
                 if let Some(mana_color) = parse_mana_color(color) {
-                    let _ = self.add_mana(player, mana_color, *amount);
+                    let _ = self.add_mana_to_pool(player, mana_color, *amount);
                 }
             }
             // Stubs for M3: log but don't crash

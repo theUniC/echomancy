@@ -104,6 +104,36 @@ pub struct InputRequest {
     pub(crate) prompt: String,
 }
 
+impl InputRequest {
+    /// Construct a new `InputRequest`.
+    pub fn new(
+        input_type: impl Into<String>,
+        player: impl Into<String>,
+        prompt: impl Into<String>,
+    ) -> Self {
+        Self {
+            input_type: input_type.into(),
+            player: player.into(),
+            prompt: prompt.into(),
+        }
+    }
+
+    /// The type of choice needed (e.g. `"sacrifice"`, `"target"`, `"mode"`).
+    pub fn input_type(&self) -> &str {
+        &self.input_type
+    }
+
+    /// The player who must make the choice.
+    pub fn player(&self) -> &str {
+        &self.player
+    }
+
+    /// Human-readable prompt intended for display in the UI.
+    pub fn prompt(&self) -> &str {
+        &self.prompt
+    }
+}
+
 /// A player's response to an `InputRequest`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerChoice {
@@ -113,6 +143,36 @@ pub struct PlayerChoice {
     pub(crate) player: String,
     /// The chosen value (e.g. a card instance ID, a mode number).
     pub(crate) chosen: String,
+}
+
+impl PlayerChoice {
+    /// Construct a new `PlayerChoice`.
+    pub fn new(
+        input_type: impl Into<String>,
+        player: impl Into<String>,
+        chosen: impl Into<String>,
+    ) -> Self {
+        Self {
+            input_type: input_type.into(),
+            player: player.into(),
+            chosen: chosen.into(),
+        }
+    }
+
+    /// The type of choice this resolves (must match the originating `InputRequest::input_type`).
+    pub fn input_type(&self) -> &str {
+        &self.input_type
+    }
+
+    /// The player making the choice.
+    pub fn player(&self) -> &str {
+        &self.player
+    }
+
+    /// The chosen value (e.g. a card instance ID, a mode number).
+    pub fn chosen(&self) -> &str {
+        &self.chosen
+    }
 }
 
 // ============================================================================

@@ -104,7 +104,7 @@ fn resolve_mana_ability_immediately(
         return Ok(Vec::new());
     };
 
-    game.add_mana(player_id, *color, *amount)?;
+    game.add_mana_to_pool(player_id, *color, *amount)?;
 
     Ok(vec![GameEvent::ManaAdded {
         player_id: PlayerId::new(player_id),
