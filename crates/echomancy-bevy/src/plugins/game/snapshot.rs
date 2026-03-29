@@ -98,7 +98,10 @@ pub(crate) fn compute_playable_lands(game: &Game, player_id: &str) -> Vec<String
     if !in_main_phase {
         return Vec::new();
     }
-    // Stack must be empty — checked via hand accessor (public API).
+    // Stack must be empty (CR 305.4 — playing a land is a sorcery-speed action).
+    if game.stack_has_items() {
+        return Vec::new();
+    }
     let hand = match game.hand(player_id) {
         Ok(h) => h,
         Err(_) => return Vec::new(),

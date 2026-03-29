@@ -36,6 +36,10 @@ pub fn is_non_interactive_step(step: Step) -> bool {
     )
 }
 
+/// Maximum iterations for auto-advance loops.
+/// A turn has 12 steps, so 20 is generous while still preventing infinite loops.
+const MAX_AUTO_ITERATIONS: usize = 20;
+
 /// Advance through all non-interactive steps until an interactive step or a
 /// turn change occurs.
 ///
@@ -43,7 +47,7 @@ pub fn is_non_interactive_step(step: Step) -> bool {
 /// always lands on a step where they can act (or see the result).
 pub fn auto_advance_through_non_interactive(game: &mut Game, player_id: &str) {
     let mut iterations = 0;
-    while is_non_interactive_step(game.current_step()) && iterations < 20 {
+    while is_non_interactive_step(game.current_step()) && iterations < MAX_AUTO_ITERATIONS {
         if game
             .apply(Action::AdvanceStep {
                 player_id: PlayerId::new(player_id),
@@ -76,7 +80,7 @@ pub fn auto_advance_to_main_phase(game: &mut Game, player_id: &str) {
 /// Max iterations guard prevents infinite loops.
 pub fn auto_resolve_stack(game: &mut Game) {
     let mut iterations = 0;
-    while game.stack_has_items() && iterations < 20 {
+    while game.stack_has_items() && iterations < MAX_AUTO_ITERATIONS {
         if let Some(priority_holder) = game.priority_player_id().map(str::to_owned) {
             if game
                 .apply(Action::PassPriority {
