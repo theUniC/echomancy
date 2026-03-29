@@ -178,9 +178,9 @@ The existing `resolve_ui_player_id` logic handles DeclareBlockers (defending pla
 - [ ] During DeclareAttackers, the defending player (Player 2) can cast an instant targeting the attacking creature before damage.
 - [ ] During DeclareBlockers, the active player (Player 1) can cast an instant before damage.
 - [x] Instants in hand are visually highlighted (castable) whenever the player has priority, not only during main phase.
-- [ ] When Player 2 has no instants and no mana, the game auto-passes their priority without requiring a click.
-- [ ] When both players have no instants, spells still resolve automatically (same user-visible behaviour as before, but through legitimate double-pass rather than `auto_resolve_stack`).
-- [ ] The UI shows the priority holder's perspective whenever the priority holder differs from the active player.
+- [x] When Player 2 has no instants and no mana, the game auto-passes their priority without requiring a click.
+- [x] When both players have no instants, spells still resolve automatically (same user-visible behaviour as before, but through legitimate double-pass rather than `auto_resolve_stack`).
+- [x] The UI shows the priority holder's perspective whenever the priority holder differs from the active player.
 - [x] After casting a spell, priority returns to the **caster** (CR 117.3c), not the opponent.
 - [ ] A player can cast two instants in a row without the opponent receiving priority in between (by retaining priority after the first cast).
 - [ ] Stack depth >= 3 works correctly (P1 casts creature, P2 responds, P1 responds to the response).

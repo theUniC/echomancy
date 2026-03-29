@@ -7,7 +7,7 @@
 
 use bevy::prelude::*;
 use echomancy_core::domain::game::automation::{
-    auto_advance_through_non_interactive, auto_advance_to_main_phase, auto_resolve_stack,
+    auto_advance_through_non_interactive, auto_advance_to_main_phase,
 };
 use echomancy_core::prelude::*;
 use uuid::Uuid;
@@ -156,10 +156,42 @@ pub(crate) fn handle_game_actions(
     }
 
     if any_applied {
-        // Auto-resolve the stack when no player can respond.
-        // In the MVP, neither player has counterspells or instant-speed responses,
-        // so we auto-pass priority for both players until the stack empties.
-        auto_resolve_stack(&mut game_state.game);
+        // Auto-pass loop: automatically pass priority for players who cannot act.
+        //
+        // This replaces the old `auto_resolve_stack` shortcut. Instead of blindly
+        // resolving the stack, we simulate the real priority loop:
+        //   - If the priority holder has no legal instant-speed actions, auto-pass.
+        //   - Stop as soon as a player CAN act (has instants + mana).
+        //
+        // This enables the genuine MTG priority loop:
+        //   - Caster casts spell → retains priority (CR 117.3c).
+        //   - Caster auto-passes if no instants → opponent receives priority.
+        //   - Opponent auto-passes if no instants → spell resolves.
+        //   - Stops the loop if either player has meaningful choices.
+        let max_auto_passes = 50; // Safety guard against infinite loops.
+        let mut auto_passes = 0;
+        while auto_passes < max_auto_passes {
+            let priority_holder = match game_state.game.priority_player_id() {
+                Some(id) => id.to_owned(),
+                None => break,
+            };
+
+            if !compute_auto_pass_eligible(&game_state.game, &priority_holder) {
+                break; // Player has meaningful actions — stop auto-passing.
+            }
+
+            if game_state
+                .game
+                .apply(Action::PassPriority {
+                    player_id: PlayerId::new(&priority_holder),
+                })
+                .is_err()
+            {
+                break;
+            }
+
+            auto_passes += 1;
+        }
 
         // Auto-advance through non-interactive steps on every action, not just
         // on perspective changes. This handles the case where the active player
