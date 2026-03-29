@@ -2,7 +2,7 @@
 
 // Infrastructure layer
 pub use crate::infrastructure::allowed_actions::AllowedActionsResult;
-pub use crate::infrastructure::legal_actions::{compute_auto_pass_eligible, compute_legal_actions};
+pub use crate::infrastructure::legal_actions::compute_legal_actions;
 pub use crate::infrastructure::create_rules_engine;
 pub use crate::infrastructure::game_snapshot::{
     CardRegistry, CardSnapshot, CombatStateSnapshot, CombatSummary, GameSnapshot,

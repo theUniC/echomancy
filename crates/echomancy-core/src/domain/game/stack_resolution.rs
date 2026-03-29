@@ -324,9 +324,6 @@ mod tests {
     }
 
     /// Cast a sorcery and resolve the stack (both players pass priority).
-    ///
-    /// Per CR 117.3c, after casting the caster retains priority. So the caster
-    /// passes first, then the opponent, for the stack to resolve.
     fn cast_and_resolve_sorcery(
         game: &mut Game,
         player_id: &str,
@@ -340,17 +337,17 @@ mod tests {
         })
         .expect("cast should succeed");
 
-        // Caster (CR 117.3c retains priority) passes first
-        game.apply(Action::PassPriority {
-            player_id: PlayerId::new(player_id),
-        })
-        .expect("caster pass priority should succeed");
-
-        // Opponent passes priority — both have passed, spell resolves
+        // Opponent passes priority
         game.apply(Action::PassPriority {
             player_id: PlayerId::new(opponent_id),
         })
-        .expect("opponent pass priority should succeed");
+        .expect("pass priority should succeed");
+
+        // Active player passes priority — spell resolves
+        game.apply(Action::PassPriority {
+            player_id: PlayerId::new(player_id),
+        })
+        .expect("pass priority should succeed");
     }
 
     // =========================================================================

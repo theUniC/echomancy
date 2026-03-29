@@ -271,9 +271,7 @@ impl Game {
         }
         events.extend(self.set_current_step(step_result.next_step));
 
-        // CR 117.3a: active player receives priority at the beginning of all
-        // interactive steps (every step except Untap and Cleanup).
-        if !super::automation::is_non_interactive_step(self.turn_state.current_step()) {
+        if self.turn_state.is_main_phase() {
             self.players_who_passed_priority.clear();
             let current_player = self.turn_state.current_player_id().as_str().to_owned();
             events.extend(self.assign_priority_to(&current_player));

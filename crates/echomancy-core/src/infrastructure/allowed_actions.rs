@@ -38,9 +38,4 @@ pub struct AllowedActionsResult {
     /// Each entry is the blocker's instance ID. The UI can assign them to attack
     /// any currently-attacking creature. Empty outside of `DeclareBlockers`.
     pub blockable_creatures: Vec<String>,
-    /// Whether the player has priority but no legal action to take.
-    ///
-    /// The Bevy layer uses this to auto-pass priority without requiring the
-    /// player to click "Pass Priority" when they cannot meaningfully act.
-    pub auto_pass_eligible: bool,
 }

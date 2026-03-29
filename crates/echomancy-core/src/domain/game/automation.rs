@@ -15,14 +15,27 @@ use super::Game;
 /// Returns `true` for steps that have no player interaction and should be
 /// automatically skipped.
 ///
-/// Per CR 117.3a, players receive priority at the beginning of most steps.
-/// Only Untap and Cleanup are non-interactive (no priority is given).
+/// Interactive steps (where players must act or choose to pass) are:
+/// - `FirstMain`, `SecondMain` — land play, spell casting.
+/// - `DeclareAttackers` — active player declares attackers.
+/// - `DeclareBlockers` — defending player declares blockers.
+/// - `FirstStrikeDamage` — auto-resolved by the engine on entry, but we stop
+///   here to let the engine emit first-strike damage events before advancing.
+/// - `CombatDamage` — auto-resolved by the engine on entry, but we stop
+///   here to let the engine emit damage events before advancing.
 ///
-/// All other steps — including Upkeep, Draw, BeginningOfCombat, EndOfCombat,
-/// and EndStep — are interactive. The auto-pass heuristic handles the common
-/// case where neither player can act, keeping the experience smooth.
+/// Everything else is auto-skipped.
 pub fn is_non_interactive_step(step: Step) -> bool {
-    matches!(step, Step::Untap | Step::Cleanup)
+    matches!(
+        step,
+        Step::Untap
+            | Step::Upkeep
+            | Step::Draw
+            | Step::BeginningOfCombat
+            | Step::EndOfCombat
+            | Step::EndStep
+            | Step::Cleanup
+    )
 }
 
 /// Maximum iterations for auto-advance loops.
@@ -112,30 +125,29 @@ mod tests {
         assert!(is_non_interactive_step(Step::Untap));
     }
 
-    // CR 117.3a: only Untap and Cleanup are non-interactive
     #[test]
-    fn upkeep_is_interactive_per_cr_117_3a() {
-        assert!(!is_non_interactive_step(Step::Upkeep));
+    fn upkeep_is_non_interactive() {
+        assert!(is_non_interactive_step(Step::Upkeep));
     }
 
     #[test]
-    fn draw_is_interactive_per_cr_117_3a() {
-        assert!(!is_non_interactive_step(Step::Draw));
+    fn draw_is_non_interactive() {
+        assert!(is_non_interactive_step(Step::Draw));
     }
 
     #[test]
-    fn beginning_of_combat_is_interactive_per_cr_117_3a() {
-        assert!(!is_non_interactive_step(Step::BeginningOfCombat));
+    fn beginning_of_combat_is_non_interactive() {
+        assert!(is_non_interactive_step(Step::BeginningOfCombat));
     }
 
     #[test]
-    fn end_of_combat_is_interactive_per_cr_117_3a() {
-        assert!(!is_non_interactive_step(Step::EndOfCombat));
+    fn end_of_combat_is_non_interactive() {
+        assert!(is_non_interactive_step(Step::EndOfCombat));
     }
 
     #[test]
-    fn end_step_is_interactive_per_cr_117_3a() {
-        assert!(!is_non_interactive_step(Step::EndStep));
+    fn end_step_is_non_interactive() {
+        assert!(is_non_interactive_step(Step::EndStep));
     }
 
     #[test]
@@ -176,16 +188,15 @@ mod tests {
     // ---- auto_advance_through_non_interactive ------------------------------
 
     #[test]
-    fn auto_advance_stops_at_upkeep() {
-        // CR 117.3a: Upkeep is interactive — auto-advance must stop there.
+    fn auto_advance_stops_at_first_main() {
         let (mut game, p1, _) = make_started_game();
         // Game starts at Untap (non-interactive).
         assert_eq!(game.current_step(), Step::Untap);
 
         auto_advance_through_non_interactive(&mut game, &p1);
 
-        // Should land on Upkeep (the first interactive step after Untap).
-        assert_eq!(game.current_step(), Step::Upkeep);
+        // Should land on FirstMain (the first interactive step).
+        assert_eq!(game.current_step(), Step::FirstMain);
     }
 
     #[test]
@@ -208,59 +219,13 @@ mod tests {
     // ---- auto_advance_to_main_phase ----------------------------------------
 
     #[test]
-    fn auto_advance_to_main_phase_lands_on_upkeep() {
-        // After Fix 2 (CR 117.3a), Upkeep is interactive so auto-advance stops there.
-        // The function name is kept for API compatibility but the behavior is correct.
+    fn auto_advance_to_main_phase_lands_on_first_main() {
         let (mut game, p1, _) = make_started_game();
         assert_eq!(game.current_step(), Step::Untap);
 
         auto_advance_to_main_phase(&mut game, &p1);
 
-        assert_eq!(game.current_step(), Step::Upkeep);
-    }
-
-    // ---- priority assigned at all interactive steps (CR 117.3a) -----------
-
-    #[test]
-    fn priority_is_assigned_at_upkeep_when_entering_that_step() {
-        // CR 117.3a: active player receives priority at beginning of Upkeep.
-        let (mut game, p1, _) = make_started_game();
-        // Initially in Untap — no priority (non-interactive).
-        assert!(game.priority_player_id().is_none() || game.current_step() == Step::Untap);
-
-        game.apply(Action::AdvanceStep {
-            player_id: PlayerId::new(&p1),
-        })
-        .unwrap(); // Untap → Upkeep
-
-        assert_eq!(game.current_step(), Step::Upkeep);
-        assert_eq!(
-            game.priority_player_id(),
-            Some(p1.as_str()),
-            "active player should have priority at Upkeep per CR 117.3a"
-        );
-    }
-
-    #[test]
-    fn priority_is_assigned_at_end_step_when_entering_that_step() {
-        // CR 117.3a: active player receives priority at EndStep.
-        let (mut game, p1, _) = make_started_game();
-        // Advance to EndStep (step index 11: Untap→Upk→Draw→FM→BoC→DA→DB→FSD→CD→EoC→SM→ES)
-        let steps_to_end_step = 11;
-        for _ in 0..steps_to_end_step {
-            let current = game.current_player_id().to_owned();
-            game.apply(Action::AdvanceStep {
-                player_id: PlayerId::new(&current),
-            })
-            .unwrap();
-        }
-
-        assert_eq!(game.current_step(), Step::EndStep);
-        assert_eq!(
-            game.priority_player_id(),
-            Some(p1.as_str()),
-            "active player should have priority at EndStep per CR 117.3a"
-        );
+        assert_eq!(game.current_step(), Step::FirstMain);
     }
 
     // ---- auto_resolve_stack ------------------------------------------------
@@ -268,14 +233,13 @@ mod tests {
     #[test]
     fn auto_resolve_stack_is_no_op_when_stack_empty() {
         let (mut game, p1, _) = make_started_game();
-        // Advance to Upkeep (first interactive step after Untap).
+        // Advance to FirstMain.
         auto_advance_to_main_phase(&mut game, &p1);
         assert!(!game.stack_has_items());
-        assert_eq!(game.current_step(), Step::Upkeep);
 
         // Should not panic or change anything.
         auto_resolve_stack(&mut game);
         assert!(!game.stack_has_items());
-        assert_eq!(game.current_step(), Step::Upkeep);
+        assert_eq!(game.current_step(), Step::FirstMain);
     }
 }

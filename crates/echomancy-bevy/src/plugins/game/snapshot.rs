@@ -13,34 +13,27 @@ use super::{AllowedActionsResult, CatalogRegistry};
 
 /// Determine which player should currently control the UI.
 ///
-/// Whenever a player holds priority, they need to see their hand to decide
-/// whether to cast a spell or pass. So we show whoever currently holds
-/// priority — including the non-active player when they have a response window.
-///
-/// Non-interactive steps (Untap, Cleanup) have no priority window. Any stale
-/// priority value from the previous step is ignored and the current active
-/// player drives the UI instead.
+/// In most steps the active player (`current_player_id`) drives the UI.
+/// During `DeclareBlockers`, however, the defending player (whoever holds
+/// priority at that step) must control the UI so they can click their
+/// blockers.  We detect this by checking whether `priority_player_id`
+/// differs from `current_player_id` while in a combat step.
 ///
 /// Fallback order:
-/// 1. If the step is interactive and there is a priority holder: return the priority holder.
+/// 1. During `DeclareBlockers`: the priority holder (defending player).
 /// 2. Otherwise: `current_player_id`.
 pub(crate) fn resolve_ui_player_id<'a>(
     priority_player_id: Option<&'a str>,
     current_player_id: &'a str,
     current_step: Step,
 ) -> &'a str {
-    // Non-interactive steps (Untap, Cleanup) have no priority window.
-    // Any stale priority value from the previous step is ignored — the current
-    // active player drives the UI instead.
-    let is_non_interactive = matches!(current_step, Step::Untap | Step::Cleanup);
-    if is_non_interactive {
-        return current_player_id;
-    }
-
-    // For all interactive steps: show whoever holds priority so they can see
-    // their hand and decide whether to cast a spell or pass.
-    if let Some(priority_id) = priority_player_id {
-        return priority_id;
+    // During DeclareBlockers the defending player holds priority.
+    if current_step == Step::DeclareBlockers {
+        if let Some(priority_id) = priority_player_id {
+            if priority_id != current_player_id {
+                return priority_id;
+            }
+        }
     }
     current_player_id
 }
@@ -167,12 +160,11 @@ mod tests {
 
     // ---- resolve_ui_player_id ----------------------------------------------
 
-    /// When the priority holder differs from the current player, show the priority holder.
-    /// This covers the response window: p2 holds priority after p1 casts a spell in FirstMain.
+    /// During non-combat steps the UI follows the current active player.
     #[test]
-    fn resolve_ui_player_returns_priority_holder_when_priority_differs_in_first_main() {
+    fn resolve_ui_player_returns_current_player_in_first_main() {
         let result = resolve_ui_player_id(Some("p2"), "p1", Step::FirstMain);
-        assert_eq!(result, "p2");
+        assert_eq!(result, "p1");
     }
 
     #[test]
@@ -195,12 +187,11 @@ mod tests {
         assert_eq!(result, "p2");
     }
 
-    /// During DeclareAttackers, if the opponent holds priority (e.g. after P1 passes),
-    /// the UI should show the opponent so they can cast instants.
+    /// During DeclareAttackers, the active player still drives the UI.
     #[test]
-    fn resolve_ui_player_returns_priority_holder_during_declare_attackers_when_opponent_has_priority() {
+    fn resolve_ui_player_returns_current_during_declare_attackers() {
         let result = resolve_ui_player_id(Some("p2"), "p1", Step::DeclareAttackers);
-        assert_eq!(result, "p2");
+        assert_eq!(result, "p1");
     }
 
     /// After P1 ends their turn, the resolved UI player should be P2

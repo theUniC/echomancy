@@ -342,11 +342,11 @@ mod tests {
 
         assert_eq!(game.stack().len(), 1, "spell should be on stack");
 
-        // CR 117.3c: caster (p1) retains priority after casting. p1 passes first.
-        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) })
-            .expect("p1 (caster) should be able to pass priority");
+        // Both players pass priority → stack resolves
         game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) })
             .expect("p2 should be able to pass priority");
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) })
+            .expect("p1 should be able to pass priority");
 
         // After resolution: stack empty, p2 has 17 life
         assert_eq!(game.stack().len(), 0, "stack should be empty after resolution");
@@ -395,10 +395,9 @@ mod tests {
         })
         .expect("cast should succeed");
 
-        // CR 117.3c: caster (p1) retains priority. p1 passes first, then p2.
-        // Both pass → stack resolves → CLIPS fires → 2 cards drawn
-        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+        // p2 and p1 both pass → stack resolves → CLIPS fires → 2 cards drawn
         game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
 
         assert_eq!(game.stack().len(), 0, "stack should be empty");
 

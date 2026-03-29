@@ -50,7 +50,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 | # | Description | Status | Dependency | Notes |
 |---|-------------|--------|------------|-------|
 | P1 | Target selection system (creature/player targeting) | DONE | M3 | Required for damage spells, removal |
-| P2 | Instant-speed casting (during combat, opponent's turn) | DONE | M3 | Full MTG priority per CR 117 |
+| P2 | Instant-speed casting (during combat, opponent's turn) | TODO | M3 | Priority before combat damage |
 | P3 | More card types: Enchantments, Artifacts | TODO | M4 | Static abilities, continuous effects |
 | P4 | Continuous effects / 7-layer system in CLIPS | TODO | P3 | Lords, enchantments, buff/debuff |
 | P5 | Combat keywords (First Strike, Trample, Deathtouch, Lifelink) | DONE | M3 | Domain model, no CLIPS needed |
