@@ -9,6 +9,7 @@
 use crate::domain::actions::Action;
 use crate::domain::enums::Step;
 use crate::domain::types::PlayerId;
+use crate::infrastructure::legal_actions::compute_auto_pass_eligible;
 
 use super::Game;
 
@@ -84,6 +85,62 @@ pub fn auto_resolve_stack(game: &mut Game) {
         }
         iterations += 1;
     }
+}
+
+/// Run the auto-pass priority loop: advance through steps where no player
+/// can meaningfully act.
+///
+/// This is the single source of truth for the "auto-pilot" behavior that
+/// the Bevy layer calls after every player action. It handles:
+///
+/// 1. **Untap/Cleanup**: force-advance (no priority per CR 117.3a)
+/// 2. **Interactive steps with no actions**: auto-pass priority
+/// 3. **Interactive steps with actions**: stop — player must decide
+///
+/// Returns the number of auto-passes performed.
+pub fn run_auto_pass_loop(game: &mut Game) -> u32 {
+    let mut count = 0u32;
+    for _ in 0..50 {
+        let step = game.current_step();
+
+        // Untap and Cleanup: no priority, force advance
+        if step == Step::Untap || step == Step::Cleanup {
+            let active = game.current_player_id().to_owned();
+            if game
+                .apply(Action::AdvanceStep {
+                    player_id: PlayerId::new(&active),
+                })
+                .is_err()
+            {
+                break;
+            }
+            count += 1;
+            continue;
+        }
+
+        // Need a priority holder to pass
+        let holder = match game.priority_player_id() {
+            Some(id) => id.to_owned(),
+            None => break,
+        };
+
+        // Stop if the player can do something
+        if !compute_auto_pass_eligible(game, &holder) {
+            break;
+        }
+
+        // Auto-pass
+        if game
+            .apply(Action::PassPriority {
+                player_id: PlayerId::new(&holder),
+            })
+            .is_err()
+        {
+            break;
+        }
+        count += 1;
+    }
+    count
 }
 
 #[cfg(test)]
@@ -261,6 +318,171 @@ mod tests {
             Some(p1.as_str()),
             "active player should have priority at EndStep per CR 117.3a"
         );
+    }
+
+    // ---- run_auto_pass_loop -------------------------------------------------
+
+    /// Helper: advance game from Untap to FirstMain using auto-pass loop
+    fn advance_to_first_main(game: &mut Game) {
+        run_auto_pass_loop(game);
+        // If we're still not at FirstMain, the players have nothing to do
+        // at Upkeep/Draw so auto-pass should advance through them
+        assert_eq!(game.current_step(), Step::FirstMain,
+            "run_auto_pass_loop should advance through Untap→Upkeep→Draw→FirstMain \
+             when no player has instant-speed actions. Stuck at {:?}", game.current_step());
+    }
+
+    #[test]
+    fn auto_pass_loop_advances_from_untap_to_first_main() {
+        let (mut game, _, _) = make_started_game();
+        assert_eq!(game.current_step(), Step::Untap);
+        advance_to_first_main(&mut game);
+        assert_eq!(game.current_step(), Step::FirstMain);
+    }
+
+    #[test]
+    fn auto_pass_loop_stops_when_player_has_tappable_lands() {
+        let (mut game, p1, _) = make_started_game();
+        advance_to_first_main(&mut game);
+
+        // Play a Forest
+        let hand = game.hand(&p1).unwrap();
+        let forest_id = hand.iter()
+            .find(|c| c.definition().id() == "forest")
+            .map(|c| c.instance_id().to_owned());
+
+        if let Some(fid) = forest_id {
+            game.apply(Action::PlayLand {
+                player_id: PlayerId::new(&p1),
+                card_id: crate::domain::types::CardInstanceId::new(&fid),
+            }).unwrap();
+
+            // After playing land, run auto-pass
+            run_auto_pass_loop(&mut game);
+
+            // Should still be at FirstMain — P1 has a tappable land
+            assert_eq!(game.current_step(), Step::FirstMain);
+            assert_eq!(game.priority_player_id(), Some(p1.as_str()));
+        }
+    }
+
+    #[test]
+    fn auto_pass_loop_cast_creature_resolves_stays_in_first_main() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::{CardType, ManaColor};
+        use crate::domain::value_objects::mana::ManaCost;
+        use crate::domain::types::CardInstanceId;
+
+        let (mut game, p1, _) = make_started_game();
+        advance_to_first_main(&mut game);
+
+        // Give P1 a Goblin in hand and R mana
+        let goblin = CardInstance::new(
+            "goblin-test",
+            CardDefinition::new("goblin", "Goblin", vec![CardType::Creature])
+                .with_power_toughness(1, 1)
+                .with_mana_cost(ManaCost::parse("R").unwrap()),
+            &p1,
+        );
+        game.add_card_to_hand(&p1, goblin).unwrap();
+        game.add_mana(&p1, ManaColor::Red, 1).unwrap();
+
+        // Cast Goblin
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("goblin-test"),
+            targets: vec![],
+        }).unwrap();
+
+        // Goblin on stack, P1 has priority (CR 117.3c)
+        assert!(game.stack_has_items());
+
+        // Run auto-pass: P1 passes, P2 passes, Goblin resolves
+        run_auto_pass_loop(&mut game);
+
+        // Goblin should be on battlefield, still P1's turn, FirstMain
+        assert!(!game.stack_has_items());
+        assert_eq!(game.current_step(), Step::FirstMain);
+        assert_eq!(game.current_player_id(), p1.as_str());
+        assert_eq!(game.priority_player_id(), Some(p1.as_str()));
+
+        // Verify Goblin is on battlefield
+        let bf = game.battlefield(&p1).unwrap();
+        assert!(bf.iter().any(|c| c.instance_id() == "goblin-test"),
+            "Goblin should be on P1's battlefield after resolution");
+    }
+
+    #[test]
+    fn auto_pass_loop_end_turn_reaches_opponent_first_main() {
+        let (mut game, p1, p2) = make_started_game();
+        advance_to_first_main(&mut game);
+
+        // P1 ends turn
+        game.apply(Action::EndTurn {
+            player_id: PlayerId::new(&p1),
+        }).unwrap();
+
+        // Run auto-pass through P1's remaining steps + P2's Untap→FirstMain
+        run_auto_pass_loop(&mut game);
+
+        assert_eq!(game.current_player_id(), p2.as_str(),
+            "After P1 EndTurn + auto-pass, P2 should be active player");
+        assert_eq!(game.current_step(), Step::FirstMain,
+            "P2 should be at FirstMain");
+        assert_eq!(game.priority_player_id(), Some(p2.as_str()),
+            "P2 should have priority at their FirstMain");
+    }
+
+    #[test]
+    fn auto_pass_loop_opponent_with_instant_stops() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::{CardType, ManaColor};
+        use crate::domain::value_objects::mana::ManaCost;
+        use crate::domain::types::CardInstanceId;
+        use crate::domain::targets::TargetRequirement;
+
+        let (mut game, p1, p2) = make_started_game();
+        advance_to_first_main(&mut game);
+
+        // Give P2 a Lightning Strike + mana
+        let ls = CardInstance::new(
+            "ls-test",
+            CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant])
+                .with_mana_cost(ManaCost::parse("1R").unwrap())
+                .with_target_requirement(TargetRequirement::AnyTarget),
+            &p2,
+        );
+        game.add_card_to_hand(&p2, ls).unwrap();
+        game.add_mana(&p2, ManaColor::Red, 1).unwrap();
+        game.add_mana(&p2, ManaColor::Colorless, 1).unwrap();
+
+        // P1 casts a creature
+        let bear = CardInstance::new(
+            "bear-test",
+            CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+                .with_power_toughness(2, 2)
+                .with_mana_cost(ManaCost::parse("1G").unwrap()),
+            &p1,
+        );
+        game.add_card_to_hand(&p1, bear).unwrap();
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+        game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("bear-test"),
+            targets: vec![],
+        }).unwrap();
+
+        // P1 has priority (CR 117.3c), P1 auto-passes (no instants)
+        // P2 should get priority and NOT auto-pass (has Lightning Strike + mana)
+        run_auto_pass_loop(&mut game);
+
+        assert!(game.stack_has_items(), "Bear should still be on stack");
+        assert_eq!(game.priority_player_id(), Some(p2.as_str()),
+            "P2 should have priority — has instant to respond with");
     }
 
     // ---- auto_resolve_stack ------------------------------------------------

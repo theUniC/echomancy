@@ -6,7 +6,7 @@
 //! - `GamePlugin`: wires everything into the Bevy app
 
 use bevy::prelude::*;
-use echomancy_core::prelude::Step;
+use echomancy_core::domain::game::automation::run_auto_pass_loop;
 use echomancy_core::prelude::*;
 use uuid::Uuid;
 
@@ -55,24 +55,8 @@ pub(crate) fn setup_game(mut commands: Commands) {
         }
     }
 
-    // Auto-advance to FirstMain: pass priority through Untap (auto-advanced),
-    // Upkeep, and Draw steps so the player immediately sees playable lands.
-    // With the full priority system (CR 117.3a), Upkeep and Draw are interactive
-    // but at game start nobody has anything to do, so we auto-pass.
-    for _ in 0..20 {
-        if game.current_step() == Step::FirstMain {
-            break;
-        }
-        if let Some(holder) = game.priority_player_id().map(str::to_owned) {
-            let _ = game.apply(Action::PassPriority {
-                player_id: PlayerId::new(&holder),
-            });
-        } else {
-            let _ = game.apply(Action::AdvanceStep {
-                player_id: PlayerId::new(&p1_id),
-            });
-        }
-    }
+    // Auto-advance to FirstMain using the same loop the game uses after every action.
+    run_auto_pass_loop(&mut game);
 
     let (snapshot, playable_cards) =
         compute_snapshot(&game, &p1_id).expect("initial snapshot");
@@ -169,70 +153,11 @@ pub(crate) fn handle_game_actions(
     }
 
     if any_applied {
-        // Auto-pass loop: automatically pass priority for players who cannot act.
-        //
-        // This replaces the old `auto_resolve_stack` shortcut. Instead of blindly
-        // resolving the stack, we simulate the real priority loop:
-        //   - If the priority holder has no legal instant-speed actions, auto-pass.
-        //   - Stop as soon as a player CAN act (has instants + mana).
-        //
-        // This enables the genuine MTG priority loop:
-        //   - Caster casts spell → retains priority (CR 117.3c).
-        //   - Caster auto-passes if no instants → opponent receives priority.
-        //   - Opponent auto-passes if no instants → spell resolves.
-        //   - Stops the loop if either player has meaningful choices.
-        let max_auto_passes = 50; // Safety guard against infinite loops.
-        let mut auto_passes = 0;
-        while auto_passes < max_auto_passes {
-            // Untap and Cleanup are truly non-interactive (no priority per CR 117.3a).
-            // Nobody has priority, so we must force-advance these steps.
-            let current_step = game_state.game.current_step();
-            if current_step == Step::Untap || current_step == Step::Cleanup {
-                let active = game_state.game.current_player_id().to_owned();
-                debug!(step = ?current_step, %active, "Auto-advancing non-interactive step");
-                if game_state.game.apply(Action::AdvanceStep {
-                    player_id: PlayerId::new(&active),
-                }).is_err() {
-                    break;
-                }
-                auto_passes += 1;
-                continue;
-            }
-
-            let priority_holder = match game_state.game.priority_player_id() {
-                Some(id) => id.to_owned(),
-                None => {
-                    debug!(step = ?current_step, "No priority holder — stopping auto-pass");
-                    break;
-                }
-            };
-
-            if !compute_auto_pass_eligible(&game_state.game, &priority_holder) {
-                debug!(
-                    step = ?current_step,
-                    %priority_holder,
-                    "Player has actions — stopping auto-pass"
-                );
-                break;
-            }
-
-            debug!(
-                step = ?current_step,
-                %priority_holder,
-                "Auto-passing for player with no actions"
-            );
-            if game_state
-                .game
-                .apply(Action::PassPriority {
-                    player_id: PlayerId::new(&priority_holder),
-                })
-                .is_err()
-            {
-                break;
-            }
-
-            auto_passes += 1;
-        }
+        // Auto-pass loop: the domain's run_auto_pass_loop handles all the
+        // complexity of advancing through non-interactive steps and auto-passing
+        // for players who cannot act. This is the same tested function used in
+        // setup_game and in domain integration tests.
+        run_auto_pass_loop(&mut game_state.game);
 
         // Determine which player's perspective the UI should show.
         // Show whoever has priority — they need to see their hand to act.
