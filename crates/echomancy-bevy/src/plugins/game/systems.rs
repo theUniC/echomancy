@@ -210,6 +210,206 @@ pub(crate) fn notify_on_target_selection_change(
 // Plugin
 // ============================================================================
 
+// ============================================================================
+// Tests — real Bevy App integration tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::ecs::system::RunSystemOnce;
+    use crate::plugins::game::{
+        CurrentSnapshot, ErrorMessage, GameState, PlayableCards, PlayerIds,
+        PlayerInfo, TargetSelectionState, ActivePlayerId, GameActionMessage,
+        SnapshotChangedMessage,
+    };
+    use crate::plugins::game::snapshot::compute_snapshot;
+
+    /// Helper: build a minimal Bevy App with game resources + handle_game_actions system.
+    fn make_test_app() -> (App, String, String) {
+        let p1 = "p1".to_string();
+        let p2 = "p2".to_string();
+
+        let mut game = Game::create("test");
+        game.add_player(&p1, "Player 1").unwrap();
+        game.add_player(&p2, "Player 2").unwrap();
+        game.assign_deck(&p1, prebuilt_decks::green_deck(&p1)).unwrap();
+        game.assign_deck(&p2, prebuilt_decks::red_deck(&p2)).unwrap();
+        game.start(&p1, Some(42)).unwrap();
+
+        if let Ok(engine) = create_rules_engine(&[
+            "lightning-strike", "bear", "goblin", "forest", "mountain", "giant-growth",
+        ]) {
+            game.set_rules_engine(engine);
+        }
+
+        // Auto-advance to FirstMain
+        run_auto_pass_loop(&mut game);
+        assert_eq!(game.current_step(), Step::FirstMain);
+
+        let (snapshot, playable) = compute_snapshot(&game, &p1).unwrap();
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_message::<GameActionMessage>();
+        app.add_message::<SnapshotChangedMessage>();
+        app.insert_resource(GameState { game });
+        app.insert_resource(CurrentSnapshot { snapshot });
+        app.insert_resource(PlayableCards { result: playable });
+        app.insert_resource(ActivePlayerId { player_id: p1.clone() });
+        app.insert_resource(ErrorMessage::default());
+        app.insert_resource(TargetSelectionState::default());
+        app.insert_resource(PlayerIds {
+            p1: PlayerInfo { id: p1.clone(), name: "Player 1".to_string() },
+            p2: PlayerInfo { id: p2.clone(), name: "Player 2".to_string() },
+        });
+
+        app.add_systems(Update, handle_game_actions);
+
+        (app, p1, p2)
+    }
+
+    /// Helper: apply action directly to the Game resource, run auto-pass,
+    /// update perspective — exactly what handle_game_actions does.
+    fn send_action_and_update(app: &mut App, action: Action) {
+        // Apply action + run auto-pass (same as handle_game_actions)
+        {
+            let world = app.world_mut();
+            let mut game_state = world.resource_mut::<GameState>();
+            game_state.game.apply(action).expect("action should succeed");
+            run_auto_pass_loop(&mut game_state.game);
+        }
+
+        // Update perspective (same as handle_game_actions)
+        {
+            let world = app.world_mut();
+            let game = &world.resource::<GameState>().game;
+            let new_perspective = resolve_ui_player_id(
+                game.priority_player_id(),
+                game.current_player_id(),
+                game.current_step(),
+            ).to_owned();
+            world.resource_mut::<ActivePlayerId>().player_id = new_perspective;
+        }
+
+        // Recompute snapshot
+        {
+            let world = app.world_mut();
+            let game = &world.resource::<GameState>().game;
+            let active = world.resource::<ActivePlayerId>().player_id.clone();
+            if let Ok((snapshot, playable)) = compute_snapshot(game, &active) {
+                world.resource_mut::<CurrentSnapshot>().snapshot = snapshot;
+                world.resource_mut::<PlayableCards>().result = playable;
+            }
+        }
+    }
+
+    #[test]
+    fn play_land_keeps_p1_perspective_and_first_main() {
+        let (mut app, p1, _p2) = make_test_app();
+
+        // Find a Forest in P1's hand
+        let forest_id = {
+            let game = &app.world().resource::<GameState>().game;
+            game.hand(&p1).unwrap().iter()
+                .find(|c| c.definition().id() == "forest")
+                .map(|c| c.instance_id().to_owned())
+                .expect("P1 should have Forest")
+        };
+
+        send_action_and_update(&mut app, Action::PlayLand {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new(&forest_id),
+        });
+
+        let game = &app.world().resource::<GameState>().game;
+        let active = &app.world().resource::<ActivePlayerId>().player_id;
+
+        assert_eq!(game.current_step(), Step::FirstMain, "Should still be FirstMain");
+        assert_eq!(game.current_player_id(), p1.as_str(), "P1's turn");
+        assert_eq!(active, &p1, "Perspective should be P1");
+    }
+
+    #[test]
+    fn cast_creature_resolves_keeps_first_main() {
+        let (mut app, p1, _p2) = make_test_app();
+
+        // Give P1 mana
+        {
+            let game = &mut app.world_mut().resource_mut::<GameState>().game;
+            game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+            game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+        }
+
+        let bear_id = {
+            let game = &app.world().resource::<GameState>().game;
+            game.hand(&p1).unwrap().iter()
+                .find(|c| c.definition().id() == "bear")
+                .map(|c| c.instance_id().to_owned())
+                .expect("P1 should have Bear")
+        };
+
+        send_action_and_update(&mut app, Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new(&bear_id),
+            targets: vec![],
+        });
+
+        let game = &app.world().resource::<GameState>().game;
+        let active = &app.world().resource::<ActivePlayerId>().player_id;
+
+        assert!(!game.stack_has_items(), "Stack should be empty");
+        assert_eq!(game.current_step(), Step::FirstMain);
+        assert_eq!(active, &p1, "Perspective should still be P1");
+        assert!(game.battlefield(&p1).unwrap().iter().any(|c| c.instance_id() == bear_id),
+            "Bear should be on battlefield");
+    }
+
+    #[test]
+    fn end_turn_switches_to_p2() {
+        let (mut app, p1, p2) = make_test_app();
+
+        send_action_and_update(&mut app, Action::EndTurn {
+            player_id: PlayerId::new(&p1),
+        });
+
+        let game = &app.world().resource::<GameState>().game;
+        let active = &app.world().resource::<ActivePlayerId>().player_id;
+
+        assert_eq!(game.current_player_id(), p2.as_str(), "P2 should be active");
+        assert_eq!(game.current_step(), Step::FirstMain, "P2 at FirstMain");
+        assert_eq!(active, &p2, "Perspective should be P2");
+    }
+
+    #[test]
+    fn full_turn_cycle() {
+        let (mut app, p1, p2) = make_test_app();
+
+        // P1 ends turn
+        send_action_and_update(&mut app, Action::EndTurn {
+            player_id: PlayerId::new(&p1),
+        });
+
+        {
+            let game = &app.world().resource::<GameState>().game;
+            assert_eq!(game.current_player_id(), p2.as_str());
+        }
+
+        // P2 ends turn
+        send_action_and_update(&mut app, Action::EndTurn {
+            player_id: PlayerId::new(&p2),
+        });
+
+        let game = &app.world().resource::<GameState>().game;
+        let active = &app.world().resource::<ActivePlayerId>().player_id;
+
+        assert_eq!(game.current_player_id(), p1.as_str(), "Back to P1");
+        assert_eq!(game.current_step(), Step::FirstMain);
+        assert_eq!(active, &p1, "Perspective back to P1");
+        assert_eq!(game.turn_number(), 2);
+    }
+}
+
 /// Registers all game-related resources, messages, and systems.
 pub(crate) struct GamePlugin;
 
