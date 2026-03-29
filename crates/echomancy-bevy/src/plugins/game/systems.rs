@@ -133,6 +133,7 @@ pub(crate) fn handle_game_actions(
                     step = ?game_state.game.current_step(),
                     player = %game_state.game.current_player_id(),
                     priority = ?game_state.game.priority_player_id(),
+                    stack_size = game_state.game.stack().len(),
                     "Game action applied"
                 );
                 any_applied = true;

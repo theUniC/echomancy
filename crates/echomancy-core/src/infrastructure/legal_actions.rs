@@ -45,13 +45,14 @@ pub fn compute_legal_actions(game: &Game, player_id: &str) -> AllowedActionsResu
         compute_spells_needing_targets(game, player_id, &castable_spells);
     let attackable_creatures = compute_attackable_creatures(game, player_id);
     let blockable_creatures = compute_blockable_creatures(game, player_id);
-    let has_potential_plays = if !tappable_lands.is_empty() {
-        game.hand(player_id)
+    let is_own_sorcery_timing = game.current_player_id() == player_id
+        && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
+        && !game.stack_has_items();
+    let has_potential_plays = is_own_sorcery_timing
+        && !tappable_lands.is_empty()
+        && game.hand(player_id)
             .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
-            .unwrap_or(false)
-    } else {
-        false
-    };
+            .unwrap_or(false);
     let auto_pass_eligible = playable_lands.is_empty()
         && castable_spells.is_empty()
         && !has_potential_plays
@@ -345,19 +346,22 @@ pub fn compute_auto_pass_eligible(game: &Game, player_id: &str) -> bool {
         return false;
     }
     let actions = compute_legal_actions(game, player_id);
-    // Check if the player has untapped lands AND non-land cards in hand.
-    // This approximates "could cast something after tapping" without
-    // computing exact mana availability. It's conservative: the player
-    // keeps priority if they MIGHT be able to act after tapping.
-    let has_potential_plays = if !actions.tappable_lands.is_empty() {
-        // Check if the player has any non-land cards in hand
-        let has_spells_in_hand = game.hand(player_id)
+    // "Potential plays" = player has tappable lands + spells in hand but
+    // hasn't tapped yet (no mana in pool). This only matters during the
+    // player's OWN turn at sorcery-speed timing (main phase, empty stack).
+    // During the opponent's turn, we only check castable_spells (which
+    // requires mana already in pool for instants). This avoids stopping
+    // at every priority window during the opponent's turn just because
+    // the player COULD tap a land.
+    let is_own_sorcery_timing = game.current_player_id() == player_id
+        && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
+        && !game.stack_has_items();
+
+    let has_potential_plays = is_own_sorcery_timing
+        && !actions.tappable_lands.is_empty()
+        && game.hand(player_id)
             .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
             .unwrap_or(false);
-        has_spells_in_hand
-    } else {
-        false
-    };
 
     actions.playable_lands.is_empty()
         && actions.castable_spells.is_empty()
