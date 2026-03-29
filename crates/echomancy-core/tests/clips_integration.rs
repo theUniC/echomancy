@@ -52,8 +52,20 @@ fn make_test_game() -> (Game, String, String) {
     .expect("CLIPS engine should initialise");
     game.set_rules_engine(engine);
 
-    // Advance to FirstMain.
+    // Advance through non-interactive steps (Untap) to reach the first
+    // interactive step. Per CR 117.3a, Upkeep is now interactive so
+    // auto_advance_to_main_phase stops there. Advance manually to FirstMain.
     auto_advance_to_main_phase(&mut game, &p1);
+
+    // Manually advance through Upkeep and Draw to reach FirstMain.
+    // (Both are interactive but the integration tests need to start at FirstMain.)
+    while game.current_step() != echomancy_core::prelude::Step::FirstMain {
+        let current = game.current_player_id().to_owned();
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&current),
+        })
+        .expect("should be able to advance to FirstMain");
+    }
 
     assert_eq!(
         game.current_step(),

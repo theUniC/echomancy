@@ -109,15 +109,16 @@ mod tests {
 
         assert_eq!(game.stack().len(), 1);
 
-        // p2 passes
+        // CR 117.3c: p1 (caster) retains priority after casting.
+        // p1 passes first, then p2.
         game.apply(Action::PassPriority {
-            player_id: PlayerId::new(&p2),
+            player_id: PlayerId::new(&p1),
         })
         .unwrap();
 
-        // p1 passes — spell resolves
+        // p2 passes — both have passed, spell resolves
         game.apply(Action::PassPriority {
-            player_id: PlayerId::new(&p1),
+            player_id: PlayerId::new(&p2),
         })
         .unwrap();
 
