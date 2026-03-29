@@ -18,7 +18,7 @@ use crate::domain::entities::the_stack::StackItem;
 use crate::domain::enums::{CardType, ManaColor, Step, ZoneName};
 use crate::domain::errors::GameError;
 use crate::domain::events::{CardInstanceSnapshot, GameEvent};
-use crate::domain::services::combat_resolution::{calculate_damage_assignments, CreatureCombatEntry};
+use crate::domain::services::combat_resolution::{calculate_all_combat_damage, CreatureCombatEntry};
 use crate::domain::services::mana_payment::pay_cost;
 use crate::domain::services::step_machine::advance;
 use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
@@ -430,28 +430,7 @@ impl Game {
     }
 
     fn resolve_combat_damage(&mut self) -> Vec<GameEvent> {
-        // Collect attacker entries
         let active_player = self.turn_state.current_player_id().as_str().to_owned();
-
-        // We need to snapshot attackers before mutating
-        let attacker_entries: Vec<(String, PermanentState)> = self
-            .permanent_states
-            .iter()
-            .filter(|(_, s)| {
-                s.creature_state()
-                    .map(|cs| cs.is_attacking())
-                    .unwrap_or(false)
-            })
-            .map(|(id, s)| (id.clone(), s.clone()))
-            .collect();
-
-        let combat_entries: Vec<CreatureCombatEntry<'_>> = attacker_entries
-            .iter()
-            .map(|(id, s)| CreatureCombatEntry {
-                instance_id: id.as_str(),
-                state: s,
-            })
-            .collect();
 
         let defending_player_id = self
             .players
@@ -460,7 +439,54 @@ impl Game {
             .map(|p| p.player_id.as_str().to_owned())
             .unwrap_or_default();
 
-        let assignments = calculate_damage_assignments(&combat_entries, &defending_player_id);
+        // Collect (instance_id, controller_id) pairs for creatures in combat.
+        // Two-step to avoid borrowing `self` inside the closure while also
+        // borrowing `self.permanent_states` — collect IDs first, then filter.
+        let candidate_ids: Vec<(String, String)> = self
+            .players
+            .iter()
+            .flat_map(|player| {
+                let controller = player.player_id.as_str().to_owned();
+                player
+                    .battlefield
+                    .iter()
+                    .map(move |card| (card.instance_id().to_owned(), controller.clone()))
+            })
+            .collect();
+
+        // Filter to only creatures that are in combat (attacking or blocking).
+        let combat_creature_ids: Vec<(String, String)> = candidate_ids
+            .into_iter()
+            .filter(|(id, _)| {
+                self.permanent_states
+                    .get(id)
+                    .and_then(|s| s.creature_state())
+                    .map(|cs| cs.is_attacking() || cs.blocking_creature_id().is_some())
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        // Snapshot the states we need before any mutation.
+        let combat_snapshots: Vec<(String, String, PermanentState)> = combat_creature_ids
+            .into_iter()
+            .filter_map(|(id, controller)| {
+                self.permanent_states
+                    .get(&id)
+                    .cloned()
+                    .map(|s| (id, controller, s))
+            })
+            .collect();
+
+        let combat_entries: Vec<CreatureCombatEntry<'_>> = combat_snapshots
+            .iter()
+            .map(|(id, controller, state)| CreatureCombatEntry {
+                instance_id: id.as_str(),
+                controller_id: controller.as_str(),
+                state,
+            })
+            .collect();
+
+        let assignments = calculate_all_combat_damage(&combat_entries, &defending_player_id);
 
         // Apply all damage
         for assignment in assignments {
@@ -487,5 +513,136 @@ impl Game {
         for (id, new_state) in ids_to_update {
             self.permanent_states.insert(id, new_state);
         }
+    }
+}
+
+// ============================================================================
+// Tests for resolve_combat_damage (bidirectional, source fields)
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use crate::domain::actions::Action;
+    use crate::domain::enums::Step;
+    use crate::domain::game::test_helpers::{
+        add_permanent_to_battlefield, clear_summoning_sickness, make_creature_card,
+        make_started_game,
+    };
+    use crate::domain::types::{CardInstanceId, PlayerId};
+
+    /// Advance the game to the CombatDamage step with a declared attacker and
+    /// an optional blocker. Returns the game plus the two player IDs.
+    ///
+    /// `blocker_id` is only added to the battlefield and declared as a blocker
+    /// when `Some` is passed.
+    fn setup_combat_damage(
+        attacker_power: u32,
+        attacker_toughness: u32,
+        blocker: Option<(u32, u32)>, // (power, toughness)
+    ) -> (crate::domain::game::Game, String, String) {
+        let (mut game, p1, p2) = make_started_game();
+
+        // Advance to DeclareAttackers (5 steps from Untap)
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+
+        let attacker = make_creature_card("attacker-1", &p1, attacker_power, attacker_toughness);
+        add_permanent_to_battlefield(&mut game, &p1, attacker);
+        clear_summoning_sickness(&mut game, "attacker-1");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        // Advance to DeclareBlockers
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::DeclareBlockers);
+
+        if let Some((bp, bt)) = blocker {
+            let blocker_card = make_creature_card("blocker-1", &p2, bp, bt);
+            add_permanent_to_battlefield(&mut game, &p2, blocker_card);
+
+            game.apply(Action::DeclareBlocker {
+                player_id: PlayerId::new(&p2),
+                blocker_id: CardInstanceId::new("blocker-1"),
+                attacker_id: CardInstanceId::new("attacker-1"),
+            })
+            .unwrap();
+        }
+
+        // Advance to CombatDamage — this triggers resolve_combat_damage()
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        (game, p1, p2)
+    }
+
+    #[test]
+    fn unblocked_attacker_deals_damage_to_defending_player() {
+        let (game, _p1, p2) = setup_combat_damage(3, 3, None);
+        // Defending player should have taken 3 damage (20 - 3 = 17)
+        assert_eq!(game.player_life_total(&p2).unwrap(), 17);
+    }
+
+    #[test]
+    fn blocker_deals_damage_back_to_attacker_bidirectional() {
+        // Attacker: 3/3  Blocker: 2/5
+        // Expected: attacker takes 2 damage, blocker takes 3 damage
+        let (game, _p1, p2) = setup_combat_damage(3, 3, Some((2, 5)));
+
+        // Defending player should take NO damage (attacker is blocked)
+        assert_eq!(
+            game.player_life_total(&p2).unwrap(),
+            20,
+            "Blocked attacker should not deal damage to defending player"
+        );
+
+        // Attacker should have 2 damage marked (from blocker's power)
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        let attacker_cs = attacker_state.creature_state().unwrap();
+        assert_eq!(
+            attacker_cs.damage_marked_this_turn(),
+            2,
+            "Attacker should receive damage from blocker"
+        );
+
+        // Blocker should have 3 damage marked (from attacker's power)
+        let blocker_state = game.permanent_state("blocker-1").unwrap();
+        let blocker_cs = blocker_state.creature_state().unwrap();
+        assert_eq!(
+            blocker_cs.damage_marked_this_turn(),
+            3,
+            "Blocker should receive damage from attacker"
+        );
+    }
+
+    #[test]
+    fn lethal_blocker_kills_attacker_via_bidirectional_damage() {
+        // Attacker: 1/1  Blocker: 3/3
+        // Attacker takes 3 damage (lethal) → SBA should destroy it
+        let (mut game, _p1, _p2) = setup_combat_damage(1, 1, Some((3, 3)));
+
+        game.perform_state_based_actions();
+
+        // Attacker (1 toughness, took 3 damage) should be destroyed
+        let attacker_state = game.permanent_state("attacker-1");
+        assert!(
+            attacker_state.is_none(),
+            "Attacker should be destroyed after taking lethal damage from blocker"
+        );
     }
 }
