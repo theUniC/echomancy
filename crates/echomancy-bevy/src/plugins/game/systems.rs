@@ -6,9 +6,7 @@
 //! - `GamePlugin`: wires everything into the Bevy app
 
 use bevy::prelude::*;
-use echomancy_core::domain::game::automation::{
-    auto_advance_through_non_interactive, auto_advance_to_main_phase,
-};
+use echomancy_core::prelude::Step;
 use echomancy_core::prelude::*;
 use uuid::Uuid;
 
@@ -57,9 +55,24 @@ pub(crate) fn setup_game(mut commands: Commands) {
         }
     }
 
-    // Auto-advance through Untap → Upkeep → Draw → FirstMain so the player
-    // immediately sees playable lands on startup.
-    auto_advance_to_main_phase(&mut game, &p1_id);
+    // Auto-advance to FirstMain: pass priority through Untap (auto-advanced),
+    // Upkeep, and Draw steps so the player immediately sees playable lands.
+    // With the full priority system (CR 117.3a), Upkeep and Draw are interactive
+    // but at game start nobody has anything to do, so we auto-pass.
+    for _ in 0..20 {
+        if game.current_step() == Step::FirstMain {
+            break;
+        }
+        if let Some(holder) = game.priority_player_id().map(str::to_owned) {
+            let _ = game.apply(Action::PassPriority {
+                player_id: PlayerId::new(&holder),
+            });
+        } else {
+            let _ = game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&p1_id),
+            });
+        }
+    }
 
     let (snapshot, playable_cards) =
         compute_snapshot(&game, &p1_id).expect("initial snapshot");
@@ -193,18 +206,8 @@ pub(crate) fn handle_game_actions(
             auto_passes += 1;
         }
 
-        // Auto-advance through non-interactive steps on every action, not just
-        // on perspective changes. This handles the case where the active player
-        // clicks "Pass Priority" from FirstMain and the engine enters
-        // BeginningOfCombat, which must be auto-skipped to reach DeclareAttackers.
-        // Combat damage (CombatDamage step) is auto-calculated by the engine's
-        // on_enter_step hook; EndOfCombat, EndStep, Cleanup are also non-interactive.
-        let current_player_for_advance = game_state.game.current_player_id().to_owned();
-        auto_advance_through_non_interactive(&mut game_state.game, &current_player_for_advance);
-
         // Determine which player's perspective the UI should show.
-        // During DeclareBlockers the defending player (priority holder) drives the UI.
-        // Otherwise the active (current) player drives it.
+        // Show whoever has priority — they need to see their hand to act.
         let new_ui_player = resolve_ui_player_id(
             game_state.game.priority_player_id(),
             game_state.game.current_player_id(),
@@ -212,19 +215,13 @@ pub(crate) fn handle_game_actions(
         )
         .to_owned();
 
-        let perspective_changed = new_ui_player != active_player.player_id;
-        if perspective_changed {
+        if new_ui_player != active_player.player_id {
             info!(
                 old = %active_player.player_id,
                 new = %new_ui_player,
-                "UI perspective switched to new active player"
+                "UI perspective switched"
             );
             active_player.player_id = new_ui_player.clone();
-
-            // When a new player takes over the UI (e.g. after EndTurn or after
-            // P1's cleanup wraps to P2's Untap), auto-advance through any
-            // remaining non-interactive steps so P2 starts in an interactive step.
-            auto_advance_through_non_interactive(&mut game_state.game, &new_ui_player);
         }
 
         match compute_snapshot(&game_state.game, &active_player.player_id) {

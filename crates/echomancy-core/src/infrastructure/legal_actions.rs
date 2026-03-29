@@ -966,6 +966,70 @@ mod tests {
     }
 
     #[test]
+    fn auto_pass_not_eligible_after_tapping_land_with_castable_creature_in_hand() {
+        // Reproduces the bug: player at FirstMain, taps land for mana,
+        // has a creature in hand that costs exactly that mana.
+        // After tapping, auto-pass should NOT fire.
+        use crate::domain::abilities::{ActivatedAbility, ActivationCost};
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::effects::Effect;
+        use crate::domain::enums::CardType;
+        use crate::domain::types::CardInstanceId;
+
+        let (mut game, p1, _p2) = make_empty_game_in_first_main();
+        assert_eq!(game.current_step(), Step::FirstMain);
+        assert_eq!(game.priority_player_id(), Some(p1.as_str()));
+
+        // Add a Mountain to P1's battlefield
+        let mountain = CardInstance::new(
+            "mtn-1",
+            CardDefinition::new("mountain", "Mountain", vec![CardType::Land])
+                .with_activated_ability(ActivatedAbility {
+                    cost: ActivationCost::Tap,
+                    effect: Effect::AddMana { color: ManaColor::Red, amount: 1 },
+                }),
+            &p1,
+        );
+        game.add_permanent_to_battlefield(&p1, mountain).unwrap();
+
+        // Add a Goblin ({R}) to P1's hand
+        let goblin = CardInstance::new(
+            "goblin-1",
+            CardDefinition::new("goblin", "Goblin", vec![CardType::Creature])
+                .with_power_toughness(1, 1)
+                .with_mana_cost(crate::domain::value_objects::mana::ManaCost::parse("R").unwrap()),
+            &p1,
+        );
+        game.add_card_to_hand(&p1, goblin).unwrap();
+
+        // Before tapping: has tappable land → NOT auto-pass
+        assert!(
+            !compute_auto_pass_eligible(&game, &p1),
+            "Before tapping: has tappable land, should NOT auto-pass"
+        );
+
+        // Tap the Mountain → R in pool
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("mtn-1"),
+        }).unwrap();
+
+        // After tapping: R in pool, Goblin ({R}) in hand → castable!
+        let castable = compute_castable_spells(&game, &p1);
+        assert!(
+            castable.iter().any(|id| id == "goblin-1"),
+            "Goblin should be castable with R in pool. Castable: {:?}, step: {:?}, active: {}, priority: {:?}",
+            castable, game.current_step(), game.current_player_id(), game.priority_player_id()
+        );
+
+        assert!(
+            !compute_auto_pass_eligible(&game, &p1),
+            "After tapping: has castable Goblin, should NOT auto-pass"
+        );
+    }
+
+    #[test]
     fn auto_pass_eligible_field_set_in_allowed_actions_result() {
         // AllowedActionsResult.auto_pass_eligible should match compute_auto_pass_eligible
         let (game, p1, _p2) = make_empty_game_in_first_main();
