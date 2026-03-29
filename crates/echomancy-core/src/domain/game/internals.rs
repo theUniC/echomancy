@@ -312,10 +312,13 @@ impl Game {
     fn on_enter_step(&mut self, step: Step) -> Vec<GameEvent> {
         let mut events = Vec::new();
 
-        // Clear ALL auto-pass flags at Untap. "End Turn" means "end MY turn",
-        // not "auto-pass during the opponent's entire turn."
+        // Clear only the NEW active player's auto-pass at Untap.
+        // The opponent who clicked "End Turn" keeps their flag so they
+        // auto-pass through priority windows during this turn (Upkeep, Draw, etc.)
+        // Their flag gets cleared when THEIR turn starts (their own Untap).
         if step == Step::Untap {
-            self.auto_pass_players.clear();
+            let active = self.turn_state.current_player_id().as_str().to_owned();
+            self.auto_pass_players.remove(&active);
             self.auto_untap_for_current_player();
         }
 
