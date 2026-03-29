@@ -198,12 +198,13 @@ pub(crate) fn compute_castable_spells(game: &Game, player_id: &str) -> Vec<Strin
             if card.definition().types().contains(&CardType::Land) {
                 return false;
             }
-            // For MVP, only highlight sorcery-speed spells (creatures and sorceries).
-            // Instants can be cast at any time but their UI highlight is a future feature.
-            let is_sorcery_speed = card.definition().types().iter().any(|t| {
-                matches!(t, CardType::Creature | CardType::Sorcery)
+            // Allow creatures, sorceries, and instants to be cast during main phase.
+            // Instants can also be cast at other times (P2 feature), but for now
+            // they are at least castable at sorcery speed.
+            let is_castable_type = card.definition().types().iter().any(|t| {
+                matches!(t, CardType::Creature | CardType::Sorcery | CardType::Instant)
             });
-            if !is_sorcery_speed {
+            if !is_castable_type {
                 return false;
             }
             // Must be able to pay the mana cost.
@@ -693,8 +694,8 @@ mod tests {
             !castable.is_empty(),
             "At least one Bear should be castable with {{1}}{{G}} in pool"
         );
-        // All returned IDs must be Bears (the only non-land in the green deck
-        // that fits in a 7-card opening hand alongside forests).
+        // All returned IDs must be Bears or Giant Growths (the non-land spells
+        // in the green deck that are affordable with {1}{G}).
         for id in &castable {
             let card = game
                 .hand(&p1)
@@ -702,10 +703,10 @@ mod tests {
                 .iter()
                 .find(|c| c.instance_id() == id)
                 .expect("castable_id should refer to a card in hand");
-            assert_eq!(
-                card.definition().id(),
-                "bear",
-                "Castable card should be a Bear"
+            assert!(
+                card.definition().id() == "bear" || card.definition().id() == "giant-growth",
+                "Castable card should be a Bear or Giant Growth, got: {}",
+                card.definition().id()
             );
         }
     }
