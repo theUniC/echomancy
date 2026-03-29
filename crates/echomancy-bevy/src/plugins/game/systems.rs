@@ -184,15 +184,43 @@ pub(crate) fn handle_game_actions(
         let max_auto_passes = 50; // Safety guard against infinite loops.
         let mut auto_passes = 0;
         while auto_passes < max_auto_passes {
+            // Untap and Cleanup are truly non-interactive (no priority per CR 117.3a).
+            // Nobody has priority, so we must force-advance these steps.
+            let current_step = game_state.game.current_step();
+            if current_step == Step::Untap || current_step == Step::Cleanup {
+                let active = game_state.game.current_player_id().to_owned();
+                debug!(step = ?current_step, %active, "Auto-advancing non-interactive step");
+                if game_state.game.apply(Action::AdvanceStep {
+                    player_id: PlayerId::new(&active),
+                }).is_err() {
+                    break;
+                }
+                auto_passes += 1;
+                continue;
+            }
+
             let priority_holder = match game_state.game.priority_player_id() {
                 Some(id) => id.to_owned(),
-                None => break,
+                None => {
+                    debug!(step = ?current_step, "No priority holder — stopping auto-pass");
+                    break;
+                }
             };
 
             if !compute_auto_pass_eligible(&game_state.game, &priority_holder) {
-                break; // Player has meaningful actions — stop auto-passing.
+                debug!(
+                    step = ?current_step,
+                    %priority_holder,
+                    "Player has actions — stopping auto-pass"
+                );
+                break;
             }
 
+            debug!(
+                step = ?current_step,
+                %priority_holder,
+                "Auto-passing for player with no actions"
+            );
             if game_state
                 .game
                 .apply(Action::PassPriority {
