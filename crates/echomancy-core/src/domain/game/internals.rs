@@ -22,6 +22,7 @@ use crate::domain::services::step_machine::advance;
 use crate::domain::services::trigger_evaluation::{
     find_matching_triggers, PermanentOnBattlefield, TriggeredAbilityInfo,
 };
+use crate::domain::triggers::TriggerEventType;
 use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
 use crate::domain::value_objects::mana::ManaPool;
 use crate::domain::value_objects::permanent_state::PermanentState;
@@ -145,7 +146,9 @@ impl Game {
         permanent_id: &str,
         _reason: GraveyardReason,
     ) -> Result<Vec<GameEvent>, GameError> {
-        // Find which player controls this permanent
+        // Find which player controls this permanent and build the snapshot
+        // before removing it so we have all card data available for event
+        // construction and trigger collection.
         let (controller_id, card_idx) = {
             let mut found = None;
             for player in &self.players {
@@ -163,34 +166,56 @@ impl Game {
             })?
         };
 
-        // Remove from battlefield
-        let card = {
-            let player = self.player_state_mut(&controller_id)?;
-            player.battlefield.remove(card_idx)
+        // Build the event snapshot while the card is still on the battlefield.
+        let (snapshot, owner_id) = {
+            let player = self
+                .players
+                .iter()
+                .find(|p| p.player_id.as_str() == controller_id)
+                .ok_or_else(|| GameError::PlayerNotFound {
+                    player_id: PlayerId::new(&controller_id),
+                })?;
+            let card = &player.battlefield[card_idx];
+            let snap = CardInstanceSnapshot {
+                instance_id: CardInstanceId::new(card.instance_id()),
+                definition_id: CardDefinitionId::new(card.definition().id()),
+                owner_id: PlayerId::new(card.owner_id()),
+            };
+            (snap, card.owner_id().to_owned())
         };
 
-        // Clean up permanent state
-        self.permanent_states.remove(permanent_id);
-
-        // Add to owner's graveyard
-        let owner_id = card.owner_id().to_owned();
-        let snapshot = CardInstanceSnapshot {
-            instance_id: CardInstanceId::new(card.instance_id()),
-            definition_id: CardDefinitionId::new(card.definition().id()),
-            owner_id: PlayerId::new(&owner_id),
-        };
-        if let Ok(owner) = self.player_state_mut(&owner_id) {
-            owner.graveyard.push(card);
-        }
-
+        // Build the zone-change event now so we can collect triggers BEFORE
+        // removing the card from the battlefield. This is necessary because
+        // trigger collection (`find_matching_triggers`) iterates battlefield
+        // permanents — if we remove first, death-triggered cards won't be seen.
         let event = GameEvent::ZoneChanged {
             card: snapshot,
             from_zone: ZoneName::Battlefield,
             to_zone: ZoneName::Graveyard,
             controller_id: PlayerId::new(&controller_id),
         };
+
+        // Collect triggers while the source permanent is still on the battlefield.
         let triggered = self.collect_triggered_abilities(&event);
+
+        // Now perform the actual zone change.
+        let card = {
+            let player = self.player_state_mut(&controller_id)?;
+            player.battlefield.remove(card_idx)
+        };
+
+        // Clean up permanent state.
+        self.permanent_states.remove(permanent_id);
+
+        // Add to owner's graveyard.
+        if let Ok(owner) = self.player_state_mut(&owner_id) {
+            owner.graveyard.push(card);
+        }
+
+        // Execute triggers now that the card is in the graveyard (so CLIPS can
+        // see the updated battlefield state if needed).
         self.execute_triggered_abilities(triggered);
+
         Ok(vec![event])
     }
 
@@ -940,9 +965,47 @@ impl Game {
     }
 
     pub(crate) fn execute_triggered_abilities(&mut self, abilities: Vec<TriggeredAbilityInfo>) {
-        for _ability in abilities {
-            // TODO: Call ability.effect.resolve(self, context) when Effect trait is implemented
-            // In MVP, triggered abilities execute immediately (not placed on stack)
+        if abilities.is_empty() || self.rules_engine.is_none() {
+            return;
+        }
+
+        for ability in abilities {
+            // Build the `TriggeredAbilityFires` event that CLIPS will match on.
+            // This gives CLIPS rules a specific event type distinct from spell
+            // resolution so they can target trigger-only effects.
+            let source_snapshot = CardInstanceSnapshot {
+                instance_id: CardInstanceId::new(&ability.source_id),
+                definition_id: CardDefinitionId::new(&ability.source_definition_id),
+                owner_id: PlayerId::new(&ability.source_owner_id),
+            };
+            let trigger_type = trigger_type_string(&ability.trigger_event_type);
+            let trigger_event = GameEvent::TriggeredAbilityFires {
+                source: source_snapshot,
+                controller_id: PlayerId::new(&ability.controller_id),
+                trigger_type,
+            };
+
+            // Take the engine out to avoid a simultaneous &mut self borrow
+            // (same pattern as resolve_spell). Put it back unconditionally.
+            let mut engine = match self.rules_engine.take() {
+                Some(e) => e,
+                None => return,
+            };
+            match engine.evaluate(self, &trigger_event) {
+                Ok(result) => {
+                    let actions: Vec<crate::domain::rules_engine::RulesAction> =
+                        result.actions.clone();
+                    for action in &actions {
+                        self.apply_rules_action(action);
+                    }
+                }
+                Err(_) => {
+                    // Log error but don't crash — CLIPS bugs shouldn't break the
+                    // game. Routing/logging infrastructure is added in a later
+                    // milestone.
+                }
+            }
+            self.rules_engine = Some(engine);
         }
     }
 }
@@ -950,6 +1013,20 @@ impl Game {
 // ============================================================================
 // Private helpers
 // ============================================================================
+
+/// Convert a `TriggerEventType` into the short string used in the
+/// `GameEvent::TriggeredAbilityFires::trigger_type` field.
+///
+/// These strings appear in CLIPS `game-event` facts under the `data` slot,
+/// allowing CLIPS rules to distinguish trigger categories.
+fn trigger_type_string(event_type: &TriggerEventType) -> String {
+    match event_type {
+        TriggerEventType::ZoneChanged => "ZONE_CHANGED".to_owned(),
+        TriggerEventType::StepStarted => "STEP_START".to_owned(),
+        TriggerEventType::CreatureDeclaredAttacker => "ATTACK".to_owned(),
+        TriggerEventType::CombatEnded => "COMBAT_ENDED".to_owned(),
+    }
+}
 
 /// Parse a mana color string (as produced by CLIPS action facts) into `ManaColor`.
 ///
@@ -1258,5 +1335,260 @@ mod tests {
         // The game continues normally (spell went to graveyard)
         assert!(game.stack().is_empty());
         assert_eq!(game.graveyard(&p1).unwrap().len(), 1);
+    }
+
+    // =========================================================================
+    // Tests: execute_triggered_abilities — CLIPS integration (M4)
+    // =========================================================================
+
+    /// Build a creature card that has an ETB trigger ("When ~ enters the
+    /// battlefield, draw a card").
+    fn make_etb_draw_creature(instance_id: &str, owner_id: &str) -> CardInstance {
+        use crate::domain::effects::Effect;
+        use crate::domain::triggers::{Trigger, TriggerCondition, TriggerEventType};
+        let trigger = Trigger::new(
+            TriggerEventType::ZoneChanged,
+            TriggerCondition::Always,
+            Effect::draw_cards(1),
+        );
+        let def = CardDefinition::new("etb-draw", "ETB Draw Creature", vec![CardType::Creature])
+            .with_power_toughness(1, 1)
+            .with_trigger(trigger);
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    /// Build a creature card that has a death trigger ("When ~ dies, draw a card").
+    fn make_death_draw_creature(instance_id: &str, owner_id: &str) -> CardInstance {
+        use crate::domain::effects::Effect;
+        use crate::domain::triggers::{Trigger, TriggerCondition, TriggerEventType};
+        let trigger = Trigger::new(
+            TriggerEventType::ZoneChanged,
+            TriggerCondition::SourceDies,
+            Effect::draw_cards(1),
+        );
+        let def = CardDefinition::new("death-draw", "Death Draw Creature", vec![CardType::Creature])
+            .with_power_toughness(1, 1)
+            .with_trigger(trigger);
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    #[test]
+    fn etb_trigger_calls_clips_and_applies_draw_cards_action() {
+        use crate::domain::game::test_helpers::{make_game_in_first_main, add_card_to_hand};
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        // Give p1 a 5-card library so draw effects work.
+        for i in 0..5 {
+            let def = CardDefinition::new(
+                &format!("lib-card-{i}"),
+                &format!("Library Card {i}"),
+                vec![CardType::Land],
+            );
+            let card = CardInstance::new(&format!("lib-card-{i}"), def, &p1);
+            game.player_state_mut(&p1).unwrap().library.push(card);
+        }
+
+        // MockRulesEngine: on any evaluate(), draw 1 card for p1.
+        game.set_rules_engine(Box::new(MockRulesEngine::returning(vec![
+            RulesAction::DrawCards {
+                player: p1.clone(),
+                amount: 1,
+            },
+        ])));
+
+        let creature = make_etb_draw_creature("etb-1", &p1);
+        add_card_to_hand(&mut game, &p1, creature);
+
+        let hand_before = game.hand(&p1).unwrap().len();
+
+        // Cast the creature and resolve it onto the battlefield.
+        cast_and_resolve_sorcery(&mut game, &p1, &p2, "etb-1");
+
+        // After the spell resolves and the ETB trigger fires, the CLIPS engine is
+        // called twice — once for SpellResolved (draws 1) and once for
+        // TriggeredAbilityFires/ETB (draws 1).
+        // hand_before includes the creature. After cast: -1. After spell CLIPS: +1.
+        // After ETB CLIPS: +1. Net: hand_before + 1.
+        assert_eq!(
+            game.battlefield(&p1).unwrap().len(),
+            1,
+            "creature should be on the battlefield"
+        );
+
+        assert_eq!(
+            game.hand(&p1).unwrap().len(),
+            hand_before + 1,
+            "ETB trigger should have drawn 1 card via CLIPS (on top of spell resolve draw)"
+        );
+    }
+
+    #[test]
+    fn death_trigger_calls_clips_and_applies_draw_cards_action() {
+        use crate::domain::enums::GraveyardReason;
+        use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        // Give p1 a 5-card library.
+        for i in 0..5 {
+            let def = CardDefinition::new(
+                &format!("lib-{i}"),
+                &format!("Lib {i}"),
+                vec![CardType::Land],
+            );
+            let card = CardInstance::new(&format!("lib-{i}"), def, &p1);
+            game.player_state_mut(&p1).unwrap().library.push(card);
+        }
+
+        game.set_rules_engine(Box::new(MockRulesEngine::returning(vec![
+            RulesAction::DrawCards {
+                player: p1.clone(),
+                amount: 1,
+            },
+        ])));
+
+        let creature = make_death_draw_creature("death-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+
+        let hand_before = game.hand(&p1).unwrap().len();
+
+        // Kill the creature — this should fire its death trigger via CLIPS.
+        game.move_permanent_to_graveyard("death-1", GraveyardReason::Destroy)
+            .expect("creature should be moved to graveyard");
+
+        assert_eq!(
+            game.graveyard(&p1).unwrap().len(),
+            1,
+            "creature should be in graveyard"
+        );
+        assert_eq!(
+            game.hand(&p1).unwrap().len(),
+            hand_before + 1,
+            "death trigger should have drawn 1 card via CLIPS"
+        );
+    }
+
+    #[test]
+    fn triggered_abilities_are_noop_without_rules_engine() {
+        use crate::domain::enums::GraveyardReason;
+        use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        // No rules engine set.
+        let creature = make_death_draw_creature("death-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+
+        let hand_before = game.hand(&p1).unwrap().len();
+
+        // Kill the creature — no engine, so trigger should be a no-op.
+        game.move_permanent_to_graveyard("death-1", GraveyardReason::Destroy)
+            .expect("creature should be moved to graveyard");
+
+        assert_eq!(
+            game.hand(&p1).unwrap().len(),
+            hand_before,
+            "without a rules engine, triggers should be no-ops"
+        );
+    }
+
+    #[test]
+    fn triggered_abilities_engine_error_does_not_crash_game() {
+        use crate::domain::enums::GraveyardReason;
+        use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        game.set_rules_engine(Box::new(MockRulesEngine::returning_error()));
+
+        let creature = make_death_draw_creature("death-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+
+        // Kill the creature — CLIPS errors should not crash the game.
+        let result = game.move_permanent_to_graveyard("death-1", GraveyardReason::Destroy);
+        assert!(result.is_ok(), "CLIPS error during trigger should not crash game");
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn multiple_triggers_fire_in_sequence_via_clips() {
+        use crate::domain::effects::Effect;
+        use crate::domain::triggers::{Trigger, TriggerCondition, TriggerEventType};
+        use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
+        use crate::domain::enums::GraveyardReason;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        // Give p1 a 10-card library.
+        for i in 0..10 {
+            let def = CardDefinition::new(
+                &format!("lib-{i}"),
+                &format!("Lib {i}"),
+                vec![CardType::Land],
+            );
+            let card = CardInstance::new(&format!("lib-{i}"), def, &p1);
+            game.player_state_mut(&p1).unwrap().library.push(card);
+        }
+
+        // MockRulesEngine: always draws 1 card for p1.
+        game.set_rules_engine(Box::new(MockRulesEngine::returning(vec![
+            RulesAction::DrawCards {
+                player: p1.clone(),
+                amount: 1,
+            },
+        ])));
+
+        // Two creatures with death triggers — when both die, p1 should draw 2 cards.
+        let trigger = Trigger::new(
+            TriggerEventType::ZoneChanged,
+            TriggerCondition::SourceDies,
+            Effect::draw_cards(1),
+        );
+        let def1 = CardDefinition::new("death-draw", "Death Draw", vec![CardType::Creature])
+            .with_power_toughness(1, 1)
+            .with_trigger(trigger.clone());
+        let creature1 = CardInstance::new("death-1", def1, &p1);
+
+        let def2 = CardDefinition::new("death-draw", "Death Draw", vec![CardType::Creature])
+            .with_power_toughness(1, 1)
+            .with_trigger(trigger);
+        let creature2 = CardInstance::new("death-2", def2, &p1);
+
+        add_permanent_to_battlefield(&mut game, &p1, creature1);
+        add_permanent_to_battlefield(&mut game, &p1, creature2);
+
+        let hand_before = game.hand(&p1).unwrap().len();
+
+        // Kill both creatures in sequence.
+        game.move_permanent_to_graveyard("death-1", GraveyardReason::Destroy)
+            .expect("first death should succeed");
+        game.move_permanent_to_graveyard("death-2", GraveyardReason::Destroy)
+            .expect("second death should succeed");
+
+        assert_eq!(
+            game.hand(&p1).unwrap().len(),
+            hand_before + 2,
+            "each death trigger should draw 1 card via CLIPS"
+        );
+    }
+
+    #[test]
+    fn triggered_ability_fires_event_serializes_in_bridge() {
+        use crate::infrastructure::clips::bridge::serialize_game_event;
+
+        let event = GameEvent::TriggeredAbilityFires {
+            source: crate::domain::events::CardInstanceSnapshot {
+                instance_id: crate::domain::types::CardInstanceId::new("etb-1"),
+                definition_id: crate::domain::types::CardDefinitionId::new("etb-draw"),
+                owner_id: crate::domain::types::PlayerId::new("p1"),
+            },
+            controller_id: crate::domain::types::PlayerId::new("p1"),
+            trigger_type: "ETB".to_owned(),
+        };
+        let fact = serialize_game_event(&event);
+        assert!(fact.contains("(type TRIGGERED_ABILITY_FIRES)"), "should use TRIGGERED_ABILITY_FIRES type, got: {fact}");
+        assert!(fact.contains(r#"(source-id "etb-1")"#), "should have source id");
+        assert!(fact.contains(r#"(controller "p1")"#), "should have controller");
     }
 }

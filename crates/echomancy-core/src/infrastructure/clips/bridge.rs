@@ -257,6 +257,19 @@ pub(crate) fn serialize_game_event(event: &GameEvent) -> String {
                 data = clips_string(&format!("{color}:{amount}")),
             )
         }
+
+        GameEvent::TriggeredAbilityFires { source, controller_id, trigger_type } => {
+            format!(
+                "(game-event \
+                 (type TRIGGERED_ABILITY_FIRES) \
+                 (source-id {source_id}) \
+                 (controller {controller}) \
+                 (data {data}))",
+                source_id = clips_string(source.instance_id.as_str()),
+                controller = clips_string(controller_id.as_str()),
+                data = clips_string(trigger_type),
+            )
+        }
     }
 }
 

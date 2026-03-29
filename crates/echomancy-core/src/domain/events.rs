@@ -78,6 +78,23 @@ pub enum GameEvent {
         color: ManaColor,
         amount: u32,
     },
+
+    /// A triggered ability has fired from a permanent on the battlefield.
+    ///
+    /// Emitted by `execute_triggered_abilities()` before calling the rules
+    /// engine so that CLIPS rules can match on this specific event type and
+    /// the source permanent.
+    TriggeredAbilityFires {
+        /// The permanent that is the source of the trigger.
+        source: CardInstanceSnapshot,
+        /// The player who controls the triggered ability.
+        #[serde(rename = "controllerId")]
+        controller_id: PlayerId,
+        /// A short string identifying the trigger category (e.g. "ETB", "DEATH",
+        /// "STEP_START", "ATTACK"). Used by CLIPS rules for pattern matching.
+        #[serde(rename = "triggerType")]
+        trigger_type: String,
+    },
 }
 
 #[cfg(test)]
@@ -172,5 +189,28 @@ mod tests {
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"COMBAT_ENDED\""));
+    }
+
+    #[test]
+    fn triggered_ability_fires_serde_roundtrip() {
+        let event = GameEvent::TriggeredAbilityFires {
+            source: make_snapshot(),
+            controller_id: PlayerId::new("player-1"),
+            trigger_type: "ETB".to_owned(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: GameEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, decoded);
+    }
+
+    #[test]
+    fn triggered_ability_fires_type_tag_in_json() {
+        let event = GameEvent::TriggeredAbilityFires {
+            source: make_snapshot(),
+            controller_id: PlayerId::new("p1"),
+            trigger_type: "DEATH".to_owned(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"TRIGGERED_ABILITY_FIRES\""));
     }
 }

@@ -34,6 +34,15 @@ pub(crate) struct TriggeredAbilityInfo {
     pub controller_id: String,
     /// The instance ID of the permanent that is the source.
     pub source_id: String,
+    /// The definition ID of the source permanent (for event snapshots).
+    pub source_definition_id: String,
+    /// The owner ID of the source permanent (for event snapshots).
+    pub source_owner_id: String,
+    /// The type of game event that caused this trigger to fire.
+    ///
+    /// Used by `execute_triggered_abilities()` to build the
+    /// `GameEvent::TriggeredAbilityFires` payload sent to the rules engine.
+    pub trigger_event_type: TriggerEventType,
 }
 
 // ============================================================================
@@ -71,6 +80,9 @@ pub(crate) fn find_matching_triggers<'a>(
                     effect: trigger.effect.clone(),
                     controller_id: entry.controller_id.to_owned(),
                     source_id: entry.permanent.instance_id().to_owned(),
+                    source_definition_id: entry.permanent.definition().id().to_owned(),
+                    source_owner_id: entry.permanent.owner_id().to_owned(),
+                    trigger_event_type: trigger.event_type.clone(),
                 });
             }
         }
@@ -131,6 +143,16 @@ fn event_matches_trigger_type(event: &GameEvent, event_type: &TriggerEventType) 
         (GameEvent::ManaAdded { .. }, TriggerEventType::StepStarted) => false,
         (GameEvent::ManaAdded { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
         (GameEvent::ManaAdded { .. }, TriggerEventType::CombatEnded) => false,
+        // Non-matching combinations — TriggeredAbilityFires event (no trigger type maps to it).
+        // Triggers do not re-trigger from a TriggeredAbilityFires event to avoid
+        // infinite loops. Triggered abilities only respond to game events from
+        // the table above.
+        (GameEvent::TriggeredAbilityFires { .. }, TriggerEventType::ZoneChanged) => false,
+        (GameEvent::TriggeredAbilityFires { .. }, TriggerEventType::StepStarted) => false,
+        (GameEvent::TriggeredAbilityFires { .. }, TriggerEventType::CreatureDeclaredAttacker) => {
+            false
+        }
+        (GameEvent::TriggeredAbilityFires { .. }, TriggerEventType::CombatEnded) => false,
     }
 }
 
