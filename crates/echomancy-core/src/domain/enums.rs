@@ -88,6 +88,7 @@ pub enum StaticAbility {
     Vigilance,
     Haste,
     Flash,
+    FirstStrike,
 }
 
 impl fmt::Display for StaticAbility {
@@ -98,6 +99,7 @@ impl fmt::Display for StaticAbility {
             StaticAbility::Vigilance => "VIGILANCE",
             StaticAbility::Haste => "HASTE",
             StaticAbility::Flash => "FLASH",
+            StaticAbility::FirstStrike => "FIRST_STRIKE",
         };
         write!(f, "{s}")
     }
@@ -152,6 +154,9 @@ pub enum Step {
     BeginningOfCombat,
     DeclareAttackers,
     DeclareBlockers,
+    /// First combat damage step — only creatures with First Strike deal damage.
+    /// Inserted between DeclareBlockers and CombatDamage.
+    FirstStrikeDamage,
     CombatDamage,
     EndOfCombat,
     SecondMain,
@@ -169,6 +174,7 @@ impl fmt::Display for Step {
             Step::BeginningOfCombat => "BEGINNING_OF_COMBAT",
             Step::DeclareAttackers => "DECLARE_ATTACKERS",
             Step::DeclareBlockers => "DECLARE_BLOCKERS",
+            Step::FirstStrikeDamage => "FIRST_STRIKE_DAMAGE",
             Step::CombatDamage => "COMBAT_DAMAGE",
             Step::EndOfCombat => "END_OF_COMBAT",
             Step::SecondMain => "SECOND_MAIN",
@@ -282,6 +288,7 @@ mod tests {
         assert_eq!(StaticAbility::Vigilance.to_string(), "VIGILANCE");
         assert_eq!(StaticAbility::Haste.to_string(), "HASTE");
         assert_eq!(StaticAbility::Flash.to_string(), "FLASH");
+        assert_eq!(StaticAbility::FirstStrike.to_string(), "FIRST_STRIKE");
     }
 
     #[test]
@@ -325,6 +332,7 @@ mod tests {
         assert_eq!(Step::BeginningOfCombat.to_string(), "BEGINNING_OF_COMBAT");
         assert_eq!(Step::DeclareAttackers.to_string(), "DECLARE_ATTACKERS");
         assert_eq!(Step::DeclareBlockers.to_string(), "DECLARE_BLOCKERS");
+        assert_eq!(Step::FirstStrikeDamage.to_string(), "FIRST_STRIKE_DAMAGE");
         assert_eq!(Step::CombatDamage.to_string(), "COMBAT_DAMAGE");
         assert_eq!(Step::EndOfCombat.to_string(), "END_OF_COMBAT");
         assert_eq!(Step::SecondMain.to_string(), "SECOND_MAIN");

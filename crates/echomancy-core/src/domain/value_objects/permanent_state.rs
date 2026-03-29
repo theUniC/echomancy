@@ -230,6 +230,22 @@ impl PermanentState {
         Ok(next)
     }
 
+    /// Returns a new `PermanentState` with `dealt_first_strike_damage` updated.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PermanentStateError::NotACreature`] if this permanent has no
+    /// creature sub-state.
+    pub(crate) fn with_dealt_first_strike_damage(
+        &self,
+        val: bool,
+    ) -> Result<Self, PermanentStateError> {
+        let cs = self.require_creature_state()?;
+        let mut next = self.clone();
+        next.creature_state = Some(cs.with_dealt_first_strike_damage(val));
+        Ok(next)
+    }
+
     // ---- derived creature stats --------------------------------------------
 
     /// Returns the current power, including +1/+1 counter bonuses.

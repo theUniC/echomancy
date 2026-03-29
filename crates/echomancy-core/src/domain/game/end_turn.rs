@@ -66,8 +66,8 @@ mod tests {
     #[test]
     fn end_turn_from_cleanup_returns_error() {
         let (mut game, p1, _) = make_started_game();
-        // Advance to CLEANUP
-        for _ in 0..11 {
+        // Advance to CLEANUP (13 steps total now, index 12 = Cleanup)
+        for _ in 0..12 {
             game.apply(Action::AdvanceStep {
                 player_id: PlayerId::new(&p1),
             })

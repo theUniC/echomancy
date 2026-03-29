@@ -501,6 +501,7 @@ fn phase_from_step(step: Step) -> String {
         Step::BeginningOfCombat
         | Step::DeclareAttackers
         | Step::DeclareBlockers
+        | Step::FirstStrikeDamage
         | Step::CombatDamage
         | Step::EndOfCombat => "Combat".to_owned(),
         Step::SecondMain => "Postcombat Main".to_owned(),

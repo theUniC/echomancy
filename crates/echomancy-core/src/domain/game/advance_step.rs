@@ -75,6 +75,7 @@ mod tests {
             Step::BeginningOfCombat,
             Step::DeclareAttackers,
             Step::DeclareBlockers,
+            Step::FirstStrikeDamage,
             Step::CombatDamage,
             Step::EndOfCombat,
             Step::SecondMain,
@@ -116,9 +117,8 @@ mod tests {
 
         let p2 = "p2".to_owned();
 
-        // Advance p1 through all steps
-        for _ in 0..12 {
-            // 12 steps from Untap through Cleanup
+        // Advance p1 through all steps (13 steps now: added FirstStrikeDamage)
+        for _ in 0..13 {
             let current = game.current_player_id().to_owned();
             game.apply(Action::AdvanceStep {
                 player_id: PlayerId::new(&current),
@@ -128,7 +128,7 @@ mod tests {
         // Now p2's turn (turn number stays at 1 until both complete)
         assert_eq!(game.current_player_id(), &p2);
         // Advance p2 through all steps
-        for _ in 0..12 {
+        for _ in 0..13 {
             let current = game.current_player_id().to_owned();
             game.apply(Action::AdvanceStep {
                 player_id: PlayerId::new(&current),
@@ -161,8 +161,8 @@ mod tests {
         // After start: p1 has 7 cards in hand, p2 has 7 cards in hand.
         assert_eq!(game.hand("p2").unwrap().len(), 7);
 
-        // Advance p1 through their entire first turn (Untap is step 0 after start)
-        for _ in 0..12 {
+        // Advance p1 through their entire first turn (13 steps now).
+        for _ in 0..13 {
             let current = game.current_player_id().to_owned();
             game.apply(Action::AdvanceStep {
                 player_id: PlayerId::new(&current),
@@ -248,8 +248,8 @@ mod tests {
         game.start("p1", Some(1)).unwrap();
 
         // After start: p1 has 7 cards (3 remain), p2 has 7 cards (1 remains).
-        // Advance p1 through all steps of their first turn
-        for _ in 0..12 {
+        // Advance p1 through all steps of their first turn (13 steps now).
+        for _ in 0..13 {
             let current = game.current_player_id().to_owned();
             game.apply(Action::AdvanceStep {
                 player_id: PlayerId::new(&current),
@@ -257,7 +257,7 @@ mod tests {
             .unwrap();
         }
         // Now p2's turn. Skip through p2's turn (p2 draws their 1 remaining card on Draw step)
-        for _ in 0..12 {
+        for _ in 0..13 {
             let current = game.current_player_id().to_owned();
             game.apply(Action::AdvanceStep {
                 player_id: PlayerId::new(&current),

@@ -127,6 +127,76 @@ pub(crate) fn calculate_all_combat_damage(
     assignments
 }
 
+/// Calculates combat damage for the `FirstStrikeDamage` step.
+///
+/// `first_strikers` — only the creatures with First Strike (both attackers and blockers).
+/// `all_creatures`  — the full set of creatures in combat (used for blocker/attacker lookups).
+/// `defending_player_id` — the ID of the player being attacked.
+///
+/// Damage is produced only from creatures in `first_strikers`.
+/// A First Strike blocker damages the attacker it is blocking.
+/// A First Strike attacker damages its blocker (or the defending player if unblocked).
+pub(crate) fn calculate_first_strike_combat_damage(
+    first_strikers: &[CreatureCombatEntry<'_>],
+    all_creatures: &[CreatureCombatEntry<'_>],
+    defending_player_id: &str,
+) -> Vec<DamageAssignment> {
+    let mut assignments = Vec::new();
+
+    for entry in first_strikers {
+        let cs = match entry.state.creature_state() {
+            Some(cs) => cs,
+            None => continue,
+        };
+
+        let power = match entry.state.current_power() {
+            Ok(p) if p > 0 => p,
+            _ => continue,
+        };
+
+        if cs.is_attacking() {
+            // First Strike attacker: damages blocker or defending player.
+            match cs.blocked_by() {
+                None => {
+                    assignments.push(DamageAssignment {
+                        source_id: entry.instance_id.to_owned(),
+                        source_controller_id: entry.controller_id.to_owned(),
+                        target_id: defending_player_id.to_owned(),
+                        amount: power,
+                        is_player: true,
+                    });
+                }
+                Some(blocker_id) => {
+                    // Check if blocker is still alive in all_creatures.
+                    if all_creatures.iter().any(|e| e.instance_id == blocker_id) {
+                        assignments.push(DamageAssignment {
+                            source_id: entry.instance_id.to_owned(),
+                            source_controller_id: entry.controller_id.to_owned(),
+                            target_id: blocker_id.to_owned(),
+                            amount: power,
+                            is_player: false,
+                        });
+                    }
+                }
+            }
+        } else if cs.blocking_creature_id().is_some() {
+            // First Strike blocker: damages the attacker it is blocking.
+            let attacker_id = cs.blocking_creature_id().unwrap();
+            if all_creatures.iter().any(|e| e.instance_id == attacker_id) {
+                assignments.push(DamageAssignment {
+                    source_id: entry.instance_id.to_owned(),
+                    source_controller_id: entry.controller_id.to_owned(),
+                    target_id: attacker_id.to_owned(),
+                    amount: power,
+                    is_player: false,
+                });
+            }
+        }
+    }
+
+    assignments
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

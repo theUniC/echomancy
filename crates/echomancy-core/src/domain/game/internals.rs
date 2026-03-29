@@ -15,10 +15,12 @@
 
 use crate::domain::cards::card_instance::CardInstance;
 use crate::domain::entities::the_stack::StackItem;
-use crate::domain::enums::{CardType, ManaColor, Step, ZoneName};
+use crate::domain::enums::{CardType, ManaColor, StaticAbility, Step, ZoneName};
 use crate::domain::errors::GameError;
 use crate::domain::events::{CardInstanceSnapshot, GameEvent};
-use crate::domain::services::combat_resolution::{calculate_all_combat_damage, CreatureCombatEntry};
+use crate::domain::services::combat_resolution::{
+    calculate_all_combat_damage, calculate_first_strike_combat_damage, CreatureCombatEntry,
+};
 use crate::domain::services::mana_payment::pay_cost;
 use crate::domain::services::step_machine::advance;
 use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
@@ -310,9 +312,17 @@ impl Game {
             }
         }
 
-        // Combat damage resolution at COMBAT_DAMAGE step
+        // First strike damage resolution at FIRST_STRIKE_DAMAGE step.
+        // Only creatures with FirstStrike deal damage in this step.
+        if step == Step::FirstStrikeDamage {
+            events.extend(self.resolve_first_strike_damage());
+            events.extend(self.perform_state_based_actions());
+        }
+
+        // Combat damage resolution at COMBAT_DAMAGE step.
+        // Only creatures that have NOT already dealt first strike damage deal damage here.
         if step == Step::CombatDamage {
-            events.extend(self.resolve_combat_damage());
+            events.extend(self.resolve_regular_combat_damage());
             events.extend(self.perform_state_based_actions());
         }
 
@@ -429,19 +439,10 @@ impl Game {
         }
     }
 
-    fn resolve_combat_damage(&mut self) -> Vec<GameEvent> {
-        let active_player = self.turn_state.current_player_id().as_str().to_owned();
-
-        let defending_player_id = self
-            .players
-            .iter()
-            .find(|p| p.player_id.as_str() != active_player)
-            .map(|p| p.player_id.as_str().to_owned())
-            .unwrap_or_default();
-
-        // Collect (instance_id, controller_id) pairs for creatures in combat.
-        // Two-step to avoid borrowing `self` inside the closure while also
-        // borrowing `self.permanent_states` — collect IDs first, then filter.
+    /// Collect all creatures currently in combat (attacking or blocking).
+    ///
+    /// Returns a list of `(instance_id, controller_id, PermanentState)` tuples.
+    fn collect_combat_creatures(&self) -> Vec<(String, String, PermanentState)> {
         let candidate_ids: Vec<(String, String)> = self
             .players
             .iter()
@@ -454,7 +455,6 @@ impl Game {
             })
             .collect();
 
-        // Filter to only creatures that are in combat (attacking or blocking).
         let combat_creature_ids: Vec<(String, String)> = candidate_ids
             .into_iter()
             .filter(|(id, _)| {
@@ -466,8 +466,7 @@ impl Game {
             })
             .collect();
 
-        // Snapshot the states we need before any mutation.
-        let combat_snapshots: Vec<(String, String, PermanentState)> = combat_creature_ids
+        combat_creature_ids
             .into_iter()
             .filter_map(|(id, controller)| {
                 self.permanent_states
@@ -475,9 +474,139 @@ impl Game {
                     .cloned()
                     .map(|s| (id, controller, s))
             })
+            .collect()
+    }
+
+    /// Returns `true` if the creature with the given instance_id has `FirstStrike`.
+    ///
+    /// Looks up the creature's card definition on both battlefields.
+    fn creature_has_first_strike(&self, instance_id: &str) -> bool {
+        self.players.iter().any(|player| {
+            player
+                .battlefield
+                .iter()
+                .any(|card| {
+                    card.instance_id() == instance_id
+                        && card
+                            .definition()
+                            .has_static_ability(StaticAbility::FirstStrike)
+                })
+        })
+    }
+
+    /// Resolve damage for the `FirstStrikeDamage` step.
+    ///
+    /// Only creatures with `FirstStrike` deal damage in this step.
+    /// Each creature that deals damage gets `dealt_first_strike_damage = true`.
+    fn resolve_first_strike_damage(&mut self) -> Vec<GameEvent> {
+        let active_player = self.turn_state.current_player_id().as_str().to_owned();
+        let defending_player_id = self
+            .players
+            .iter()
+            .find(|p| p.player_id.as_str() != active_player)
+            .map(|p| p.player_id.as_str().to_owned())
+            .unwrap_or_default();
+
+        let all_combat = self.collect_combat_creatures();
+
+        // Determine which combat creatures have FirstStrike.
+        let first_strikers: Vec<(String, String, PermanentState)> = all_combat
+            .iter()
+            .filter(|(id, _, _)| self.creature_has_first_strike(id))
+            .cloned()
             .collect();
 
-        let combat_entries: Vec<CreatureCombatEntry<'_>> = combat_snapshots
+        // If no first strikers, nothing to do.
+        if first_strikers.is_empty() {
+            return Vec::new();
+        }
+
+        // Collect IDs that have first strike (both attackers and blockers).
+        let first_striker_ids: Vec<String> = first_strikers
+            .iter()
+            .map(|(id, _, _)| id.clone())
+            .collect();
+
+        // Build snapshots for the full combat pool (needed for blocker lookups) and for
+        // first strikers only (the damage sources in this step).
+        let all_entries: Vec<CreatureCombatEntry<'_>> = all_combat
+            .iter()
+            .map(|(id, controller, state)| CreatureCombatEntry {
+                instance_id: id.as_str(),
+                controller_id: controller.as_str(),
+                state,
+            })
+            .collect();
+
+        let fs_entries: Vec<CreatureCombatEntry<'_>> = first_strikers
+            .iter()
+            .map(|(id, controller, state)| CreatureCombatEntry {
+                instance_id: id.as_str(),
+                controller_id: controller.as_str(),
+                state,
+            })
+            .collect();
+
+        let assignments =
+            calculate_first_strike_combat_damage(&fs_entries, &all_entries, &defending_player_id);
+
+        // Collect source IDs that actually dealt damage.
+        let dealing_ids: Vec<String> = assignments
+            .iter()
+            .filter(|a| a.amount > 0)
+            .map(|a| a.source_id.clone())
+            .collect();
+
+        // Apply damage.
+        for assignment in assignments {
+            if assignment.is_player {
+                self.deal_damage_to_player(&assignment.target_id, assignment.amount);
+            } else {
+                self.mark_damage_on_creature(&assignment.target_id, assignment.amount);
+            }
+        }
+
+        // Mark dealt_first_strike_damage on all first strikers that dealt damage.
+        for id in &first_striker_ids {
+            if dealing_ids.contains(id) {
+                if let Some(state) = self.permanent_states.get(id).cloned() {
+                    if let Ok(new_state) = state.with_dealt_first_strike_damage(true) {
+                        self.permanent_states.insert(id.clone(), new_state);
+                    }
+                }
+            }
+        }
+
+        Vec::new()
+    }
+
+    /// Resolve damage for the regular `CombatDamage` step.
+    ///
+    /// Only creatures that have NOT already dealt first strike damage participate.
+    fn resolve_regular_combat_damage(&mut self) -> Vec<GameEvent> {
+        let active_player = self.turn_state.current_player_id().as_str().to_owned();
+
+        let defending_player_id = self
+            .players
+            .iter()
+            .find(|p| p.player_id.as_str() != active_player)
+            .map(|p| p.player_id.as_str().to_owned())
+            .unwrap_or_default();
+
+        let all_combat = self.collect_combat_creatures();
+
+        // Filter out creatures that already dealt first strike damage.
+        let regular_combat: Vec<(String, String, PermanentState)> = all_combat
+            .into_iter()
+            .filter(|(_, _, state)| {
+                state
+                    .creature_state()
+                    .map(|cs| !cs.dealt_first_strike_damage())
+                    .unwrap_or(true)
+            })
+            .collect();
+
+        let combat_entries: Vec<CreatureCombatEntry<'_>> = regular_combat
             .iter()
             .map(|(id, controller, state)| CreatureCombatEntry {
                 instance_id: id.as_str(),
@@ -581,7 +710,14 @@ mod tests {
             .unwrap();
         }
 
-        // Advance to CombatDamage — this triggers resolve_combat_damage()
+        // Advance through FirstStrikeDamage to CombatDamage.
+        // (No first strikers in this setup, so FirstStrikeDamage does nothing.)
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::FirstStrikeDamage);
+
         game.apply(Action::AdvanceStep {
             player_id: PlayerId::new(&p1),
         })
@@ -644,5 +780,359 @@ mod tests {
             attacker_state.is_none(),
             "Attacker should be destroyed after taking lethal damage from blocker"
         );
+    }
+
+    // =========================================================================
+    // First Strike tests
+    // =========================================================================
+
+    /// Advance the game to the FirstStrikeDamage step with creatures in combat.
+    ///
+    /// The attacker is optionally given First Strike via a custom card.
+    /// The blocker is optionally placed and declared.
+    fn setup_first_strike_damage(
+        attacker_power: u32,
+        attacker_toughness: u32,
+        attacker_has_first_strike: bool,
+        blocker: Option<(u32, u32, bool)>, // (power, toughness, has_first_strike)
+    ) -> (crate::domain::game::Game, String, String) {
+        use crate::domain::enums::StaticAbility;
+        use crate::domain::game::test_helpers::make_creature_with_ability;
+
+        let (mut game, p1, p2) = make_started_game();
+
+        // Advance to DeclareAttackers
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+
+        let attacker = if attacker_has_first_strike {
+            make_creature_with_ability(
+                "attacker-1",
+                &p1,
+                attacker_power,
+                attacker_toughness,
+                StaticAbility::FirstStrike,
+            )
+        } else {
+            make_creature_card("attacker-1", &p1, attacker_power, attacker_toughness)
+        };
+        add_permanent_to_battlefield(&mut game, &p1, attacker);
+        clear_summoning_sickness(&mut game, "attacker-1");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        // Advance to DeclareBlockers
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::DeclareBlockers);
+
+        if let Some((bp, bt, blocker_fs)) = blocker {
+            let blocker_card = if blocker_fs {
+                make_creature_with_ability(
+                    "blocker-1",
+                    &p2,
+                    bp,
+                    bt,
+                    StaticAbility::FirstStrike,
+                )
+            } else {
+                make_creature_card("blocker-1", &p2, bp, bt)
+            };
+            add_permanent_to_battlefield(&mut game, &p2, blocker_card);
+
+            game.apply(Action::DeclareBlocker {
+                player_id: PlayerId::new(&p2),
+                blocker_id: CardInstanceId::new("blocker-1"),
+                attacker_id: CardInstanceId::new("attacker-1"),
+            })
+            .unwrap();
+        }
+
+        // Advance to FirstStrikeDamage
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::FirstStrikeDamage);
+
+        (game, p1, p2)
+    }
+
+    #[test]
+    fn first_strike_attacker_deals_damage_in_first_strike_step() {
+        // 2/1 First Strike attacker vs 2/3 regular blocker (survives with 2 damage).
+        // After FirstStrikeDamage: blocker should have 2 damage, attacker has 0.
+        let (game, _p1, _p2) =
+            setup_first_strike_damage(2, 1, true, Some((2, 3, false)));
+
+        let blocker_state = game.permanent_state("blocker-1").unwrap();
+        assert_eq!(
+            blocker_state.creature_state().unwrap().damage_marked_this_turn(),
+            2,
+            "Blocker should have 2 damage from first strike attacker"
+        );
+
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        assert_eq!(
+            attacker_state.creature_state().unwrap().damage_marked_this_turn(),
+            0,
+            "Attacker should have no damage in first strike step (blocker has no first strike)"
+        );
+    }
+
+    #[test]
+    fn first_strike_attacker_gets_dealt_first_strike_damage_flag() {
+        // After dealing first strike damage, the flag must be set.
+        let (game, _p1, _p2) =
+            setup_first_strike_damage(2, 1, true, Some((2, 2, false)));
+
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        assert!(
+            attacker_state
+                .creature_state()
+                .unwrap()
+                .dealt_first_strike_damage(),
+            "First Strike attacker should have dealt_first_strike_damage = true"
+        );
+    }
+
+    #[test]
+    fn first_strike_attacker_does_not_deal_damage_in_regular_combat_step() {
+        // The attacker already dealt its damage in FirstStrikeDamage.
+        // In CombatDamage it must not deal damage again.
+        let (mut game, p1, _p2) =
+            setup_first_strike_damage(2, 1, true, Some((2, 2, false)));
+
+        // SBAs: blocker received 2 damage (lethal at 2 toughness) → destroyed.
+        game.perform_state_based_actions();
+
+        // Advance to CombatDamage.
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        // Attacker should NOT deal more damage (it already dealt first strike damage).
+        // The blocker is dead so no one takes damage.
+        // The attacker had dealt_first_strike_damage = true so it skips CombatDamage.
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        assert_eq!(
+            attacker_state.creature_state().unwrap().damage_marked_this_turn(),
+            0,
+            "Attacker should have 0 damage marked (blocker had no first strike)"
+        );
+    }
+
+    #[test]
+    fn first_strike_attacker_kills_blocker_before_regular_damage_step() {
+        // 2/1 First Strike attacker vs 2/2 regular blocker.
+        // Blocker takes 2 lethal damage in first strike step → destroyed.
+        // In regular CombatDamage: blocker is gone, so attacker dealt no more damage.
+        let (mut game, p1, p2) =
+            setup_first_strike_damage(2, 1, true, Some((2, 2, false)));
+
+        // Run SBAs — blocker should be destroyed.
+        game.perform_state_based_actions();
+        assert!(
+            game.permanent_state("blocker-1").is_none(),
+            "Blocker should be destroyed by SBAs after first strike damage"
+        );
+
+        // Advance to CombatDamage.
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        // Attacker had first strike and already dealt damage — no second damage.
+        // Defender should still be at 20 life (attacker was blocked, no trample).
+        assert_eq!(
+            game.player_life_total(&p2).unwrap(),
+            20,
+            "Defending player should not take damage (attacker was blocked, no trample)"
+        );
+
+        // Attacker survived (blocker died before dealing damage).
+        assert!(
+            game.permanent_state("attacker-1").is_some(),
+            "Attacker should survive (blocker died in first strike step)"
+        );
+    }
+
+    #[test]
+    fn regular_attacker_does_not_deal_damage_in_first_strike_step() {
+        // Regular attacker vs regular blocker.
+        // In FirstStrikeDamage: no damage is dealt.
+        let (game, _p1, _p2) =
+            setup_first_strike_damage(3, 3, false, Some((2, 2, false)));
+
+        // Neither creature should have any damage after FirstStrikeDamage.
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        let blocker_state = game.permanent_state("blocker-1").unwrap();
+        assert_eq!(
+            attacker_state.creature_state().unwrap().damage_marked_this_turn(),
+            0,
+            "Regular attacker should not deal damage in first strike step"
+        );
+        assert_eq!(
+            blocker_state.creature_state().unwrap().damage_marked_this_turn(),
+            0,
+            "Regular blocker should not take damage in first strike step"
+        );
+    }
+
+    #[test]
+    fn regular_attacker_deals_damage_in_combat_damage_step() {
+        // Regular 3/3 attacker vs regular 2/5 blocker — both deal damage in CombatDamage.
+        // Blocker survives (5 toughness > 3 damage), attacker survives (3 toughness > 2 damage).
+        let (mut game, p1, _p2) =
+            setup_first_strike_damage(3, 3, false, Some((2, 5, false)));
+
+        // Advance to CombatDamage.
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        let blocker_state = game.permanent_state("blocker-1").unwrap();
+        assert_eq!(
+            blocker_state.creature_state().unwrap().damage_marked_this_turn(),
+            3,
+            "Blocker should have 3 damage from regular attacker in CombatDamage"
+        );
+        assert_eq!(
+            attacker_state.creature_state().unwrap().damage_marked_this_turn(),
+            2,
+            "Attacker should have 2 damage from regular blocker in CombatDamage"
+        );
+    }
+
+    #[test]
+    fn both_have_first_strike_both_deal_damage_in_first_strike_step() {
+        // 2/5 First Strike attacker vs 2/5 First Strike blocker (both survive with 2 damage).
+        // Both deal damage simultaneously in FirstStrikeDamage.
+        let (game, _p1, _p2) =
+            setup_first_strike_damage(2, 5, true, Some((2, 5, true)));
+
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        let blocker_state = game.permanent_state("blocker-1").unwrap();
+        assert_eq!(
+            blocker_state.creature_state().unwrap().damage_marked_this_turn(),
+            2,
+            "Blocker should have 2 damage from first strike attacker"
+        );
+        assert_eq!(
+            attacker_state.creature_state().unwrap().damage_marked_this_turn(),
+            2,
+            "Attacker should have 2 damage from first strike blocker"
+        );
+    }
+
+    #[test]
+    fn both_have_first_strike_no_damage_in_regular_step() {
+        // When both creatures have First Strike, both get the flag set.
+        // In the regular CombatDamage step neither should deal damage again.
+        let (mut game, p1, _p2) =
+            setup_first_strike_damage(2, 2, true, Some((2, 2, true)));
+
+        // Run SBAs — both creatures took lethal damage.
+        game.perform_state_based_actions();
+
+        // Advance to CombatDamage.
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        // Both are destroyed; they should not be on the battlefield.
+        assert!(
+            game.permanent_state("attacker-1").is_none(),
+            "First Strike attacker should be destroyed (took 2 damage, 2 toughness)"
+        );
+        assert!(
+            game.permanent_state("blocker-1").is_none(),
+            "First Strike blocker should be destroyed (took 2 damage, 2 toughness)"
+        );
+    }
+
+    #[test]
+    fn no_first_strikers_first_strike_step_does_nothing() {
+        // No creatures have First Strike → FirstStrikeDamage step does nothing.
+        let (game, _p1, _p2) =
+            setup_first_strike_damage(3, 3, false, Some((2, 2, false)));
+
+        // Neither creature should have any damage after the first strike step.
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        let blocker_state = game.permanent_state("blocker-1").unwrap();
+        assert_eq!(attacker_state.creature_state().unwrap().damage_marked_this_turn(), 0);
+        assert_eq!(blocker_state.creature_state().unwrap().damage_marked_this_turn(), 0);
+    }
+
+    #[test]
+    fn first_strike_blocker_deals_damage_to_attacker_in_first_strike_step() {
+        // Regular attacker vs First Strike blocker.
+        // In FirstStrikeDamage: blocker deals damage to attacker.
+        let (game, _p1, _p2) =
+            setup_first_strike_damage(3, 3, false, Some((2, 2, true)));
+
+        // Attacker should have taken 2 damage from first strike blocker.
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        assert_eq!(
+            attacker_state.creature_state().unwrap().damage_marked_this_turn(),
+            2,
+            "Attacker should receive 2 damage from first strike blocker"
+        );
+
+        // Blocker should have taken 0 damage (regular attacker has no first strike).
+        let blocker_state = game.permanent_state("blocker-1").unwrap();
+        assert_eq!(
+            blocker_state.creature_state().unwrap().damage_marked_this_turn(),
+            0,
+            "Blocker should not take damage from regular attacker in first strike step"
+        );
+    }
+
+    #[test]
+    fn step_sequence_declare_blockers_to_first_strike_damage_to_combat_damage() {
+        let (mut game, p1, _p2) = make_started_game();
+
+        // Advance to DeclareBlockers
+        for _ in 0..6 {
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&p1),
+            })
+            .unwrap();
+        }
+        assert_eq!(game.current_step(), Step::DeclareBlockers);
+
+        // Next step: FirstStrikeDamage
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::FirstStrikeDamage);
+
+        // Next step: CombatDamage
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
     }
 }

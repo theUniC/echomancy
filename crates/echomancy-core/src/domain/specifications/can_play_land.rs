@@ -64,6 +64,7 @@ pub(crate) fn is_satisfied(ctx: &CanPlayLandCtx<'_>) -> Result<(), GameError> {
         | Step::BeginningOfCombat
         | Step::DeclareAttackers
         | Step::DeclareBlockers
+        | Step::FirstStrikeDamage
         | Step::CombatDamage
         | Step::EndOfCombat
         | Step::EndStep

@@ -16,7 +16,7 @@ pub(crate) struct StepResult {
 }
 
 /// The canonical turn order of all steps.
-const STEP_ORDER: [Step; 12] = [
+const STEP_ORDER: [Step; 13] = [
     Step::Untap,
     Step::Upkeep,
     Step::Draw,
@@ -24,6 +24,7 @@ const STEP_ORDER: [Step; 12] = [
     Step::BeginningOfCombat,
     Step::DeclareAttackers,
     Step::DeclareBlockers,
+    Step::FirstStrikeDamage,
     Step::CombatDamage,
     Step::EndOfCombat,
     Step::SecondMain,
@@ -44,11 +45,12 @@ const fn step_index(step: Step) -> usize {
         Step::BeginningOfCombat => 4,
         Step::DeclareAttackers => 5,
         Step::DeclareBlockers => 6,
-        Step::CombatDamage => 7,
-        Step::EndOfCombat => 8,
-        Step::SecondMain => 9,
-        Step::EndStep => 10,
-        Step::Cleanup => 11,
+        Step::FirstStrikeDamage => 7,
+        Step::CombatDamage => 8,
+        Step::EndOfCombat => 9,
+        Step::SecondMain => 10,
+        Step::EndStep => 11,
+        Step::Cleanup => 12,
     }
 }
 
@@ -115,8 +117,15 @@ mod tests {
     }
 
     #[test]
-    fn declare_blockers_advances_to_combat_damage() {
+    fn declare_blockers_advances_to_first_strike_damage() {
         let result = advance(Step::DeclareBlockers);
+        assert_eq!(result.next_step, Step::FirstStrikeDamage);
+        assert!(!result.should_advance_player);
+    }
+
+    #[test]
+    fn first_strike_damage_advances_to_combat_damage() {
+        let result = advance(Step::FirstStrikeDamage);
         assert_eq!(result.next_step, Step::CombatDamage);
         assert!(!result.should_advance_player);
     }
@@ -159,7 +168,7 @@ mod tests {
     #[test]
     fn full_turn_cycle_returns_to_untap() {
         let mut step = Step::Untap;
-        for _ in 0..12 {
+        for _ in 0..13 {
             let result = advance(step);
             step = result.next_step;
         }

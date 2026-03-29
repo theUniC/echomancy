@@ -159,6 +159,7 @@ pub(crate) fn step_display_name(step: Step) -> &'static str {
         Step::BeginningOfCombat => "Begin Combat",
         Step::DeclareAttackers => "Attackers",
         Step::DeclareBlockers => "Blockers",
+        Step::FirstStrikeDamage => "First Strike Damage",
         Step::CombatDamage => "Combat Damage",
         Step::EndOfCombat => "End Combat",
         Step::SecondMain => "Second Main",
@@ -954,6 +955,14 @@ mod tests {
     #[test]
     fn declare_blockers_step_display_name() {
         assert_eq!(step_display_name(Step::DeclareBlockers), "Blockers");
+    }
+
+    #[test]
+    fn first_strike_damage_step_display_name() {
+        assert_eq!(
+            step_display_name(Step::FirstStrikeDamage),
+            "First Strike Damage"
+        );
     }
 
     #[test]

@@ -19,6 +19,8 @@ use super::Game;
 /// - `FirstMain`, `SecondMain` — land play, spell casting.
 /// - `DeclareAttackers` — active player declares attackers.
 /// - `DeclareBlockers` — defending player declares blockers.
+/// - `FirstStrikeDamage` — auto-resolved by the engine on entry, but we stop
+///   here to let the engine emit first-strike damage events before advancing.
 /// - `CombatDamage` — auto-resolved by the engine on entry, but we stop
 ///   here to let the engine emit damage events before advancing.
 ///
@@ -176,6 +178,11 @@ mod tests {
     #[test]
     fn combat_damage_is_interactive() {
         assert!(!is_non_interactive_step(Step::CombatDamage));
+    }
+
+    #[test]
+    fn first_strike_damage_is_interactive() {
+        assert!(!is_non_interactive_step(Step::FirstStrikeDamage));
     }
 
     // ---- auto_advance_through_non_interactive ------------------------------

@@ -20,6 +20,11 @@ pub struct CreatureSubState {
     pub(crate) damage_marked_this_turn: i32,
     pub(crate) blocking_creature_id: Option<CardInstanceId>,
     pub(crate) blocked_by: Option<CardInstanceId>,
+    /// Set to `true` when this creature has dealt damage in the `FirstStrikeDamage` step.
+    ///
+    /// Used to prevent the creature from dealing damage again in the regular
+    /// `CombatDamage` step (CR 702.7c). Cleared at end of combat.
+    pub(crate) dealt_first_strike_damage: bool,
 }
 
 impl CreatureSubState {
@@ -36,6 +41,7 @@ impl CreatureSubState {
             damage_marked_this_turn: 0,
             blocking_creature_id: None,
             blocked_by: None,
+            dealt_first_strike_damage: false,
         }
     }
 
@@ -79,6 +85,11 @@ impl CreatureSubState {
     /// Returns the instance ID of the creature blocking this creature, if any.
     pub fn blocked_by(&self) -> Option<&str> {
         self.blocked_by.as_ref().map(|id| id.as_str())
+    }
+
+    /// Returns `true` if this creature already dealt damage in the `FirstStrikeDamage` step.
+    pub fn dealt_first_strike_damage(&self) -> bool {
+        self.dealt_first_strike_damage
     }
 
     // ---- builder methods ---------------------------------------------------
@@ -131,6 +142,14 @@ impl CreatureSubState {
         }
     }
 
+    /// Returns a new `CreatureSubState` with `dealt_first_strike_damage` updated.
+    pub(crate) fn with_dealt_first_strike_damage(&self, val: bool) -> Self {
+        Self {
+            dealt_first_strike_damage: val,
+            ..self.clone()
+        }
+    }
+
     /// Returns a new `CreatureSubState` with all combat flags reset for a new
     /// turn and summoning sickness cleared.
     pub(crate) fn reset_for_new_turn(&self) -> Self {
@@ -141,6 +160,7 @@ impl CreatureSubState {
             blocking_creature_id: None,
             blocked_by: None,
             has_summoning_sickness: false,
+            dealt_first_strike_damage: false,
             ..self.clone()
         }
     }
@@ -159,6 +179,7 @@ impl CreatureSubState {
             is_attacking: false,
             blocking_creature_id: None,
             blocked_by: None,
+            dealt_first_strike_damage: false,
             ..self.clone()
         }
     }
