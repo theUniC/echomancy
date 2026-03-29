@@ -23,7 +23,7 @@
 //! shown in a muted color and clicks are ignored.
 
 use bevy::prelude::*;
-use echomancy_core::prelude::{Action, PlayerId, Step};
+use echomancy_core::prelude::{Action, CardInstanceId, PlayerId, Step, Target};
 
 use crate::plugins::game::{
     ActivePlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, PlayerIds,
@@ -133,6 +133,13 @@ pub(crate) struct HudTargetingLabel;
 #[derive(Component)]
 pub(crate) struct CancelTargetButton;
 
+/// Marks the "Target Opponent" button shown during target-selection mode.
+///
+/// Clicking this button dispatches `CastSpell` with the opponent player as the
+/// target, which is valid for `AnyTarget` spells like Lightning Strike.
+#[derive(Component)]
+pub(crate) struct TargetOpponentButton;
+
 /// Marks the container that holds the targeting mode indicator and cancel button.
 /// Shown only while `TargetSelectionState` is active.
 #[derive(Component)]
@@ -182,6 +189,23 @@ pub(crate) fn format_turn_label(turn_number: u32, step: Step) -> String {
 /// Example: `"Playing as: Player 1"`
 pub(crate) fn format_active_player_label(player_name: &str) -> String {
     format!("Playing as: {player_name}")
+}
+
+/// Return the opponent player ID given the active player ID and the full player list.
+///
+/// Returns `None` if the active player is not found in `player_ids` (shouldn't happen
+/// in a well-formed game state).
+pub(crate) fn opponent_player_id<'a>(
+    active_player_id: &str,
+    player_ids: &'a PlayerIds,
+) -> Option<&'a str> {
+    if player_ids.p1.id == active_player_id {
+        Some(&player_ids.p2.id)
+    } else if player_ids.p2.id == active_player_id {
+        Some(&player_ids.p1.id)
+    } else {
+        None
+    }
 }
 
 /// Format the mana pool display string from the snapshot's mana pool HashMap.
@@ -459,6 +483,28 @@ pub(crate) fn spawn_hud(mut commands: Commands) {
                         },
                         TextColor(Color::srgb(1.0, 0.85, 0.10)),
                     ));
+
+                    tbox.spawn((
+                        TargetOpponentButton,
+                        Button,
+                        Interaction::default(),
+                        Node {
+                            padding: UiRect::axes(Val::Px(8.0), Val::Px(6.0)),
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.55, 0.25, 0.05)),
+                    ))
+                    .with_children(|btn| {
+                        btn.spawn((
+                            Text::new("Target Opponent"),
+                            TextFont {
+                                font_size: 13.0,
+                                ..default()
+                            },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
 
                     tbox.spawn((
                         CancelTargetButton,
@@ -760,6 +806,42 @@ pub(crate) fn handle_cancel_target_click(
     }
 }
 
+/// Update system: handle "Target Opponent" button clicks during target-selection mode.
+///
+/// Reads the pending spell from `TargetSelectionState`, dispatches `CastSpell`
+/// with `Target::player(opponent_id)`, and clears the pending state.
+///
+/// The opponent is the player who is NOT the active player (the one controlling the UI).
+pub(crate) fn handle_target_opponent_click(
+    query: Query<&Interaction, (Changed<Interaction>, With<TargetOpponentButton>)>,
+    active_player: Res<ActivePlayerId>,
+    player_ids: Res<PlayerIds>,
+    mut target_selection: ResMut<TargetSelectionState>,
+    mut action_writer: MessageWriter<GameActionMessage>,
+) {
+    for interaction in &query {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+
+        let Some(pending) = target_selection.pending_spell.take() else {
+            continue;
+        };
+
+        let Some(opp_id) = opponent_player_id(&active_player.player_id, &player_ids) else {
+            // Restore the pending spell if we can't find the opponent.
+            target_selection.pending_spell = Some(pending);
+            continue;
+        };
+
+        action_writer.write(GameActionMessage(Action::CastSpell {
+            player_id: PlayerId::new(&active_player.player_id),
+            card_id: CardInstanceId::new(&pending.card_instance_id),
+            targets: vec![Target::player(opp_id)],
+        }));
+    }
+}
+
 /// Update system: handle Pass Priority button clicks.
 pub(crate) fn handle_pass_priority_click(
     query: Query<&Interaction, (Changed<Interaction>, With<PassPriorityButton>)>,
@@ -823,6 +905,7 @@ impl Plugin for HudPlugin {
                     handle_pass_priority_click,
                     handle_end_turn_click,
                     handle_cancel_target_click,
+                    handle_target_opponent_click,
                 ),
             );
     }
@@ -956,6 +1039,39 @@ mod tests {
     fn format_active_player_label_includes_player_2_name() {
         let label = format_active_player_label("Player 2");
         assert_eq!(label, "Playing as: Player 2");
+    }
+
+    // ---- opponent_player_id ------------------------------------------------
+
+    fn make_test_player_ids() -> PlayerIds {
+        PlayerIds {
+            p1: crate::plugins::game::PlayerInfo {
+                id: "p1-id".to_owned(),
+                name: "Player 1".to_owned(),
+            },
+            p2: crate::plugins::game::PlayerInfo {
+                id: "p2-id".to_owned(),
+                name: "Player 2".to_owned(),
+            },
+        }
+    }
+
+    #[test]
+    fn opponent_of_p1_is_p2() {
+        let ids = make_test_player_ids();
+        assert_eq!(opponent_player_id("p1-id", &ids), Some("p2-id"));
+    }
+
+    #[test]
+    fn opponent_of_p2_is_p1() {
+        let ids = make_test_player_ids();
+        assert_eq!(opponent_player_id("p2-id", &ids), Some("p1-id"));
+    }
+
+    #[test]
+    fn opponent_of_unknown_player_is_none() {
+        let ids = make_test_player_ids();
+        assert_eq!(opponent_player_id("unknown-id", &ids), None);
     }
 
     // ---- format_mana_pool --------------------------------------------------

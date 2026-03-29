@@ -125,20 +125,34 @@ pub(crate) fn handle_game_actions(
     player_ids: Res<PlayerIds>,
 ) {
     let mut any_applied = false;
+    let mut pending_error: Option<String> = None;
 
     for message in action_messages.read() {
         match game_state.game.apply(message.0.clone()) {
             Ok(events) => {
                 debug!(event_count = events.len(), "Game action applied");
                 any_applied = true;
-                // Clear any previous error on success.
-                error_message.message = None;
+                // Clear any previous error and any error from earlier in this batch.
+                pending_error = None;
             }
             Err(err) => {
                 warn!(%err, "GameActionMessage rejected by domain");
-                error_message.message = Some(humanize_error(&err.to_string(), &player_ids));
+                // Only record the error if no action has succeeded yet in this frame.
+                // If a prior action in the same batch succeeded, the error is spurious
+                // (e.g. a stale or duplicate message) and should not be shown.
+                if !any_applied {
+                    pending_error = Some(humanize_error(&err.to_string(), &player_ids));
+                }
             }
         }
+    }
+
+    // Apply the error state: show the error only if no action succeeded this frame.
+    // If any action succeeded, clear the previous error instead.
+    if any_applied {
+        error_message.message = None;
+    } else if let Some(err_msg) = pending_error {
+        error_message.message = Some(err_msg);
     }
 
     if any_applied {
