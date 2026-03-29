@@ -1,0 +1,389 @@
+//! Card-specific CLIPS rules registry.
+//!
+//! Maps card definition IDs to their embedded `.clp` rule strings.
+//! Card rules are loaded on demand via `load_card_rules()`.
+//!
+//! # File organization
+//!
+//! Card rule files live under `rules/cards/<first-letter>/<card-id>.clp`.
+//! Each file is embedded at compile time with `include_str!()`.
+//! Vanilla creatures (Bear, Goblin, Elite Vanguard) and basic lands
+//! have no `.clp` file — their behaviour is handled entirely by Rust.
+//!
+//! # Usage
+//!
+//! ```ignore
+//! let mut engine = ClipsEngine::new()?;
+//! load_core_templates(&mut engine)?;
+//! load_card_rules(&mut engine, "lightning-strike")?;
+//! load_card_rules(&mut engine, "divination")?;
+//! ```
+
+use crate::domain::rules_engine::RulesError;
+use crate::infrastructure::clips::ClipsEngine;
+
+// ============================================================================
+// Embedded card rule files
+// ============================================================================
+
+const LIGHTNING_STRIKE_RULES: &str =
+    include_str!("../../../../../rules/cards/l/lightning-strike.clp");
+
+const DIVINATION_RULES: &str =
+    include_str!("../../../../../rules/cards/d/divination.clp");
+
+// ============================================================================
+// Public API
+// ============================================================================
+
+/// Load the core CLIPS deftemplate definitions into the engine.
+///
+/// Must be called before loading any card rules or asserting game facts.
+/// Calling this more than once is safe — CLIPS deduplicates deftemplates
+/// identified by name, so a second call on the same environment is a no-op.
+#[allow(dead_code)]
+pub(crate) fn load_core_templates(engine: &mut ClipsEngine) -> Result<(), RulesError> {
+    const TEMPLATES: &str = include_str!("../../../../../rules/core/templates.clp");
+    engine.load_rules(TEMPLATES)
+}
+
+/// Load card-specific CLIPS rules for the given card definition ID.
+///
+/// Returns `Ok(())` for cards that have no `.clp` file (vanilla creatures,
+/// basic lands). Only returns `Err` when the card has rules but they fail to
+/// load (syntax error in the `.clp` file).
+///
+/// # Supported cards
+///
+/// | Card ID | Effect |
+/// |---------|--------|
+/// | `"lightning-strike"` | Deal 3 damage to opponent |
+/// | `"divination"` | Controller draws 2 cards |
+/// | anything else | No rules — silently succeeds |
+#[allow(dead_code)]
+pub(crate) fn load_card_rules(engine: &mut ClipsEngine, card_id: &str) -> Result<(), RulesError> {
+    match card_id {
+        "lightning-strike" => engine.load_rules(LIGHTNING_STRIKE_RULES),
+        "divination" => engine.load_rules(DIVINATION_RULES),
+        // Vanilla/keyword-only cards have no .clp — this is expected and fine.
+        _ => Ok(()),
+    }
+}
+
+// ============================================================================
+// Tests (TDD: written before implementation to drive the API design)
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::actions::Action;
+    use crate::domain::cards::card_definition::CardDefinition;
+    use crate::domain::cards::card_instance::CardInstance;
+    use crate::domain::enums::CardType;
+    use crate::domain::game::test_helpers::{add_card_to_hand, make_game_in_first_main, make_land_card};
+    use crate::domain::rules_engine::{RulesAction, RulesEngine};
+    use crate::domain::types::{CardInstanceId, PlayerId};
+
+    // -------------------------------------------------------------------------
+    // Helper: build an engine with core templates + requested card rules
+    // -------------------------------------------------------------------------
+
+    fn engine_for(card_ids: &[&str]) -> ClipsEngine {
+        let mut engine = ClipsEngine::new().expect("engine creation");
+        load_core_templates(&mut engine).expect("core templates should load");
+        for &id in card_ids {
+            load_card_rules(&mut engine, id)
+                .unwrap_or_else(|e| panic!("failed to load rules for {id}: {e}"));
+        }
+        engine
+    }
+
+    // =========================================================================
+    // Infrastructure: load_core_templates / load_card_rules
+    // =========================================================================
+
+    #[test]
+    fn load_core_templates_succeeds() {
+        let mut engine = ClipsEngine::new().expect("engine");
+        load_core_templates(&mut engine).expect("core templates should load without error");
+    }
+
+    #[test]
+    fn load_card_rules_for_lightning_strike_succeeds() {
+        let mut engine = ClipsEngine::new().expect("engine");
+        load_core_templates(&mut engine).expect("core templates");
+        load_card_rules(&mut engine, "lightning-strike")
+            .expect("lightning-strike rules should load");
+    }
+
+    #[test]
+    fn load_card_rules_for_divination_succeeds() {
+        let mut engine = ClipsEngine::new().expect("engine");
+        load_core_templates(&mut engine).expect("core templates");
+        load_card_rules(&mut engine, "divination")
+            .expect("divination rules should load");
+    }
+
+    #[test]
+    fn load_card_rules_for_unknown_card_is_no_op() {
+        // Vanilla creatures (bear, goblin, elite-vanguard) have no .clp file.
+        // load_card_rules should return Ok without loading anything.
+        let mut engine = ClipsEngine::new().expect("engine");
+        load_core_templates(&mut engine).expect("core templates");
+        for &vanilla in &["bear", "goblin", "elite-vanguard", "forest", "mountain"] {
+            load_card_rules(&mut engine, vanilla)
+                .unwrap_or_else(|e| panic!("vanilla card {vanilla} should not fail: {e}"));
+        }
+    }
+
+    // =========================================================================
+    // CLIPS rule correctness: Lightning Strike
+    // =========================================================================
+
+    /// Lightning Strike rule fires and produces an action-damage fact.
+    #[test]
+    fn lightning_strike_rule_produces_damage_action_for_opponent() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+        use crate::domain::game::test_helpers::make_started_game;
+
+        let mut engine = engine_for(&["lightning-strike"]);
+        let (game, p1, _p2) = make_started_game();
+
+        // Synthesize a SpellResolved event for lightning-strike cast by p1
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("strike-1"),
+                definition_id: CardDefinitionId::new("lightning-strike"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert_eq!(
+            result.actions.len(),
+            1,
+            "should produce exactly one action-damage"
+        );
+        assert!(
+            matches!(
+                &result.actions[0],
+                RulesAction::DealDamage { source, target, amount: 3 }
+                    if source == "strike-1" && target == "p2"
+            ),
+            "should deal 3 damage to p2 (opponent), got: {:?}",
+            result.actions[0]
+        );
+    }
+
+    /// Lightning Strike rule does not fire for a different card.
+    #[test]
+    fn lightning_strike_rule_does_not_fire_for_other_cards() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+        use crate::domain::game::test_helpers::make_started_game;
+
+        let mut engine = engine_for(&["lightning-strike"]);
+        let (game, p1, _p2) = make_started_game();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("div-1"),
+                definition_id: CardDefinitionId::new("divination"), // different card
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert!(
+            result.actions.is_empty(),
+            "lightning-strike rule should not fire for divination"
+        );
+    }
+
+    // =========================================================================
+    // CLIPS rule correctness: Divination
+    // =========================================================================
+
+    /// Divination rule fires and produces an action-draw fact for the controller.
+    #[test]
+    fn divination_rule_produces_draw_action_for_controller() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+        use crate::domain::game::test_helpers::make_started_game;
+
+        let mut engine = engine_for(&["divination"]);
+        let (game, p1, _p2) = make_started_game();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("div-1"),
+                definition_id: CardDefinitionId::new("divination"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert_eq!(
+            result.actions.len(),
+            1,
+            "should produce exactly one action-draw"
+        );
+        assert!(
+            matches!(
+                &result.actions[0],
+                RulesAction::DrawCards { player, amount: 2 }
+                    if player == "p1"
+            ),
+            "should draw 2 cards for p1 (controller), got: {:?}",
+            result.actions[0]
+        );
+    }
+
+    /// Divination rule does not fire for a different card.
+    #[test]
+    fn divination_rule_does_not_fire_for_other_cards() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+        use crate::domain::game::test_helpers::make_started_game;
+
+        let mut engine = engine_for(&["divination"]);
+        let (game, p1, _p2) = make_started_game();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("strike-1"),
+                definition_id: CardDefinitionId::new("lightning-strike"), // different card
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert!(
+            result.actions.is_empty(),
+            "divination rule should not fire for lightning-strike"
+        );
+    }
+
+    // =========================================================================
+    // End-to-end pipeline: Game → CLIPS → Game mutation
+    // =========================================================================
+
+    /// Full pipeline: Lightning Strike cast by p1 deals 3 damage to p2.
+    ///
+    /// This test exercises the complete chain:
+    ///   game.apply(CastSpell) → stack push
+    ///   game.apply(PassPriority) × 2 → stack resolves
+    ///   → resolve_spell() → engine.evaluate() → CLIPS fires
+    ///   → apply_rules_action() → p2 loses 3 life
+    #[test]
+    fn e2e_lightning_strike_deals_3_damage_to_opponent() {
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        // Wire the CLIPS engine into the game
+        let engine = engine_for(&["lightning-strike"]);
+        game.set_rules_engine(Box::new(engine));
+
+        // Put a free Lightning Strike in p1's hand (no mana cost to avoid payment logic)
+        let strike = CardInstance::new(
+            "strike-1",
+            CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant]),
+            &p1,
+        );
+        add_card_to_hand(&mut game, &p1, strike);
+
+        let p2_life_before = game.player_life_total(&p2).unwrap();
+        assert_eq!(p2_life_before, 20);
+
+        // Cast the spell — goes on stack, priority passes to p2
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("strike-1"),
+        })
+        .expect("p1 should be able to cast Lightning Strike");
+
+        assert_eq!(game.stack().len(), 1, "spell should be on stack");
+
+        // Both players pass priority → stack resolves
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) })
+            .expect("p2 should be able to pass priority");
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) })
+            .expect("p1 should be able to pass priority");
+
+        // After resolution: stack empty, p2 has 17 life
+        assert_eq!(game.stack().len(), 0, "stack should be empty after resolution");
+
+        let p2_life_after = game.player_life_total(&p2).unwrap();
+        assert_eq!(
+            p2_life_after,
+            p2_life_before - 3,
+            "p2 should have taken 3 damage from Lightning Strike"
+        );
+
+        let p1_life_after = game.player_life_total(&p1).unwrap();
+        assert_eq!(p1_life_after, 20, "p1 (caster) should be unaffected");
+    }
+
+    /// Full pipeline: Divination cast by p1 draws 2 cards for p1.
+    #[test]
+    fn e2e_divination_draws_2_cards_for_controller() {
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        let engine = engine_for(&["divination"]);
+        game.set_rules_engine(Box::new(engine));
+
+        // Add 2 cards to p1's library so draw doesn't fail silently
+        let lib_1 = make_land_card("lib-1", &p1);
+        let lib_2 = make_land_card("lib-2", &p1);
+        game.player_state_mut(&p1).unwrap().library.push(lib_1);
+        game.player_state_mut(&p1).unwrap().library.push(lib_2);
+
+        // Free Divination in p1's hand
+        let divination = CardInstance::new(
+            "div-1",
+            CardDefinition::new("divination", "Divination", vec![CardType::Sorcery]),
+            &p1,
+        );
+        add_card_to_hand(&mut game, &p1, divination);
+
+        // hand starts empty (0) + 1 divination = 1 card
+        // after cast: 0 in hand (divination leaves), + 2 draws = 2 in hand
+        let p1_hand_before = game.hand(&p1).unwrap().len(); // 1 (just the divination)
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("div-1"),
+        })
+        .expect("cast should succeed");
+
+        // p2 and p1 both pass → stack resolves → CLIPS fires → 2 cards drawn
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+
+        assert_eq!(game.stack().len(), 0, "stack should be empty");
+
+        let p1_hand_after = game.hand(&p1).unwrap().len();
+        // The spell itself left hand when cast, so net = -1 (cast) + 2 (draw) = +1
+        // But we want to verify 2 cards were drawn:
+        // hand_before included the spell, hand_after should be hand_before - 1 (spell) + 2 (draws)
+        assert_eq!(
+            p1_hand_after,
+            p1_hand_before - 1 + 2,
+            "p1 should have drawn 2 cards: was {p1_hand_before}, expected {}, got {p1_hand_after}",
+            p1_hand_before - 1 + 2,
+        );
+
+        // p2 should not have drawn any cards
+        let p2_hand_after = game.hand(&p2).unwrap().len();
+        assert_eq!(p2_hand_after, 0, "opponent (p2) should not draw any cards");
+    }
+}

@@ -26,6 +26,7 @@ use crate::domain::rules_engine::{InputRequest, PlayerChoice, RulesEngine, Rules
 
 pub(crate) mod actions;
 pub(crate) mod bridge;
+pub(crate) mod card_rules;
 pub(crate) mod router;
 
 /// CLIPS fact templates embedded in the binary.

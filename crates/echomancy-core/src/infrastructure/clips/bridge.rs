@@ -241,9 +241,11 @@ pub(crate) fn serialize_game_event(event: &GameEvent) -> String {
                 "(game-event \
                  (type SPELL_RESOLVING) \
                  (source-id {card_id}) \
-                 (controller {controller}))",
+                 (controller {controller}) \
+                 (data {def_id}))",
                 card_id = clips_string(card.instance_id.as_str()),
                 controller = clips_string(controller_id.as_str()),
+                def_id = clips_string(card.definition_id.as_str()),
             )
         }
 
@@ -655,6 +657,10 @@ mod tests {
         let fact = serialize_game_event(&event);
         assert!(fact.contains("(type SPELL_RESOLVING)"), "should use SPELL_RESOLVING type");
         assert!(fact.contains(r#"(source-id "bolt-1")"#), "should have spell instance id");
+        assert!(
+            fact.contains(r#"(data "lightning-bolt")"#),
+            "should include card definition id in data slot, got: {fact}"
+        );
     }
 
     #[test]
