@@ -45,14 +45,25 @@ pub fn compute_legal_actions(game: &Game, player_id: &str) -> AllowedActionsResu
         compute_spells_needing_targets(game, player_id, &castable_spells);
     let attackable_creatures = compute_attackable_creatures(game, player_id);
     let blockable_creatures = compute_blockable_creatures(game, player_id);
-    let is_own_sorcery_inline = game.current_player_id() == player_id
-        && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
-        && !game.stack_has_items();
-    let has_potential_plays_inline = is_own_sorcery_inline
-        && !tappable_lands.is_empty()
-        && game.hand(player_id)
-            .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
-            .unwrap_or(false);
+    let has_potential_plays_inline = if tappable_lands.is_empty() {
+        false
+    } else {
+        let is_own_sorcery = game.current_player_id() == player_id
+            && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
+            && !game.stack_has_items();
+        if is_own_sorcery {
+            game.hand(player_id)
+                .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
+                .unwrap_or(false)
+        } else {
+            game.hand(player_id)
+                .map(|hand| hand.iter().any(|c| {
+                    c.definition().is_instant()
+                        || c.definition().has_static_ability(StaticAbility::Flash)
+                }))
+                .unwrap_or(false)
+        }
+    };
     let auto_pass_eligible = playable_lands.is_empty()
         && castable_spells.is_empty()
         && !has_potential_plays_inline
@@ -346,20 +357,31 @@ pub fn compute_auto_pass_eligible(game: &Game, player_id: &str) -> bool {
         return false;
     }
     let actions = compute_legal_actions(game, player_id);
-    // Potential plays: tappable lands + spells, but ONLY during own
-    // sorcery-speed timing. During opponent's turn, only castable_spells
-    // (mana already in pool) stops auto-pass. This matches Arena's default
-    // behavior: auto-pass everything unless you actively have mana up.
-    // Players who want to "hold up mana" must tap before the opponent acts.
-    let is_own_sorcery_timing = game.current_player_id() == player_id
-        && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
-        && !game.stack_has_items();
+    // Potential plays: tappable lands + relevant spells in hand.
+    // Per CR 117.3a, every player who can act MUST get the opportunity.
+    //
+    // During own turn (sorcery timing): tappable lands + any non-land card
+    // During opponent's turn: tappable lands + instant/Flash cards only
+    let has_potential_plays = if actions.tappable_lands.is_empty() {
+        false
+    } else {
+        let is_own_sorcery_timing = game.current_player_id() == player_id
+            && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
+            && !game.stack_has_items();
 
-    let has_potential_plays = is_own_sorcery_timing
-        && !actions.tappable_lands.is_empty()
-        && game.hand(player_id)
-            .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
-            .unwrap_or(false);
+        if is_own_sorcery_timing {
+            game.hand(player_id)
+                .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
+                .unwrap_or(false)
+        } else {
+            game.hand(player_id)
+                .map(|hand| hand.iter().any(|c| {
+                    c.definition().is_instant()
+                        || c.definition().has_static_ability(StaticAbility::Flash)
+                }))
+                .unwrap_or(false)
+        }
+    };
 
     actions.playable_lands.is_empty()
         && actions.castable_spells.is_empty()
