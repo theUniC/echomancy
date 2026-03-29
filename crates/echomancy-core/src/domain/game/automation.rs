@@ -124,8 +124,12 @@ pub fn run_auto_pass_loop(game: &mut Game) -> u32 {
             None => break,
         };
 
-        // Stop if the player can do something
-        if !compute_auto_pass_eligible(game, &holder) {
+        // A player who clicked "End Turn" has set the auto_pass flag.
+        // They always auto-pass regardless of available actions.
+        let force_pass = game.is_auto_pass(&holder);
+
+        // Stop if the player can do something AND hasn't said "End Turn"
+        if !force_pass && !compute_auto_pass_eligible(game, &holder) {
             break;
         }
 

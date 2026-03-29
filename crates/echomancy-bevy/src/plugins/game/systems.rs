@@ -125,9 +125,16 @@ pub(crate) fn handle_game_actions(
     let mut pending_error: Option<String> = None;
 
     for message in action_messages.read() {
+        info!(action = ?message.0, "Received GameActionMessage");
         match game_state.game.apply(message.0.clone()) {
             Ok(events) => {
-                debug!(event_count = events.len(), "Game action applied");
+                info!(
+                    event_count = events.len(),
+                    step = ?game_state.game.current_step(),
+                    player = %game_state.game.current_player_id(),
+                    priority = ?game_state.game.priority_player_id(),
+                    "Game action applied"
+                );
                 any_applied = true;
                 // Clear any previous error and any error from earlier in this batch.
                 pending_error = None;
@@ -153,11 +160,15 @@ pub(crate) fn handle_game_actions(
     }
 
     if any_applied {
-        // Auto-pass loop: the domain's run_auto_pass_loop handles all the
-        // complexity of advancing through non-interactive steps and auto-passing
-        // for players who cannot act. This is the same tested function used in
-        // setup_game and in domain integration tests.
-        run_auto_pass_loop(&mut game_state.game);
+        // Auto-pass loop
+        let auto_count = run_auto_pass_loop(&mut game_state.game);
+        info!(
+            auto_passes = auto_count,
+            step = ?game_state.game.current_step(),
+            player = %game_state.game.current_player_id(),
+            priority = ?game_state.game.priority_player_id(),
+            "After auto-pass loop"
+        );
 
         // Determine which player's perspective the UI should show.
         // Show whoever has priority — they need to see their hand to act.
@@ -379,6 +390,38 @@ mod tests {
         assert_eq!(game.current_player_id(), p2.as_str(), "P2 should be active");
         assert_eq!(game.current_step(), Step::FirstMain, "P2 at FirstMain");
         assert_eq!(active, &p2, "Perspective should be P2");
+    }
+
+    #[test]
+    fn end_turn_from_first_main_reaches_p2_first_main() {
+        let (mut app, p1, p2) = make_test_app();
+
+        // Trace the state step by step
+        {
+            let game = &app.world().resource::<GameState>().game;
+            eprintln!("BEFORE EndTurn: step={:?} player={} priority={:?}",
+                game.current_step(), game.current_player_id(), game.priority_player_id());
+        }
+
+        // Apply EndTurn
+        {
+            let game = &mut app.world_mut().resource_mut::<GameState>().game;
+            game.apply(Action::EndTurn { player_id: PlayerId::new(&p1) }).unwrap();
+            eprintln!("AFTER EndTurn (before auto-pass): step={:?} player={} priority={:?}",
+                game.current_step(), game.current_player_id(), game.priority_player_id());
+        }
+
+        // Run auto-pass
+        {
+            let game = &mut app.world_mut().resource_mut::<GameState>().game;
+            let count = run_auto_pass_loop(game);
+            eprintln!("AFTER auto-pass (count={}): step={:?} player={} turn={} priority={:?}",
+                count, game.current_step(), game.current_player_id(), game.turn_number(), game.priority_player_id());
+        }
+
+        let game = &app.world().resource::<GameState>().game;
+        assert_eq!(game.current_player_id(), p2.as_str(), "P2 should be active");
+        assert_eq!(game.current_step(), Step::FirstMain, "Should be FirstMain");
     }
 
     #[test]
