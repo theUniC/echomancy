@@ -8,6 +8,7 @@ thiserror = { workspace = true }
 uuid = { workspace = true }
 serde = { workspace = true }
 rand = { workspace = true }
+clips-sys = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

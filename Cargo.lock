@@ -2269,6 +2269,7 @@ dependencies = [
 name = "echomancy-core"
 version = "0.1.0"
 dependencies = [
+ "clips-sys",
  "rand",
  "serde",
  "serde_json",

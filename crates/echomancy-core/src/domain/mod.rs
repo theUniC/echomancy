@@ -8,6 +8,7 @@ pub mod enums;
 pub mod errors;
 pub mod events;
 pub mod game;
+pub(crate) mod rules_engine;
 pub mod services;
 pub(crate) mod specifications;
 pub mod targets;
