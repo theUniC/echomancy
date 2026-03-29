@@ -199,13 +199,33 @@ impl Game {
         }
     }
 
+    /// Add life to a player's total (used for Lifelink and other life-gain effects).
+    pub(crate) fn gain_life(&mut self, player_id: &str, amount: i32) {
+        if let Ok(player) = self.player_state_mut(player_id) {
+            player.life_total += amount;
+        }
+    }
+
     /// Mark damage on a creature (accumulates in `damage_marked_this_turn`).
-    pub(crate) fn mark_damage_on_creature(&mut self, creature_id: &str, damage: i32) {
+    ///
+    /// If `is_deathtouch` is `true`, also sets `has_deathtouch_damage = true`
+    /// on the creature's state (CR 702.2 — any non-zero deathtouch damage is lethal).
+    pub(crate) fn mark_damage_on_creature(
+        &mut self,
+        creature_id: &str,
+        damage: i32,
+        is_deathtouch: bool,
+    ) {
         if let Some(state) = self.permanent_states.get(creature_id) {
             if let Some(cs) = state.creature_state() {
                 let new_damage = cs.damage_marked_this_turn() + damage;
                 if let Ok(new_state) = state.with_damage(new_damage) {
-                    self.permanent_states.insert(creature_id.to_owned(), new_state);
+                    let final_state = if is_deathtouch && damage > 0 {
+                        new_state.with_deathtouch_damage()
+                    } else {
+                        new_state
+                    };
+                    self.permanent_states.insert(creature_id.to_owned(), final_state);
                 }
             }
         }
@@ -441,40 +461,34 @@ impl Game {
 
     /// Collect all creatures currently in combat (attacking or blocking).
     ///
-    /// Returns a list of `(instance_id, controller_id, PermanentState)` tuples.
-    fn collect_combat_creatures(&self) -> Vec<(String, String, PermanentState)> {
-        let candidate_ids: Vec<(String, String)> = self
-            .players
-            .iter()
-            .flat_map(|player| {
-                let controller = player.player_id.as_str().to_owned();
-                player
-                    .battlefield
-                    .iter()
-                    .map(move |card| (card.instance_id().to_owned(), controller.clone()))
-            })
-            .collect();
+    /// Returns a list of `(instance_id, controller_id, PermanentState, has_trample, has_deathtouch, has_lifelink)` tuples.
+    fn collect_combat_creatures(&self) -> Vec<(String, String, PermanentState, bool, bool, bool)> {
+        let mut result = Vec::new();
 
-        let combat_creature_ids: Vec<(String, String)> = candidate_ids
-            .into_iter()
-            .filter(|(id, _)| {
-                self.permanent_states
-                    .get(id)
-                    .and_then(|s| s.creature_state())
-                    .map(|cs| cs.is_attacking() || cs.blocking_creature_id().is_some())
-                    .unwrap_or(false)
-            })
-            .collect();
+        for player in &self.players {
+            let controller = player.player_id.as_str().to_owned();
+            for card in &player.battlefield {
+                let id = card.instance_id().to_owned();
+                let state = match self.permanent_states.get(&id) {
+                    Some(s) => s.clone(),
+                    None => continue,
+                };
+                let cs = match state.creature_state() {
+                    Some(cs) => cs,
+                    None => continue,
+                };
+                if !cs.is_attacking() && cs.blocking_creature_id().is_none() {
+                    continue;
+                }
+                let def = card.definition();
+                let has_trample = def.has_static_ability(StaticAbility::Trample);
+                let has_deathtouch = def.has_static_ability(StaticAbility::Deathtouch);
+                let has_lifelink = def.has_static_ability(StaticAbility::Lifelink);
+                result.push((id, controller.clone(), state, has_trample, has_deathtouch, has_lifelink));
+            }
+        }
 
-        combat_creature_ids
-            .into_iter()
-            .filter_map(|(id, controller)| {
-                self.permanent_states
-                    .get(&id)
-                    .cloned()
-                    .map(|s| (id, controller, s))
-            })
-            .collect()
+        result
     }
 
     /// Returns `true` if the creature with the given instance_id has `FirstStrike`.
@@ -510,9 +524,9 @@ impl Game {
         let all_combat = self.collect_combat_creatures();
 
         // Determine which combat creatures have FirstStrike.
-        let first_strikers: Vec<(String, String, PermanentState)> = all_combat
+        let first_strikers: Vec<(String, String, PermanentState, bool, bool, bool)> = all_combat
             .iter()
-            .filter(|(id, _, _)| self.creature_has_first_strike(id))
+            .filter(|(id, _, _, _, _, _)| self.creature_has_first_strike(id))
             .cloned()
             .collect();
 
@@ -524,26 +538,32 @@ impl Game {
         // Collect IDs that have first strike (both attackers and blockers).
         let first_striker_ids: Vec<String> = first_strikers
             .iter()
-            .map(|(id, _, _)| id.clone())
+            .map(|(id, _, _, _, _, _)| id.clone())
             .collect();
 
         // Build snapshots for the full combat pool (needed for blocker lookups) and for
         // first strikers only (the damage sources in this step).
         let all_entries: Vec<CreatureCombatEntry<'_>> = all_combat
             .iter()
-            .map(|(id, controller, state)| CreatureCombatEntry {
+            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink)| CreatureCombatEntry {
                 instance_id: id.as_str(),
                 controller_id: controller.as_str(),
                 state,
+                has_trample: *has_trample,
+                has_deathtouch: *has_deathtouch,
+                has_lifelink: *has_lifelink,
             })
             .collect();
 
         let fs_entries: Vec<CreatureCombatEntry<'_>> = first_strikers
             .iter()
-            .map(|(id, controller, state)| CreatureCombatEntry {
+            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink)| CreatureCombatEntry {
                 instance_id: id.as_str(),
                 controller_id: controller.as_str(),
                 state,
+                has_trample: *has_trample,
+                has_deathtouch: *has_deathtouch,
+                has_lifelink: *has_lifelink,
             })
             .collect();
 
@@ -557,12 +577,20 @@ impl Game {
             .map(|a| a.source_id.clone())
             .collect();
 
-        // Apply damage.
-        for assignment in assignments {
+        // Apply damage; also handle Lifelink life gain.
+        for assignment in &assignments {
             if assignment.is_player {
                 self.deal_damage_to_player(&assignment.target_id, assignment.amount);
             } else {
-                self.mark_damage_on_creature(&assignment.target_id, assignment.amount);
+                self.mark_damage_on_creature(
+                    &assignment.target_id,
+                    assignment.amount,
+                    assignment.is_deathtouch,
+                );
+            }
+            // Lifelink: source controller gains life equal to damage dealt.
+            if assignment.has_lifelink && assignment.amount > 0 {
+                self.gain_life(&assignment.source_controller_id, assignment.amount);
             }
         }
 
@@ -596,9 +624,9 @@ impl Game {
         let all_combat = self.collect_combat_creatures();
 
         // Filter out creatures that already dealt first strike damage.
-        let regular_combat: Vec<(String, String, PermanentState)> = all_combat
+        let regular_combat: Vec<(String, String, PermanentState, bool, bool, bool)> = all_combat
             .into_iter()
-            .filter(|(_, _, state)| {
+            .filter(|(_, _, state, _, _, _)| {
                 state
                     .creature_state()
                     .map(|cs| !cs.dealt_first_strike_damage())
@@ -608,21 +636,32 @@ impl Game {
 
         let combat_entries: Vec<CreatureCombatEntry<'_>> = regular_combat
             .iter()
-            .map(|(id, controller, state)| CreatureCombatEntry {
+            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink)| CreatureCombatEntry {
                 instance_id: id.as_str(),
                 controller_id: controller.as_str(),
                 state,
+                has_trample: *has_trample,
+                has_deathtouch: *has_deathtouch,
+                has_lifelink: *has_lifelink,
             })
             .collect();
 
         let assignments = calculate_all_combat_damage(&combat_entries, &defending_player_id);
 
-        // Apply all damage
-        for assignment in assignments {
+        // Apply all damage; also handle Lifelink life gain.
+        for assignment in &assignments {
             if assignment.is_player {
                 self.deal_damage_to_player(&assignment.target_id, assignment.amount);
             } else {
-                self.mark_damage_on_creature(&assignment.target_id, assignment.amount);
+                self.mark_damage_on_creature(
+                    &assignment.target_id,
+                    assignment.amount,
+                    assignment.is_deathtouch,
+                );
+            }
+            // Lifelink: source controller gains life equal to damage dealt.
+            if assignment.has_lifelink && assignment.amount > 0 {
+                self.gain_life(&assignment.source_controller_id, assignment.amount);
             }
         }
 
@@ -1134,5 +1173,417 @@ mod tests {
         })
         .unwrap();
         assert_eq!(game.current_step(), Step::CombatDamage);
+    }
+
+    // =========================================================================
+    // Trample tests
+    // =========================================================================
+
+    /// Set up combat reaching CombatDamage with a trample attacker.
+    fn setup_trample_combat(
+        attacker_power: u32,
+        attacker_toughness: u32,
+        blocker: Option<(u32, u32)>,
+        attacker_has_deathtouch: bool,
+    ) -> (crate::domain::game::Game, String, String) {
+        use crate::domain::enums::StaticAbility;
+        use crate::domain::game::test_helpers::make_creature_with_ability;
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, p2) = make_started_game();
+
+        // Advance to DeclareAttackers
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+
+        // Build attacker with Trample (+ optionally Deathtouch).
+        let attacker_card = if attacker_has_deathtouch {
+            let def = CardDefinition::new("creature", "Creature", vec![CardType::Creature])
+                .with_power_toughness(attacker_power, attacker_toughness)
+                .with_static_ability(StaticAbility::Trample)
+                .with_static_ability(StaticAbility::Deathtouch);
+            CardInstance::new("attacker-1", def, &p1)
+        } else {
+            make_creature_with_ability(
+                "attacker-1",
+                &p1,
+                attacker_power,
+                attacker_toughness,
+                StaticAbility::Trample,
+            )
+        };
+        add_permanent_to_battlefield(&mut game, &p1, attacker_card);
+        clear_summoning_sickness(&mut game, "attacker-1");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        // Advance to DeclareBlockers.
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::DeclareBlockers);
+
+        if let Some((bp, bt)) = blocker {
+            let blocker_card = make_creature_card("blocker-1", &p2, bp, bt);
+            add_permanent_to_battlefield(&mut game, &p2, blocker_card);
+
+            game.apply(Action::DeclareBlocker {
+                player_id: PlayerId::new(&p2),
+                blocker_id: CardInstanceId::new("blocker-1"),
+                attacker_id: CardInstanceId::new("attacker-1"),
+            })
+            .unwrap();
+        }
+
+        // Advance through FirstStrikeDamage to CombatDamage.
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::FirstStrikeDamage);
+
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        (game, p1, p2)
+    }
+
+    #[test]
+    fn trample_6_6_blocked_by_1_1_deals_1_to_blocker_5_to_player() {
+        // 6/6 Trample blocked by 1/1: 1 lethal to blocker (killed), 5 to player
+        let (game, _p1, p2) = setup_trample_combat(6, 6, Some((1, 1)), false);
+
+        assert_eq!(
+            game.player_life_total(&p2).unwrap(),
+            15,
+            "Defending player should take 5 trample damage"
+        );
+
+        // The 1/1 blocker receives lethal damage (1 >= 1 toughness) and is destroyed by SBAs
+        // which run automatically as part of the CombatDamage step.
+        assert!(
+            game.permanent_state("blocker-1").is_none(),
+            "1/1 blocker should be destroyed after receiving 1 lethal damage"
+        );
+    }
+
+    #[test]
+    fn trample_3_3_blocked_by_3_3_no_damage_to_player() {
+        // 3/3 Trample blocked by 3/3: all 3 goes to blocker, 0 to player
+        let (game, _p1, p2) = setup_trample_combat(3, 3, Some((3, 3)), false);
+
+        assert_eq!(
+            game.player_life_total(&p2).unwrap(),
+            20,
+            "Defending player should take 0 damage when all damage is needed to kill blocker"
+        );
+    }
+
+    #[test]
+    fn trample_deathtouch_6_6_blocked_by_5_5_deals_1_to_blocker_5_to_player() {
+        // 6/6 Trample+Deathtouch blocked by 1/5: 1 lethal (deathtouch), 5 trample through
+        // The 1/5 blocker is killed by SBAs (has_deathtouch_damage + damage > 0).
+        let (game, _p1, p2) = setup_trample_combat(6, 6, Some((1, 5)), true);
+
+        assert_eq!(
+            game.player_life_total(&p2).unwrap(),
+            15,
+            "Defending player should take 5 trample damage (deathtouch means 1 is lethal)"
+        );
+
+        // Blocker is destroyed by SBAs (deathtouch damage is lethal regardless of toughness).
+        assert!(
+            game.permanent_state("blocker-1").is_none(),
+            "1/5 blocker should be destroyed by deathtouch damage (SBA)"
+        );
+    }
+
+    // =========================================================================
+    // Deathtouch tests (via full game flow)
+    // =========================================================================
+
+    /// Set up combat reaching CombatDamage with a deathtouch attacker.
+    fn setup_deathtouch_combat(
+        attacker_power: u32,
+        attacker_toughness: u32,
+        blocker_power: u32,
+        blocker_toughness: u32,
+    ) -> (crate::domain::game::Game, String, String) {
+        use crate::domain::enums::StaticAbility;
+        use crate::domain::game::test_helpers::make_creature_with_ability;
+
+        let (mut game, p1, p2) = make_started_game();
+
+        // Advance to DeclareAttackers
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+
+        let attacker_card = make_creature_with_ability(
+            "attacker-1",
+            &p1,
+            attacker_power,
+            attacker_toughness,
+            StaticAbility::Deathtouch,
+        );
+        add_permanent_to_battlefield(&mut game, &p1, attacker_card);
+        clear_summoning_sickness(&mut game, "attacker-1");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        let blocker_card = make_creature_card("blocker-1", &p2, blocker_power, blocker_toughness);
+        add_permanent_to_battlefield(&mut game, &p2, blocker_card);
+
+        game.apply(Action::DeclareBlocker {
+            player_id: PlayerId::new(&p2),
+            blocker_id: CardInstanceId::new("blocker-1"),
+            attacker_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        // Advance through FirstStrikeDamage to CombatDamage.
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        (game, p1, p2)
+    }
+
+    #[test]
+    fn deathtouch_1_1_vs_5_5_blocker_is_destroyed_by_sba() {
+        // 1/1 Deathtouch vs 5/5: blocker gets 1 deathtouch damage → SBA kills it
+        let (mut game, _p1, _p2) = setup_deathtouch_combat(1, 1, 5, 5);
+
+        game.perform_state_based_actions();
+
+        assert!(
+            game.permanent_state("blocker-1").is_none(),
+            "5/5 blocker should be destroyed by deathtouch damage"
+        );
+    }
+
+    #[test]
+    fn deathtouch_1_1_vs_5_5_blocker_moves_to_graveyard() {
+        // 1/1 Deathtouch vs 5/5: the deathtouch flag causes the 5/5 to be destroyed by SBA.
+        // SBAs fire automatically as part of the CombatDamage step, so by the time we check,
+        // the blocker is already in the graveyard.
+        let (game, _p1, p2) = setup_deathtouch_combat(1, 1, 5, 5);
+
+        // Blocker should be in graveyard (destroyed by deathtouch SBA)
+        assert!(
+            game.permanent_state("blocker-1").is_none(),
+            "5/5 blocker should be destroyed by deathtouch (SBA)"
+        );
+        assert_eq!(
+            game.graveyard(&p2).unwrap().len(),
+            1,
+            "Blocker should be in p2's graveyard"
+        );
+    }
+
+    // =========================================================================
+    // Lifelink tests (via full game flow)
+    // =========================================================================
+
+    /// Set up combat reaching CombatDamage with a lifelink attacker.
+    fn setup_lifelink_combat(
+        attacker_power: u32,
+        attacker_toughness: u32,
+        blocker: Option<(u32, u32)>,
+    ) -> (crate::domain::game::Game, String, String) {
+        use crate::domain::enums::StaticAbility;
+        use crate::domain::game::test_helpers::make_creature_with_ability;
+
+        let (mut game, p1, p2) = make_started_game();
+
+        // Advance to DeclareAttackers
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+
+        let attacker_card = make_creature_with_ability(
+            "attacker-1",
+            &p1,
+            attacker_power,
+            attacker_toughness,
+            StaticAbility::Lifelink,
+        );
+        add_permanent_to_battlefield(&mut game, &p1, attacker_card);
+        clear_summoning_sickness(&mut game, "attacker-1");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        if let Some((bp, bt)) = blocker {
+            let blocker_card = make_creature_card("blocker-1", &p2, bp, bt);
+            add_permanent_to_battlefield(&mut game, &p2, blocker_card);
+
+            game.apply(Action::DeclareBlocker {
+                player_id: PlayerId::new(&p2),
+                blocker_id: CardInstanceId::new("blocker-1"),
+                attacker_id: CardInstanceId::new("attacker-1"),
+            })
+            .unwrap();
+        }
+
+        // Advance through FirstStrikeDamage to CombatDamage.
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        (game, p1, p2)
+    }
+
+    #[test]
+    fn lifelink_3_3_unblocked_controller_gains_3_life() {
+        // 3/3 Lifelink unblocked: deals 3 to player, controller gains 3 life
+        let (game, p1, p2) = setup_lifelink_combat(3, 3, None);
+
+        assert_eq!(
+            game.player_life_total(&p2).unwrap(),
+            17,
+            "Defending player should take 3 damage"
+        );
+        assert_eq!(
+            game.player_life_total(&p1).unwrap(),
+            23,
+            "Attacking player should gain 3 life from Lifelink"
+        );
+    }
+
+    #[test]
+    fn lifelink_3_3_blocked_by_2_2_controller_gains_3_life_from_creature_damage() {
+        // 3/3 Lifelink blocked by 2/2: damage goes to creature, but controller still gains life
+        let (game, p1, p2) = setup_lifelink_combat(3, 3, Some((2, 2)));
+
+        // Defender takes no player damage (attacker is blocked)
+        assert_eq!(
+            game.player_life_total(&p2).unwrap(),
+            20,
+            "Defending player should not take direct damage when attacker is blocked"
+        );
+
+        // Attacker controller gains 3 life (from 3 damage dealt to the blocker)
+        assert_eq!(
+            game.player_life_total(&p1).unwrap(),
+            23,
+            "Attacking player should gain 3 life from Lifelink (damage to creature still counts)"
+        );
+    }
+
+    #[test]
+    fn first_strike_lifelink_gains_life_in_first_strike_step() {
+        // First Strike + Lifelink: life is gained during the first strike damage step
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::{CardType, StaticAbility};
+
+        let (mut game, p1, p2) = make_started_game();
+
+        // Advance to DeclareAttackers
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+
+        // 3/3 with both FirstStrike and Lifelink
+        let def = CardDefinition::new("creature", "Creature", vec![CardType::Creature])
+            .with_power_toughness(3, 3)
+            .with_static_ability(StaticAbility::FirstStrike)
+            .with_static_ability(StaticAbility::Lifelink);
+        let attacker_card = CardInstance::new("attacker-1", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, attacker_card);
+        clear_summoning_sickness(&mut game, "attacker-1");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        // Add 3/5 blocker (survives first strike damage)
+        let blocker_card = make_creature_card("blocker-1", &p2, 3, 5);
+        add_permanent_to_battlefield(&mut game, &p2, blocker_card);
+        game.apply(Action::DeclareBlocker {
+            player_id: PlayerId::new(&p2),
+            blocker_id: CardInstanceId::new("blocker-1"),
+            attacker_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        // Advance to FirstStrikeDamage — first strike deals 3 damage AND gains 3 life
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_step(), Step::FirstStrikeDamage);
+
+        // After first strike step: p1 should have gained 3 life
+        assert_eq!(
+            game.player_life_total(&p1).unwrap(),
+            23,
+            "First Strike + Lifelink: life should be gained in the first strike step"
+        );
     }
 }

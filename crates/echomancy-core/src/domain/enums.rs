@@ -89,6 +89,9 @@ pub enum StaticAbility {
     Haste,
     Flash,
     FirstStrike,
+    Trample,
+    Deathtouch,
+    Lifelink,
 }
 
 impl fmt::Display for StaticAbility {
@@ -100,6 +103,9 @@ impl fmt::Display for StaticAbility {
             StaticAbility::Haste => "HASTE",
             StaticAbility::Flash => "FLASH",
             StaticAbility::FirstStrike => "FIRST_STRIKE",
+            StaticAbility::Trample => "TRAMPLE",
+            StaticAbility::Deathtouch => "DEATHTOUCH",
+            StaticAbility::Lifelink => "LIFELINK",
         };
         write!(f, "{s}")
     }
@@ -289,6 +295,9 @@ mod tests {
         assert_eq!(StaticAbility::Haste.to_string(), "HASTE");
         assert_eq!(StaticAbility::Flash.to_string(), "FLASH");
         assert_eq!(StaticAbility::FirstStrike.to_string(), "FIRST_STRIKE");
+        assert_eq!(StaticAbility::Trample.to_string(), "TRAMPLE");
+        assert_eq!(StaticAbility::Deathtouch.to_string(), "DEATHTOUCH");
+        assert_eq!(StaticAbility::Lifelink.to_string(), "LIFELINK");
     }
 
     #[test]

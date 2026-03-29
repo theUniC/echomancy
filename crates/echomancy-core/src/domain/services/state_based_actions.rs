@@ -37,7 +37,9 @@ pub(crate) struct PlayerSbaEntry<'a> {
 ///
 /// A creature is destroyed if:
 /// - Its `damage_marked_this_turn` >= its current toughness (lethal damage), OR
-/// - Its current toughness <= 0.
+/// - Its current toughness <= 0, OR
+/// - It has `has_deathtouch_damage == true` AND `damage_marked_this_turn > 0`
+///   (any non-zero damage from a Deathtouch source is lethal — CR 702.2).
 ///
 /// The returned `Vec` may contain duplicates if both conditions are true, but
 /// in practice a creature will only appear once (the first matching condition
@@ -60,6 +62,12 @@ pub(crate) fn find_creatures_to_destroy(
 
         // Check lethal damage.
         if cs.damage_marked_this_turn() >= current_toughness {
+            to_destroy.push(entry.instance_id.to_owned());
+            continue;
+        }
+
+        // Check Deathtouch: any non-zero damage from a Deathtouch source is lethal (CR 702.2).
+        if cs.has_deathtouch_damage() && cs.damage_marked_this_turn() > 0 {
             to_destroy.push(entry.instance_id.to_owned());
             continue;
         }
@@ -193,6 +201,40 @@ mod tests {
     #[test]
     fn creature_with_positive_toughness_and_no_damage_is_not_destroyed() {
         let state = creature_clean(2, 3);
+        let entries = [CreatureSbaEntry {
+            instance_id: "c1",
+            state: &state,
+        }];
+        let result = find_creatures_to_destroy(&entries);
+        assert!(result.is_empty());
+    }
+
+    // ---- find_creatures_to_destroy: deathtouch --------------------------------
+
+    #[test]
+    fn creature_with_deathtouch_damage_is_destroyed_regardless_of_toughness() {
+        // 1 damage on a 5/5, but source had Deathtouch — should still die
+        let state = PermanentState::for_creature(5, 5)
+            .with_summoning_sickness(false)
+            .unwrap()
+            .with_damage(1)
+            .unwrap()
+            .with_deathtouch_damage();
+        let entries = [CreatureSbaEntry {
+            instance_id: "c1",
+            state: &state,
+        }];
+        let result = find_creatures_to_destroy(&entries);
+        assert_eq!(result, vec!["c1"]);
+    }
+
+    #[test]
+    fn creature_with_deathtouch_flag_but_zero_damage_survives() {
+        // has_deathtouch_damage true but no actual damage — should NOT die
+        let state = PermanentState::for_creature(5, 5)
+            .with_summoning_sickness(false)
+            .unwrap()
+            .with_deathtouch_damage();
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,

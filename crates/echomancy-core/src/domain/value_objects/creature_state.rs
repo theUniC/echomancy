@@ -25,6 +25,10 @@ pub struct CreatureSubState {
     /// Used to prevent the creature from dealing damage again in the regular
     /// `CombatDamage` step (CR 702.7c). Cleared at end of combat.
     pub(crate) dealt_first_strike_damage: bool,
+    /// Set to `true` when any damage from a Deathtouch source has been marked on this
+    /// creature. Any non-zero damage from a Deathtouch source is lethal (CR 702.2).
+    /// Cleared alongside `damage_marked_this_turn` during Cleanup.
+    pub(crate) has_deathtouch_damage: bool,
 }
 
 impl CreatureSubState {
@@ -42,6 +46,7 @@ impl CreatureSubState {
             blocking_creature_id: None,
             blocked_by: None,
             dealt_first_strike_damage: false,
+            has_deathtouch_damage: false,
         }
     }
 
@@ -90,6 +95,11 @@ impl CreatureSubState {
     /// Returns `true` if this creature already dealt damage in the `FirstStrikeDamage` step.
     pub fn dealt_first_strike_damage(&self) -> bool {
         self.dealt_first_strike_damage
+    }
+
+    /// Returns `true` if any damage from a Deathtouch source has been marked on this creature.
+    pub fn has_deathtouch_damage(&self) -> bool {
+        self.has_deathtouch_damage
     }
 
     // ---- builder methods ---------------------------------------------------
@@ -150,6 +160,14 @@ impl CreatureSubState {
         }
     }
 
+    /// Returns a new `CreatureSubState` with `has_deathtouch_damage` set to `true`.
+    pub(crate) fn with_deathtouch_damage(&self) -> Self {
+        Self {
+            has_deathtouch_damage: true,
+            ..self.clone()
+        }
+    }
+
     /// Returns a new `CreatureSubState` with all combat flags reset for a new
     /// turn and summoning sickness cleared.
     pub(crate) fn reset_for_new_turn(&self) -> Self {
@@ -161,14 +179,17 @@ impl CreatureSubState {
             blocked_by: None,
             has_summoning_sickness: false,
             dealt_first_strike_damage: false,
+            has_deathtouch_damage: false,
             ..self.clone()
         }
     }
 
-    /// Returns a new `CreatureSubState` with `damage_marked_this_turn` cleared.
+    /// Returns a new `CreatureSubState` with `damage_marked_this_turn` and
+    /// `has_deathtouch_damage` cleared.
     pub(crate) fn clear_damage(&self) -> Self {
         Self {
             damage_marked_this_turn: 0,
+            has_deathtouch_damage: false,
             ..self.clone()
         }
     }

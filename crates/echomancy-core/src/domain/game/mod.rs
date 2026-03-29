@@ -847,7 +847,7 @@ mod tests {
         add_permanent_to_battlefield(&mut game, &p1, creature);
 
         // Mark lethal damage (2 = toughness)
-        game.mark_damage_on_creature("bear-1", 2);
+        game.mark_damage_on_creature("bear-1", 2, false);
         game.perform_state_based_actions();
 
         // Should be in graveyard

@@ -27,6 +27,14 @@ pub(crate) struct DamageAssignment {
     pub amount: i32,
     /// `true` if the target is a player; `false` if it is a creature.
     pub is_player: bool,
+    /// `true` if the source creature has Deathtouch.
+    ///
+    /// When `true`, any non-zero damage to a creature is lethal regardless of toughness.
+    pub is_deathtouch: bool,
+    /// `true` if the source creature has Lifelink.
+    ///
+    /// When `true`, the source creature's controller gains life equal to `amount`.
+    pub has_lifelink: bool,
 }
 
 /// A creature entry on the battlefield used by `calculate_all_combat_damage`.
@@ -40,6 +48,12 @@ pub(crate) struct CreatureCombatEntry<'a> {
     pub controller_id: &'a str,
     /// The permanent state for this creature.
     pub state: &'a PermanentState,
+    /// `true` if this creature has Trample.
+    pub has_trample: bool,
+    /// `true` if this creature has Deathtouch.
+    pub has_deathtouch: bool,
+    /// `true` if this creature has Lifelink.
+    pub has_lifelink: bool,
 }
 
 /// Calculates combat damage for both attacking and blocking creatures.
@@ -80,13 +94,17 @@ pub(crate) fn calculate_all_combat_damage(
         match cs.blocked_by() {
             None => {
                 // Unblocked attacker damages the defending player.
-                assignments.push(DamageAssignment {
-                    source_id: entry.instance_id.to_owned(),
-                    source_controller_id: entry.controller_id.to_owned(),
-                    target_id: defending_player_id.to_owned(),
-                    amount: attacker_power,
-                    is_player: true,
-                });
+                if attacker_power > 0 {
+                    assignments.push(DamageAssignment {
+                        source_id: entry.instance_id.to_owned(),
+                        source_controller_id: entry.controller_id.to_owned(),
+                        target_id: defending_player_id.to_owned(),
+                        amount: attacker_power,
+                        is_player: true,
+                        is_deathtouch: entry.has_deathtouch,
+                        has_lifelink: entry.has_lifelink,
+                    });
+                }
             }
             Some(blocker_id) => {
                 // Find the blocker in the slice to get its power and controller.
@@ -94,32 +112,109 @@ pub(crate) fn calculate_all_combat_damage(
                     .iter()
                     .find(|e| e.instance_id == blocker_id);
 
-                let (blocker_power, blocker_controller_id) = match blocker_entry {
-                    Some(blocker) => match blocker.state.current_power() {
-                        Ok(p) => (p, blocker.controller_id),
-                        Err(_) => continue,
-                    },
-                    // Blocker disappeared (instant/ability removed it) — no damage (MVP: no trample).
-                    None => continue,
-                };
+                match blocker_entry {
+                    Some(blocker) => {
+                        let blocker_power = match blocker.state.current_power() {
+                            Ok(p) => p,
+                            Err(_) => continue,
+                        };
 
-                // Attacker damages blocker.
-                assignments.push(DamageAssignment {
-                    source_id: entry.instance_id.to_owned(),
-                    source_controller_id: entry.controller_id.to_owned(),
-                    target_id: blocker_id.to_owned(),
-                    amount: attacker_power,
-                    is_player: false,
-                });
+                        // Trample: calculate lethal damage needed for blocker and assign
+                        // excess to defending player.
+                        if entry.has_trample {
+                            let blocker_toughness = match blocker.state.current_toughness() {
+                                Ok(t) => t,
+                                Err(_) => continue,
+                            };
+                            let blocker_damage_already = blocker
+                                .state
+                                .creature_state()
+                                .map(|bcs| bcs.damage_marked_this_turn())
+                                .unwrap_or(0);
 
-                // Blocker damages attacker.
-                assignments.push(DamageAssignment {
-                    source_id: blocker_id.to_owned(),
-                    source_controller_id: blocker_controller_id.to_owned(),
-                    target_id: entry.instance_id.to_owned(),
-                    amount: blocker_power,
-                    is_player: false,
-                });
+                            // With Deathtouch+Trample: only 1 damage is lethal for the blocker
+                            // (unless blocker already has deathtouch damage on it).
+                            let lethal_for_blocker = if entry.has_deathtouch {
+                                let already_has_dt_damage = blocker
+                                    .state
+                                    .creature_state()
+                                    .map(|bcs| bcs.has_deathtouch_damage())
+                                    .unwrap_or(false);
+                                if already_has_dt_damage { 0 } else { 1 }
+                            } else {
+                                (blocker_toughness - blocker_damage_already).max(0)
+                            };
+
+                            let damage_to_blocker = attacker_power.min(lethal_for_blocker);
+                            let trample_damage = (attacker_power - lethal_for_blocker).max(0);
+
+                            if damage_to_blocker > 0 {
+                                assignments.push(DamageAssignment {
+                                    source_id: entry.instance_id.to_owned(),
+                                    source_controller_id: entry.controller_id.to_owned(),
+                                    target_id: blocker_id.to_owned(),
+                                    amount: damage_to_blocker,
+                                    is_player: false,
+                                    is_deathtouch: entry.has_deathtouch,
+                                    has_lifelink: entry.has_lifelink,
+                                });
+                            }
+
+                            if trample_damage > 0 {
+                                assignments.push(DamageAssignment {
+                                    source_id: entry.instance_id.to_owned(),
+                                    source_controller_id: entry.controller_id.to_owned(),
+                                    target_id: defending_player_id.to_owned(),
+                                    amount: trample_damage,
+                                    is_player: true,
+                                    is_deathtouch: entry.has_deathtouch,
+                                    has_lifelink: entry.has_lifelink,
+                                });
+                            }
+                        } else {
+                            // No Trample: all attacker damage goes to blocker.
+                            if attacker_power > 0 {
+                                assignments.push(DamageAssignment {
+                                    source_id: entry.instance_id.to_owned(),
+                                    source_controller_id: entry.controller_id.to_owned(),
+                                    target_id: blocker_id.to_owned(),
+                                    amount: attacker_power,
+                                    is_player: false,
+                                    is_deathtouch: entry.has_deathtouch,
+                                    has_lifelink: entry.has_lifelink,
+                                });
+                            }
+                        }
+
+                        // Blocker damages attacker (bidirectional).
+                        if blocker_power > 0 {
+                            assignments.push(DamageAssignment {
+                                source_id: blocker_id.to_owned(),
+                                source_controller_id: blocker.controller_id.to_owned(),
+                                target_id: entry.instance_id.to_owned(),
+                                amount: blocker_power,
+                                is_player: false,
+                                is_deathtouch: blocker.has_deathtouch,
+                                has_lifelink: blocker.has_lifelink,
+                            });
+                        }
+                    }
+                    None => {
+                        // Blocker disappeared. With Trample, attacker deals full power to player.
+                        // Without Trample, no damage (was-blocked status — CR 510.1c).
+                        if entry.has_trample && attacker_power > 0 {
+                            assignments.push(DamageAssignment {
+                                source_id: entry.instance_id.to_owned(),
+                                source_controller_id: entry.controller_id.to_owned(),
+                                target_id: defending_player_id.to_owned(),
+                                amount: attacker_power,
+                                is_player: true,
+                                is_deathtouch: entry.has_deathtouch,
+                                has_lifelink: entry.has_lifelink,
+                            });
+                        }
+                    }
+                }
             }
         }
     }
@@ -164,18 +259,76 @@ pub(crate) fn calculate_first_strike_combat_damage(
                         target_id: defending_player_id.to_owned(),
                         amount: power,
                         is_player: true,
+                        is_deathtouch: entry.has_deathtouch,
+                        has_lifelink: entry.has_lifelink,
                     });
                 }
                 Some(blocker_id) => {
                     // Check if blocker is still alive in all_creatures.
                     if all_creatures.iter().any(|e| e.instance_id == blocker_id) {
-                        assignments.push(DamageAssignment {
-                            source_id: entry.instance_id.to_owned(),
-                            source_controller_id: entry.controller_id.to_owned(),
-                            target_id: blocker_id.to_owned(),
-                            amount: power,
-                            is_player: false,
-                        });
+                        // Trample in first strike step: assign lethal to blocker,
+                        // remainder to player.
+                        if entry.has_trample {
+                            let blocker_entry = all_creatures
+                                .iter()
+                                .find(|e| e.instance_id == blocker_id);
+                            if let Some(blocker) = blocker_entry {
+                                let blocker_toughness = match blocker.state.current_toughness() {
+                                    Ok(t) => t,
+                                    Err(_) => continue,
+                                };
+                                let blocker_damage_already = blocker
+                                    .state
+                                    .creature_state()
+                                    .map(|bcs| bcs.damage_marked_this_turn())
+                                    .unwrap_or(0);
+                                let lethal_for_blocker = if entry.has_deathtouch {
+                                    let already_has_dt_damage = blocker
+                                        .state
+                                        .creature_state()
+                                        .map(|bcs| bcs.has_deathtouch_damage())
+                                        .unwrap_or(false);
+                                    if already_has_dt_damage { 0 } else { 1 }
+                                } else {
+                                    (blocker_toughness - blocker_damage_already).max(0)
+                                };
+                                let damage_to_blocker = power.min(lethal_for_blocker);
+                                let trample_damage = (power - lethal_for_blocker).max(0);
+
+                                if damage_to_blocker > 0 {
+                                    assignments.push(DamageAssignment {
+                                        source_id: entry.instance_id.to_owned(),
+                                        source_controller_id: entry.controller_id.to_owned(),
+                                        target_id: blocker_id.to_owned(),
+                                        amount: damage_to_blocker,
+                                        is_player: false,
+                                        is_deathtouch: entry.has_deathtouch,
+                                        has_lifelink: entry.has_lifelink,
+                                    });
+                                }
+                                if trample_damage > 0 {
+                                    assignments.push(DamageAssignment {
+                                        source_id: entry.instance_id.to_owned(),
+                                        source_controller_id: entry.controller_id.to_owned(),
+                                        target_id: defending_player_id.to_owned(),
+                                        amount: trample_damage,
+                                        is_player: true,
+                                        is_deathtouch: entry.has_deathtouch,
+                                        has_lifelink: entry.has_lifelink,
+                                    });
+                                }
+                            }
+                        } else {
+                            assignments.push(DamageAssignment {
+                                source_id: entry.instance_id.to_owned(),
+                                source_controller_id: entry.controller_id.to_owned(),
+                                target_id: blocker_id.to_owned(),
+                                amount: power,
+                                is_player: false,
+                                is_deathtouch: entry.has_deathtouch,
+                                has_lifelink: entry.has_lifelink,
+                            });
+                        }
                     }
                 }
             }
@@ -189,6 +342,8 @@ pub(crate) fn calculate_first_strike_combat_damage(
                     target_id: attacker_id.to_owned(),
                     amount: power,
                     is_player: false,
+                    is_deathtouch: entry.has_deathtouch,
+                    has_lifelink: entry.has_lifelink,
                 });
             }
         }
@@ -233,16 +388,67 @@ mod tests {
             .unwrap()
     }
 
+    fn plain_entry<'a>(instance_id: &'a str, controller_id: &'a str, state: &'a PermanentState) -> CreatureCombatEntry<'a> {
+        CreatureCombatEntry {
+            instance_id,
+            controller_id,
+            state,
+            has_trample: false,
+            has_deathtouch: false,
+            has_lifelink: false,
+        }
+    }
+
+    fn trample_entry<'a>(instance_id: &'a str, controller_id: &'a str, state: &'a PermanentState) -> CreatureCombatEntry<'a> {
+        CreatureCombatEntry {
+            instance_id,
+            controller_id,
+            state,
+            has_trample: true,
+            has_deathtouch: false,
+            has_lifelink: false,
+        }
+    }
+
+    fn deathtouch_entry<'a>(instance_id: &'a str, controller_id: &'a str, state: &'a PermanentState) -> CreatureCombatEntry<'a> {
+        CreatureCombatEntry {
+            instance_id,
+            controller_id,
+            state,
+            has_trample: false,
+            has_deathtouch: true,
+            has_lifelink: false,
+        }
+    }
+
+    fn trample_deathtouch_entry<'a>(instance_id: &'a str, controller_id: &'a str, state: &'a PermanentState) -> CreatureCombatEntry<'a> {
+        CreatureCombatEntry {
+            instance_id,
+            controller_id,
+            state,
+            has_trample: true,
+            has_deathtouch: true,
+            has_lifelink: false,
+        }
+    }
+
+    fn lifelink_entry<'a>(instance_id: &'a str, controller_id: &'a str, state: &'a PermanentState) -> CreatureCombatEntry<'a> {
+        CreatureCombatEntry {
+            instance_id,
+            controller_id,
+            state,
+            has_trample: false,
+            has_deathtouch: false,
+            has_lifelink: true,
+        }
+    }
+
     // ---- calculate_all_combat_damage ----------------------------------------
 
     #[test]
     fn unblocked_attacker_damages_player() {
         let state = attacker(3, 3);
-        let entries = [CreatureCombatEntry {
-            instance_id: "a1",
-            controller_id: "p1",
-            state: &state,
-        }];
+        let entries = [plain_entry("a1", "p1", &state)];
         let result = calculate_all_combat_damage(&entries, "p2");
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].target_id, "p2");
@@ -256,16 +462,8 @@ mod tests {
         let blocker_state = blocker(2, 2, "a1");
 
         let entries = [
-            CreatureCombatEntry {
-                instance_id: "a1",
-                controller_id: "p1",
-                state: &attacker_state,
-            },
-            CreatureCombatEntry {
-                instance_id: "b1",
-                controller_id: "p2",
-                state: &blocker_state,
-            },
+            plain_entry("a1", "p1", &attacker_state),
+            plain_entry("b1", "p2", &blocker_state),
         ];
 
         let result = calculate_all_combat_damage(&entries, "p2");
@@ -284,14 +482,10 @@ mod tests {
 
     #[test]
     fn blocker_removed_deals_no_damage_no_trample() {
-        // Blocker disappears — attacker deals no damage (MVP: no trample)
+        // Blocker disappears — attacker deals no damage (no trample)
         let attacker_state = attacker_blocked_by(3, 3, "b1");
         // Only the attacker is supplied; the blocker is absent.
-        let entries = [CreatureCombatEntry {
-            instance_id: "a1",
-            controller_id: "p1",
-            state: &attacker_state,
-        }];
+        let entries = [plain_entry("a1", "p1", &attacker_state)];
 
         let result = calculate_all_combat_damage(&entries, "p2");
         assert!(result.is_empty(), "No damage when blocker is removed (no trample)");
@@ -303,16 +497,8 @@ mod tests {
         let s2 = attacker(1, 1);
 
         let entries = [
-            CreatureCombatEntry {
-                instance_id: "a1",
-                controller_id: "p1",
-                state: &s1,
-            },
-            CreatureCombatEntry {
-                instance_id: "a2",
-                controller_id: "p1",
-                state: &s2,
-            },
+            plain_entry("a1", "p1", &s1),
+            plain_entry("a2", "p1", &s2),
         ];
 
         let result = calculate_all_combat_damage(&entries, "p2");
@@ -331,11 +517,7 @@ mod tests {
         let state = PermanentState::for_creature(5, 5)
             .with_summoning_sickness(false)
             .unwrap();
-        let entries = [CreatureCombatEntry {
-            instance_id: "c1",
-            controller_id: "p2",
-            state: &state,
-        }];
+        let entries = [plain_entry("c1", "p2", &state)];
 
         let result = calculate_all_combat_damage(&entries, "p2");
         assert!(result.is_empty());
@@ -350,11 +532,7 @@ mod tests {
             .unwrap()
             .add_counters("PLUS_ONE_PLUS_ONE", 2);
 
-        let entries = [CreatureCombatEntry {
-            instance_id: "a1",
-            controller_id: "p1",
-            state: &state,
-        }];
+        let entries = [plain_entry("a1", "p1", &state)];
 
         let result = calculate_all_combat_damage(&entries, "p2");
         assert_eq!(result.len(), 1);
@@ -363,21 +541,12 @@ mod tests {
 
     #[test]
     fn blocker_deals_damage_back_to_attacker_bidirectional() {
-        // RED test: verify blocker damages attacker (bidirectional)
         let attacker_state = attacker_blocked_by(3, 3, "b1");
         let blocker_state = blocker(2, 5, "a1");
 
         let entries = [
-            CreatureCombatEntry {
-                instance_id: "a1",
-                controller_id: "p1",
-                state: &attacker_state,
-            },
-            CreatureCombatEntry {
-                instance_id: "b1",
-                controller_id: "p2",
-                state: &blocker_state,
-            },
+            plain_entry("a1", "p1", &attacker_state),
+            plain_entry("b1", "p2", &blocker_state),
         ];
 
         let result = calculate_all_combat_damage(&entries, "p2");
@@ -394,21 +563,12 @@ mod tests {
 
     #[test]
     fn source_id_and_source_controller_id_populated_correctly() {
-        // RED test: verify source fields are set on every assignment
         let attacker_state = attacker_blocked_by(4, 4, "b1");
         let blocker_state = blocker(1, 3, "a1");
 
         let entries = [
-            CreatureCombatEntry {
-                instance_id: "a1",
-                controller_id: "p1",
-                state: &attacker_state,
-            },
-            CreatureCombatEntry {
-                instance_id: "b1",
-                controller_id: "p2",
-                state: &blocker_state,
-            },
+            plain_entry("a1", "p1", &attacker_state),
+            plain_entry("b1", "p2", &blocker_state),
         ];
 
         let result = calculate_all_combat_damage(&entries, "p2");
@@ -428,15 +588,146 @@ mod tests {
     #[test]
     fn unblocked_attacker_source_fields_set() {
         let state = attacker(2, 3);
-        let entries = [CreatureCombatEntry {
-            instance_id: "a1",
-            controller_id: "p1",
-            state: &state,
-        }];
+        let entries = [plain_entry("a1", "p1", &state)];
 
         let result = calculate_all_combat_damage(&entries, "p2");
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].source_id, "a1");
         assert_eq!(result[0].source_controller_id, "p1");
+    }
+
+    // ---- Trample tests -------------------------------------------------------
+
+    #[test]
+    fn trample_6_6_blocked_by_1_1_assigns_1_to_blocker_5_to_player() {
+        let attacker_state = attacker_blocked_by(6, 6, "b1");
+        let blocker_state = blocker(1, 1, "a1");
+
+        let entries = [
+            trample_entry("a1", "p1", &attacker_state),
+            plain_entry("b1", "p2", &blocker_state),
+        ];
+
+        let result = calculate_all_combat_damage(&entries, "p2");
+
+        let to_blocker = result.iter().find(|d| d.target_id == "b1").unwrap();
+        assert_eq!(to_blocker.amount, 1);
+        assert!(!to_blocker.is_player);
+
+        let to_player = result.iter().find(|d| d.target_id == "p2").unwrap();
+        assert_eq!(to_player.amount, 5);
+        assert!(to_player.is_player);
+    }
+
+    #[test]
+    fn trample_3_3_blocked_by_3_3_assigns_3_to_blocker_0_to_player() {
+        let attacker_state = attacker_blocked_by(3, 3, "b1");
+        let blocker_state = blocker(3, 3, "a1");
+
+        let entries = [
+            trample_entry("a1", "p1", &attacker_state),
+            plain_entry("b1", "p2", &blocker_state),
+        ];
+
+        let result = calculate_all_combat_damage(&entries, "p2");
+
+        // No trample through — all 3 damage goes to blocker
+        let to_blocker = result.iter().find(|d| d.target_id == "b1").unwrap();
+        assert_eq!(to_blocker.amount, 3);
+
+        // No damage reaches the player
+        assert!(result.iter().all(|d| !d.is_player));
+    }
+
+    #[test]
+    fn trample_deathtouch_6_6_blocked_by_5_5_assigns_1_to_blocker_5_to_player() {
+        // With Deathtouch+Trample: only 1 damage needed for lethal, rest tramples through
+        let attacker_state = attacker_blocked_by(6, 6, "b1");
+        let blocker_state = blocker(1, 5, "a1");
+
+        let entries = [
+            trample_deathtouch_entry("a1", "p1", &attacker_state),
+            plain_entry("b1", "p2", &blocker_state),
+        ];
+
+        let result = calculate_all_combat_damage(&entries, "p2");
+
+        let to_blocker = result.iter().find(|d| d.target_id == "b1").unwrap();
+        assert_eq!(to_blocker.amount, 1);
+        assert!(to_blocker.is_deathtouch);
+
+        let to_player = result.iter().find(|d| d.target_id == "p2").unwrap();
+        assert_eq!(to_player.amount, 5);
+    }
+
+    #[test]
+    fn trample_with_missing_blocker_full_power_to_player() {
+        // Blocker died (e.g., removed), Trample means full power hits player
+        let attacker_state = attacker_blocked_by(4, 4, "b1");
+        // b1 is absent from entries
+        let entries = [trample_entry("a1", "p1", &attacker_state)];
+
+        let result = calculate_all_combat_damage(&entries, "p2");
+
+        assert_eq!(result.len(), 1);
+        let to_player = &result[0];
+        assert_eq!(to_player.target_id, "p2");
+        assert_eq!(to_player.amount, 4);
+        assert!(to_player.is_player);
+    }
+
+    #[test]
+    fn no_trample_blocked_attacker_no_damage_to_player_even_with_excess_power() {
+        // 6/6 blocked by 1/1, no trample: all 6 damage goes to blocker, 0 to player
+        let attacker_state = attacker_blocked_by(6, 6, "b1");
+        let blocker_state = blocker(1, 1, "a1");
+
+        let entries = [
+            plain_entry("a1", "p1", &attacker_state),
+            plain_entry("b1", "p2", &blocker_state),
+        ];
+
+        let result = calculate_all_combat_damage(&entries, "p2");
+
+        let to_blocker = result.iter().find(|d| d.target_id == "b1").unwrap();
+        assert_eq!(to_blocker.amount, 6);
+
+        assert!(result.iter().all(|d| !d.is_player));
+    }
+
+    // ---- Deathtouch flag tests -----------------------------------------------
+
+    #[test]
+    fn deathtouch_assignment_sets_is_deathtouch_flag() {
+        let attacker_state = attacker_blocked_by(1, 1, "b1");
+        let blocker_state = blocker(5, 5, "a1");
+
+        let entries = [
+            deathtouch_entry("a1", "p1", &attacker_state),
+            plain_entry("b1", "p2", &blocker_state),
+        ];
+
+        let result = calculate_all_combat_damage(&entries, "p2");
+
+        // Attacker → blocker: should have is_deathtouch = true
+        let a_to_b = result.iter().find(|d| d.target_id == "b1").unwrap();
+        assert!(a_to_b.is_deathtouch, "deathtouch attacker should set is_deathtouch flag");
+
+        // Blocker → attacker: should NOT have is_deathtouch (blocker is plain)
+        let b_to_a = result.iter().find(|d| d.target_id == "a1").unwrap();
+        assert!(!b_to_a.is_deathtouch);
+    }
+
+    // ---- Lifelink flag tests -------------------------------------------------
+
+    #[test]
+    fn lifelink_unblocked_sets_has_lifelink_flag() {
+        let state = attacker(3, 3);
+        let entries = [lifelink_entry("a1", "p1", &state)];
+
+        let result = calculate_all_combat_damage(&entries, "p2");
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].has_lifelink, "lifelink attacker should set has_lifelink flag");
     }
 }

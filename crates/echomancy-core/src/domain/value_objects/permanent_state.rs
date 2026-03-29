@@ -246,6 +246,22 @@ impl PermanentState {
         Ok(next)
     }
 
+    /// Returns a new `PermanentState` with `has_deathtouch_damage` set to `true`.
+    ///
+    /// Used when damage from a Deathtouch source has been marked on this creature.
+    /// Returns `self` unchanged if this is not a creature (no-op rather than error,
+    /// since this is always called from code that has already confirmed creature-ness).
+    pub(crate) fn with_deathtouch_damage(&self) -> Self {
+        match &self.creature_state {
+            Some(cs) => {
+                let mut next = self.clone();
+                next.creature_state = Some(cs.with_deathtouch_damage());
+                next
+            }
+            None => self.clone(),
+        }
+    }
+
     // ---- derived creature stats --------------------------------------------
 
     /// Returns the current power, including +1/+1 counter bonuses.
