@@ -10,7 +10,7 @@ Echomancy is a Magic: The Gathering game engine built with Domain-Driven Design 
 |----------|-------------|
 | [Architecture](./architecture.md) | Core design principles and architectural patterns |
 | [UI Architecture](./ui-architecture.md) | How the Bevy UI interacts with the game engine |
-| [Commands and Queries](./commands-and-queries.md) | CQRS-lite pattern for application layer |
+| [CLIPS Integration](./architecture-clips-integration.md) | CLIPS rules engine design specification |
 | [Turn Structure](./turn-structure.md) | Game phases, steps, and turn progression |
 | [Zones and Cards](./zones-and-cards.md) | Game zones, card definitions, and instances |
 | [Game State Export](./game-state-export.md) | Complete state export for UI and external consumers |
@@ -52,19 +52,18 @@ See `AGENTS.md` for the complete specification workflow.
 
 ## Project Status
 
-Echomancy is in MVP phase, focusing on fundamental game mechanics:
+Echomancy has completed its core engine and CLIPS integration:
 
-- Turn system with all phases
-- Playing lands and casting spells
+- Turn system with all phases and state-based actions
+- Playing lands, casting spells with target selection
+- CLIPS 6.4.2 rules engine for card-specific effects
 - Priority system with stack resolution
-- Triggered and activated abilities
+- Triggered and activated abilities (wired to CLIPS)
 - Creature combat with damage resolution
-- Creature stats (power, toughness, +1/+1 counters)
-- Mana pool (basic operations: add, spend, clear)
-- Cost system (mana, tap, sacrifice costs with atomic payment)
-- Static abilities (Flying, Reach, Vigilance)
-- Game state export (complete, neutral export for UI and external systems)
-- Game snapshot (player-relative UI views with visibility filtering)
+- Mana pool and cost payment with auto-pay
+- Static abilities (Flying, Reach, Vigilance, Haste, Flash)
+- MTGJSON card data loader
+- 820+ tests across the workspace
 
 ## Source Code Structure
 
@@ -72,20 +71,27 @@ Echomancy is in MVP phase, focusing on fundamental game mechanics:
 crates/
 ├── echomancy-core/src/          # Core game engine (pure Rust library, zero Bevy dependency)
 │   ├── domain/                  # Domain model
-│   │   ├── abilities.rs         # Ability system
-│   │   ├── cards/               # Card definitions and instances
-│   │   ├── costs.rs             # Cost system
-│   │   ├── effects.rs           # Effect interface and implementations
-│   │   ├── entities/            # Zone entities (Battlefield, Hand, etc.)
-│   │   ├── game/                # Core game engine (aggregate root)
-│   │   ├── services/            # Domain services
-│   │   ├── specifications/      # Business rule specifications
-│   │   ├── targets.rs           # Targeting system
-│   │   ├── triggers.rs          # Trigger definitions
-│   │   └── value_objects/       # Value objects (ManaPool, PermanentState, etc.)
-│   ├── application/             # Application layer (commands/queries)
-│   └── infrastructure/          # Infrastructure (UI contracts, repositories)
-└── echomancy-bevy/src/          # Bevy binary (UI rendering)
-    ├── main.rs                  # Entry point
-    └── plugins/                 # Bevy plugins (Game, UI, HUD, etc.)
+│   │   ├── cards/               # Card definitions, catalog, prebuilt decks
+│   │   ├── game/                # Game aggregate root (split by responsibility)
+│   │   │   ├── mod.rs           # Game struct, constructors, apply() dispatcher
+│   │   │   ├── stack_resolution.rs  # Spell/ability resolution, CLIPS integration
+│   │   │   ├── zone_transitions.rs  # Enter battlefield, move to graveyard
+│   │   │   ├── sba.rs           # State-based actions
+│   │   │   ├── priority.rs      # Priority assignment and passing
+│   │   │   └── ...              # Command handlers (cast_spell, play_land, etc.)
+│   │   ├── rules_engine.rs      # RulesEngine trait (technology-agnostic)
+│   │   ├── services/            # Domain services (combat, mana payment, etc.)
+│   │   └── value_objects/       # ManaPool, PermanentState, TurnState, etc.
+│   └── infrastructure/          # Infrastructure layer
+│       ├── clips/               # CLIPS rules engine (safe FFI wrapper)
+│       ├── legal_actions.rs     # Compute what a player can legally do
+│       ├── mtgjson.rs           # MTGJSON AtomicCards.json parser
+│       └── game_snapshot.rs     # Player-relative game state views
+├── echomancy-bevy/src/          # Bevy binary (UI rendering)
+│   ├── main.rs                  # Entry point
+│   └── plugins/                 # Bevy plugins (Game, UI, HUD, etc.)
+├── clips-sys/                   # Raw C FFI bindings to CLIPS 6.4.2
+└── rules/                       # CLIPS rule files
+    ├── core/templates.clp       # All deftemplates (embedded in binary)
+    └── cards/                   # Card-specific .clp rules
 ```

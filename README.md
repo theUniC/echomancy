@@ -9,19 +9,24 @@ Rust implementation of MTG game engine, focusing on clean architecture and robus
 **Current Features:**
 - Turn system with all phases (Untap, Upkeep, Draw, Main, Combat, Cleanup)
 - Playing lands from hand to battlefield
-- Casting spells to the stack
+- Casting spells with target selection (player or creature targeting)
 - Priority system with stack resolution
-- Triggered and activated abilities
-- Static abilities (consultative keywords: Flying, Reach, Vigilance)
-- Mana pool and cost payment system
-- Domain-driven design with comprehensive test coverage
+- CLIPS rules engine for card-specific effects (Arena-style architecture)
+- Triggered and activated abilities (wired to CLIPS)
+- Static abilities (Flying, Reach, Vigilance, Haste, Flash)
+- Mana pool and cost payment with auto-pay algorithm
+- Combat: declare attackers/blockers, damage, summoning sickness
+- State-based actions (lethal damage, 0 life, empty library)
+- MTGJSON card data loader
+- Domain-driven design with 820+ tests
 
 **Tech Stack:**
 - Rust (latest stable)
 - Bevy 0.18 (game engine / UI)
-- Cargo workspace (echomancy-core + echomancy-bevy)
+- CLIPS 6.4.2 (expert system for card rules, compiled from C source)
+- Cargo workspace (echomancy-core + echomancy-bevy + clips-sys)
 - thiserror (typed errors)
-- serde (serialization)
+- serde / serde_json (serialization)
 - cargo clippy (linting)
 - cargo test (testing)
 
@@ -61,9 +66,9 @@ cargo build --release
 - [Creature Stats](docs/creature-stats.md) - Power/Toughness calculation
 
 ### Technical Reference
+- [CLIPS Integration](docs/architecture-clips-integration.md) - Rules engine design
 - [Game Events](docs/game-events.md) - Event types and trigger system
 - [Cost System](docs/cost-system.md) - Cost types and payment
-- [Commands and Queries](docs/commands-and-queries.md) - Application layer patterns
 - [Game Snapshot](docs/game-snapshot.md) - UI-facing game state views
 - [Game State Export](docs/game-state-export.md) - Raw engine state export
 - [UI Architecture](docs/ui-architecture.md) - Bevy UI structure
