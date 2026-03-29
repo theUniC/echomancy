@@ -33,6 +33,10 @@ mod export;
 mod internals;
 mod pass_priority;
 mod play_land;
+mod priority;
+mod sba;
+mod stack_resolution;
+mod zone_transitions;
 
 use std::collections::{HashMap, HashSet};
 
@@ -417,6 +421,82 @@ impl Game {
         amount: u32,
     ) -> Result<(), GameError> {
         self.add_mana_to_pool(player_id, color, amount)
+    }
+
+    /// Add a card directly to a player's hand, bypassing game rules.
+    ///
+    /// # Warning
+    ///
+    /// This method exists for test setup only. In a real game, cards enter
+    /// the hand only through draw effects or mulligan. Calling this in
+    /// production code violates game rules.
+    ///
+    /// # Errors
+    ///
+    /// - `GameError::PlayerNotFound` if `player_id` is not in the game.
+    pub fn add_card_to_hand(
+        &mut self,
+        player_id: &str,
+        card: CardInstance,
+    ) -> Result<(), GameError> {
+        let player = self.player_state_mut(player_id)?;
+        player.hand.push(card);
+        Ok(())
+    }
+
+    /// Add a permanent directly to a player's battlefield, bypassing game rules.
+    ///
+    /// Initialises the `PermanentState` for the card (creature stats if applicable).
+    ///
+    /// # Warning
+    ///
+    /// This method exists for test setup only. In a real game, permanents enter
+    /// the battlefield only through the stack resolution. Calling this in
+    /// production code violates game rules.
+    ///
+    /// # Errors
+    ///
+    /// - `GameError::PlayerNotFound` if `player_id` is not in the game.
+    pub fn add_permanent_to_battlefield(
+        &mut self,
+        player_id: &str,
+        card: CardInstance,
+    ) -> Result<(), GameError> {
+        let instance_id = card.instance_id().to_owned();
+        let perm_state = if card.definition().is_creature() {
+            let power = card.definition().power().unwrap_or(0) as i32;
+            let toughness = card.definition().toughness().unwrap_or(0) as i32;
+            PermanentState::for_creature(power, toughness)
+        } else {
+            PermanentState::for_non_creature()
+        };
+        self.permanent_states.insert(instance_id, perm_state);
+        let player = self.player_state_mut(player_id)?;
+        player.battlefield.push(card);
+        Ok(())
+    }
+
+    /// Add a card to the top of a player's library, bypassing game rules.
+    ///
+    /// Index 0 is the top of the library (next to be drawn).
+    ///
+    /// # Warning
+    ///
+    /// This method exists for test setup only. In a real game, cards are placed
+    /// into the library through shuffle effects or special rules. Calling this
+    /// in production code violates game rules.
+    ///
+    /// # Errors
+    ///
+    /// - `GameError::PlayerNotFound` if `player_id` is not in the game.
+    pub fn add_card_to_library_top(
+        &mut self,
+        player_id: &str,
+        card: CardInstance,
+    ) -> Result<(), GameError> {
+        let player = self.player_state_mut(player_id)?;
+        player.library.insert(0, card);
+        Ok(())
     }
 }
 

@@ -9,6 +9,7 @@
 
 pub mod allowed_actions;
 pub(crate) mod clips;
+pub mod legal_actions;
 
 // Re-export the public factory function for creating a CLIPS rules engine.
 pub use clips::create_rules_engine;
