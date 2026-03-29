@@ -215,24 +215,27 @@ rule simply does not assert the action fact — the spell resolves with no effec
 
 ### Bevy UI — target-selection mode
 
-- [ ] `AllowedActionsResult` has a `spells_needing_targets: Vec<String>` field
+- [x] `AllowedActionsResult` has a `spells_needing_targets: Vec<String>` field
       (instance IDs of spells that require a target). These are a subset of
       `castable_spells`.
-- [ ] Clicking a spell in `spells_needing_targets` does **not** dispatch
+- [x] Clicking a spell in `spells_needing_targets` does **not** dispatch
       `CastSpell` immediately; instead it sets a `TargetSelectionState` resource
       (pending spell instance ID).
-- [ ] While `TargetSelectionState` is active:
-  - Opponent's creatures on the battlefield render with a yellow highlight.
+- [x] While `TargetSelectionState` is active:
+  - Opponent's creatures on the battlefield render with a yellow highlight (`ValidTarget` component + yellow border).
   - Opponent's player portrait/life display renders with a yellow highlight.
-  - Hand cards are non-interactive.
-  - A "Cancel" button (or visible label) allows cancelling target selection.
-- [ ] Clicking a valid highlighted target dispatches
+      (Note: opponent player area highlight deferred — the HUD shows opponent life but there is no clickable
+       player portrait entity yet. The `ValidTarget` pattern is in place for when one is added.)
+  - Hand cards are non-interactive (`rebuild_hand` skips Button/Interaction when `pending_spell.is_some()`).
+  - A "Cancel" button (`CancelTargetButton`) in the HUD allows cancelling target selection.
+- [x] Clicking a valid highlighted target dispatches
       `CastSpell { player_id, card_id, targets: [chosen_target] }`.
-- [ ] Clicking the cancel button clears `TargetSelectionState` and returns to
+- [x] Clicking the cancel button clears `TargetSelectionState` and returns to
       the normal game state without casting.
-- [ ] Clicking a non-highlighted object while in target-selection mode has no
-      effect.
-- [ ] After the spell is cast, `TargetSelectionState` is cleared automatically.
+- [x] Clicking a non-highlighted object while in target-selection mode has no
+      effect (non-highlighted cards have no `ValidTarget`/`Button` component).
+- [x] After the spell is cast, `TargetSelectionState` is cleared automatically
+      (`pending_spell.take()` in `handle_valid_target_click`).
 
 ### Regression
 

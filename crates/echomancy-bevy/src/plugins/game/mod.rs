@@ -97,6 +97,26 @@ pub(crate) struct ErrorMessage {
     pub(crate) message: Option<String>,
 }
 
+/// Describes a spell that is waiting for the player to choose a target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PendingSpell {
+    /// The instance ID of the card in hand.
+    pub(crate) card_instance_id: String,
+    /// The definition ID of the card (e.g. `"lightning-strike"`).
+    pub(crate) card_definition_id: String,
+}
+
+/// Active when the player is in target-selection mode.
+///
+/// Set by the hand click handler when the player clicks a spell that requires
+/// a target. Cleared after a target is chosen (dispatching `CastSpell`) or
+/// when the player cancels target selection.
+#[derive(Resource, Default)]
+pub(crate) struct TargetSelectionState {
+    /// The spell waiting to be cast. `None` means target-selection mode is inactive.
+    pub(crate) pending_spell: Option<PendingSpell>,
+}
+
 // ============================================================================
 // Messages
 // ============================================================================

@@ -27,7 +27,7 @@ use echomancy_core::prelude::{Action, PlayerId, Step};
 
 use crate::plugins::game::{
     ActivePlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, PlayerIds,
-    SnapshotChangedMessage,
+    SnapshotChangedMessage, TargetSelectionState,
 };
 
 // ============================================================================
@@ -124,6 +124,19 @@ pub(crate) struct HudErrorText;
 /// Marks the error message container (hidden when no error).
 #[derive(Component)]
 pub(crate) struct HudErrorBox;
+
+/// Marks the target-selection status label (hidden when not in target-selection mode).
+#[derive(Component)]
+pub(crate) struct HudTargetingLabel;
+
+/// Marks the "Cancel" button shown during target-selection mode.
+#[derive(Component)]
+pub(crate) struct CancelTargetButton;
+
+/// Marks the container that holds the targeting mode indicator and cancel button.
+/// Shown only while `TargetSelectionState` is active.
+#[derive(Component)]
+pub(crate) struct HudTargetingBox;
 
 // ============================================================================
 // Pure helper functions (testable without ECS)
@@ -423,6 +436,53 @@ pub(crate) fn spawn_hud(mut commands: Commands) {
                 BackgroundColor(Color::srgb(0.30, 0.30, 0.35)),
             ));
 
+            // Target-selection mode indicator + cancel button (hidden when not targeting).
+            panel
+                .spawn((
+                    HudTargetingBox,
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(4.0),
+                        padding: UiRect::all(Val::Px(6.0)),
+                        display: Display::None,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.30, 0.22, 0.05)),
+                ))
+                .with_children(|tbox| {
+                    tbox.spawn((
+                        HudTargetingLabel,
+                        Text::new("Select a target"),
+                        TextFont {
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor(Color::srgb(1.0, 0.85, 0.10)),
+                    ));
+
+                    tbox.spawn((
+                        CancelTargetButton,
+                        Button,
+                        Interaction::default(),
+                        Node {
+                            padding: UiRect::axes(Val::Px(8.0), Val::Px(6.0)),
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.50, 0.15, 0.15)),
+                    ))
+                    .with_children(|btn| {
+                        btn.spawn((
+                            Text::new("Cancel"),
+                            TextFont {
+                                font_size: 13.0,
+                                ..default()
+                            },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+                });
+
             // Error message box (always present, visibility-toggled)
             panel
                 .spawn((
@@ -669,6 +729,37 @@ pub(crate) fn update_error_display(
     }
 }
 
+/// Update system: show or hide the target-selection indicator based on `TargetSelectionState`.
+pub(crate) fn update_targeting_display(
+    target_selection: Res<TargetSelectionState>,
+    mut targeting_box_q: Query<&mut Node, With<HudTargetingBox>>,
+) {
+    if !target_selection.is_changed() {
+        return;
+    }
+
+    let visible = target_selection.pending_spell.is_some();
+    if let Ok(mut node) = targeting_box_q.single_mut() {
+        node.display = if visible {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
+}
+
+/// Update system: handle Cancel button clicks during target-selection mode.
+pub(crate) fn handle_cancel_target_click(
+    query: Query<&Interaction, (Changed<Interaction>, With<CancelTargetButton>)>,
+    mut target_selection: ResMut<TargetSelectionState>,
+) {
+    for interaction in &query {
+        if *interaction == Interaction::Pressed {
+            target_selection.pending_spell = None;
+        }
+    }
+}
+
 /// Update system: handle Pass Priority button clicks.
 pub(crate) fn handle_pass_priority_click(
     query: Query<&Interaction, (Changed<Interaction>, With<PassPriorityButton>)>,
@@ -725,7 +816,14 @@ impl Plugin for HudPlugin {
         app.add_systems(Startup, spawn_hud)
             .add_systems(
                 Update,
-                (update_hud, update_error_display, handle_pass_priority_click, handle_end_turn_click),
+                (
+                    update_hud,
+                    update_error_display,
+                    update_targeting_display,
+                    handle_pass_priority_click,
+                    handle_end_turn_click,
+                    handle_cancel_target_click,
+                ),
             );
     }
 }

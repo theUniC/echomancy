@@ -19,11 +19,11 @@
 //! click-to-tap interaction.
 
 use bevy::prelude::*;
-use echomancy_core::prelude::{Action, CardInstanceId, PlayerId};
+use echomancy_core::prelude::{Action, CardInstanceId, PlayerId, Target};
 
-use super::card::{CardSpawnData, CARD_GAP, spawn_card, spawn_card_with_tappable};
+use super::card::{CardSpawnData, CARD_GAP, spawn_card_with_tappable};
 use super::hand::HandRoot;
-use crate::plugins::game::{ActivePlayerId, CurrentSnapshot, GameActionMessage, PlayableCards, SnapshotChangedMessage};
+use crate::plugins::game::{ActivePlayerId, CurrentSnapshot, GameActionMessage, PlayableCards, SnapshotChangedMessage, TargetSelectionState};
 
 // ============================================================================
 // Marker components
@@ -65,6 +65,16 @@ pub(crate) struct BlockableCreature {
     pub(crate) instance_id: String,
 }
 
+/// Marks an opponent's creature or player area that is a valid target during
+/// target-selection mode.
+///
+/// Carrying the `Target` domain value lets the click handler dispatch `CastSpell`
+/// with the correct target without any additional look-up.
+#[derive(Component, Clone)]
+pub(crate) struct ValidTarget {
+    pub(crate) target: Target,
+}
+
 // ============================================================================
 // Colors
 // ============================================================================
@@ -86,6 +96,9 @@ const ATTACKABLE_CREATURE_BORDER_COLOR: Color = Color::srgb(0.90, 0.20, 0.15);
 
 /// Blue border for creatures that can be declared as blockers.
 const BLOCKABLE_CREATURE_BORDER_COLOR: Color = Color::srgb(0.20, 0.50, 0.90);
+
+/// Yellow border for valid targets during target-selection mode.
+const VALID_TARGET_BORDER_COLOR: Color = Color::srgb(1.00, 0.85, 0.10);
 
 // ============================================================================
 // Systems
@@ -221,10 +234,15 @@ pub(crate) fn player_card_override_border(
 /// - Blockable creatures (DeclareBlockers) → blue border + `BlockableCreature`.
 /// - Attacking creatures (combat state) → "ATK" label overlay.
 /// - Blocking creatures (combat state) → "BLK" label overlay.
+///
+/// When `TargetSelectionState` is active, opponent creatures receive a yellow
+/// border and a `ValidTarget` component so they can be clicked to cast the
+/// pending spell.
 pub(crate) fn rebuild_battlefields(
     mut commands: Commands,
     current_snapshot: Res<CurrentSnapshot>,
     playable_cards: Res<PlayableCards>,
+    target_selection: Res<TargetSelectionState>,
     mut snapshot_changed: MessageReader<SnapshotChangedMessage>,
     player_battlefield_q: Query<Entity, With<PlayerBattlefieldRoot>>,
     opponent_battlefield_q: Query<Entity, With<OpponentBattlefieldRoot>>,
@@ -327,6 +345,8 @@ pub(crate) fn rebuild_battlefields(
     }
 
     // ---- Rebuild opponent battlefield ----
+    let targeting_active = target_selection.pending_spell.is_some();
+
     if let Ok(opponent_root) = opponent_battlefield_q.single() {
         commands.entity(opponent_root).despawn_children();
 
@@ -337,8 +357,19 @@ pub(crate) fn rebuild_battlefields(
                     .combat_state
                     .as_ref()
                     .is_some_and(|cs| cs.is_attacking);
+                let is_creature = card.types.contains(&echomancy_core::prelude::CardType::Creature);
 
-                let card_entity = spawn_card(
+                // During target selection, opponent's creatures are valid targets
+                // and receive a yellow border + clickable component.
+                let target_highlight = targeting_active && is_creature;
+
+                let border_override = if target_highlight {
+                    Some(VALID_TARGET_BORDER_COLOR)
+                } else {
+                    None
+                };
+
+                let mut card_entity_cmd = spawn_card_with_tappable(
                     &mut commands,
                     &CardSpawnData {
                         name: &card.name,
@@ -348,7 +379,20 @@ pub(crate) fn rebuild_battlefields(
                         is_tapped,
                         is_opponent: true,
                     },
+                    border_override,
                 );
+
+                if target_highlight {
+                    card_entity_cmd.insert((
+                        ValidTarget {
+                            target: Target::creature(card.instance_id.clone()),
+                        },
+                        Button,
+                        Interaction::default(),
+                    ));
+                }
+
+                let card_entity = card_entity_cmd.id();
 
                 // Show ATK indicator for opponent's attacking creatures.
                 if is_attacking {
@@ -397,6 +441,31 @@ pub(crate) fn handle_attacker_click(
             action_writer.write(GameActionMessage(Action::DeclareAttacker {
                 player_id: PlayerId::new(&active_player.player_id),
                 creature_id: CardInstanceId::new(&attackable.instance_id),
+            }));
+        }
+    }
+}
+
+/// Click handler: detect clicks on `ValidTarget` entities during target-selection mode.
+///
+/// Reads the pending spell from `TargetSelectionState`, dispatches `CastSpell` with
+/// the chosen target, and clears the pending state.
+pub(crate) fn handle_valid_target_click(
+    query: Query<(&Interaction, &ValidTarget), Changed<Interaction>>,
+    active_player: Res<ActivePlayerId>,
+    mut target_selection: ResMut<TargetSelectionState>,
+    mut action_writer: MessageWriter<GameActionMessage>,
+) {
+    for (interaction, valid_target) in &query {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+
+        if let Some(pending) = target_selection.pending_spell.take() {
+            action_writer.write(GameActionMessage(Action::CastSpell {
+                player_id: PlayerId::new(&active_player.player_id),
+                card_id: CardInstanceId::new(&pending.card_instance_id),
+                targets: vec![valid_target.target.clone()],
             }));
         }
     }
@@ -561,6 +630,18 @@ mod tests {
         );
         assert_eq!(border, Some(ATTACKABLE_CREATURE_BORDER_COLOR));
     }
+
+    // ---- VALID_TARGET_BORDER_COLOR sanity ------------------------------------
+
+    #[test]
+    fn valid_target_border_is_bright_yellow() {
+        let Color::Srgba(srgba) = VALID_TARGET_BORDER_COLOR else {
+            panic!("Expected Srgba color");
+        };
+        assert!((srgba.red - 1.00).abs() < 0.01, "red channel mismatch");
+        assert!((srgba.green - 0.85).abs() < 0.01, "green channel mismatch");
+        assert!((srgba.blue - 0.10).abs() < 0.01, "blue channel mismatch");
+    }
 }
 
 // ============================================================================
@@ -580,6 +661,7 @@ impl Plugin for BattlefieldPlugin {
                     handle_battlefield_land_click,
                     handle_attacker_click,
                     handle_blocker_click,
+                    handle_valid_target_click,
                 ),
             );
     }

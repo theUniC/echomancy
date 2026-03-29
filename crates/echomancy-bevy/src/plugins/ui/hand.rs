@@ -17,7 +17,7 @@ use bevy::prelude::*;
 use echomancy_core::prelude::{Action, CardInstanceId, PlayerId};
 
 use super::card::{CARD_BORDER, CARD_HEIGHT, CARD_WIDTH, CardNode, card_background_color, card_border_color, card_pt_text, card_type_line};
-use crate::plugins::game::{ActivePlayerId, CurrentSnapshot, GameActionMessage, PlayableCards, SnapshotChangedMessage};
+use crate::plugins::game::{ActivePlayerId, CurrentSnapshot, GameActionMessage, PendingSpell, PlayableCards, SnapshotChangedMessage, TargetSelectionState};
 
 // ============================================================================
 // Constants
@@ -86,15 +86,25 @@ pub(crate) fn is_castable_spell(instance_id: &str, castable_spells: &[String]) -
 // Systems
 // ============================================================================
 
+/// Return `true` when `instance_id` is in the list of spells needing targets.
+pub(crate) fn needs_target(instance_id: &str, spells_needing_targets: &[String]) -> bool {
+    spells_needing_targets.iter().any(|id| id == instance_id)
+}
+
 /// Update system: rebuild hand card entities when the snapshot changes.
 ///
 /// Despawns all children of `HandRoot`, then spawns fresh card entities from
 /// `CurrentSnapshot.private_player_state.hand`. Playable lands receive a green
 /// border and a `PlayableCard` + `Button` + `Interaction` for click detection.
+///
+/// When `TargetSelectionState` is active (a spell is waiting for a target),
+/// hand cards are rendered without interactive components so they cannot be
+/// clicked accidentally.
 pub(crate) fn rebuild_hand(
     mut commands: Commands,
     current_snapshot: Res<CurrentSnapshot>,
     playable_cards: Res<PlayableCards>,
+    target_selection: Res<TargetSelectionState>,
     mut snapshot_changed: MessageReader<SnapshotChangedMessage>,
     hand_root_q: Query<Entity, With<HandRoot>>,
 ) {
@@ -112,6 +122,8 @@ pub(crate) fn rebuild_hand(
     let hand = &current_snapshot.snapshot.private_player_state.hand;
     let playable_lands = &playable_cards.result.playable_lands;
     let castable_spells = &playable_cards.result.castable_spells;
+    // When target selection is active, hand cards are not interactive.
+    let targeting_active = target_selection.pending_spell.is_some();
 
     for (index, card) in hand.iter().enumerate() {
         let playable = is_playable_land(&card.instance_id, playable_lands);
@@ -150,18 +162,22 @@ pub(crate) fn rebuild_hand(
             BackgroundColor(bg_color),
         ));
 
-        if playable {
-            entity_cmd.insert((
-                PlayableCard { instance_id },
-                Button,
-                Interaction::default(),
-            ));
-        } else if castable {
-            entity_cmd.insert((
-                CastableSpell { instance_id },
-                Button,
-                Interaction::default(),
-            ));
+        // During target selection, hand cards are non-interactive regardless of
+        // their play/cast state. The player must first click a valid target or cancel.
+        if !targeting_active {
+            if playable {
+                entity_cmd.insert((
+                    PlayableCard { instance_id },
+                    Button,
+                    Interaction::default(),
+                ));
+            } else if castable {
+                entity_cmd.insert((
+                    CastableSpell { instance_id },
+                    Button,
+                    Interaction::default(),
+                ));
+            }
         }
 
         let card_entity = entity_cmd
@@ -237,16 +253,43 @@ pub(crate) fn handle_card_clicks(
     }
 }
 
-/// Update system: detect clicks on castable spell cards and send a `CastSpell` action.
+/// Update system: detect clicks on castable spell cards.
+///
+/// - If the spell is in `spells_needing_targets`, enters target-selection mode
+///   by setting `TargetSelectionState.pending_spell` instead of dispatching immediately.
+/// - Otherwise dispatches `CastSpell` with an empty targets vec (current behaviour).
 ///
 /// Only `Interaction::Pressed` triggers an action.
 pub(crate) fn handle_castable_spell_clicks(
     query: Query<(&Interaction, &CastableSpell), Changed<Interaction>>,
     active_player: Res<ActivePlayerId>,
+    playable_cards: Res<PlayableCards>,
+    current_snapshot: Res<CurrentSnapshot>,
+    mut target_selection: ResMut<TargetSelectionState>,
     mut action_writer: MessageWriter<GameActionMessage>,
 ) {
     for (interaction, castable) in &query {
-        if *interaction == Interaction::Pressed {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+
+        if needs_target(&castable.instance_id, &playable_cards.result.spells_needing_targets) {
+            // Look up the card's definition ID from the snapshot so we store it
+            // in the pending spell (useful for future display or CLIPS routing).
+            let definition_id = current_snapshot
+                .snapshot
+                .private_player_state
+                .hand
+                .iter()
+                .find(|c| c.instance_id == castable.instance_id)
+                .map(|c| c.definition_id.clone())
+                .unwrap_or_default();
+
+            target_selection.pending_spell = Some(PendingSpell {
+                card_instance_id: castable.instance_id.clone(),
+                card_definition_id: definition_id,
+            });
+        } else {
             action_writer.write(GameActionMessage(Action::CastSpell {
                 player_id: PlayerId::new(&active_player.player_id),
                 card_id: CardInstanceId::new(&castable.instance_id),
@@ -359,6 +402,32 @@ mod tests {
     fn castable_check_is_exact_match_not_substring() {
         let castable = vec!["spell-1-long".to_owned()];
         assert!(!is_castable_spell("spell-1", &castable));
+    }
+
+    // ---- needs_target ----------------------------------------------------------
+
+    #[test]
+    fn spell_in_needs_target_list_needs_target() {
+        let needs = vec!["spell-1".to_owned(), "spell-2".to_owned()];
+        assert!(needs_target("spell-1", &needs));
+        assert!(needs_target("spell-2", &needs));
+    }
+
+    #[test]
+    fn spell_not_in_needs_target_list_does_not_need_target() {
+        let needs = vec!["spell-1".to_owned()];
+        assert!(!needs_target("spell-99", &needs));
+    }
+
+    #[test]
+    fn empty_needs_target_list_means_nothing_needs_target() {
+        assert!(!needs_target("spell-1", &[]));
+    }
+
+    #[test]
+    fn needs_target_check_is_exact_match_not_substring() {
+        let needs = vec!["spell-1-long".to_owned()];
+        assert!(!needs_target("spell-1", &needs));
     }
 
     // ---- CASTABLE_BORDER_COLOR sanity --------------------------------------

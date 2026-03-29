@@ -62,12 +62,14 @@ pub(crate) fn compute_snapshot(
     // Compute which battlefield lands can be tapped for mana right now.
     let tappable_lands = compute_tappable_lands(game, viewer_player_id);
     let castable_spells = compute_castable_spells(game, viewer_player_id);
+    let spells_needing_targets = compute_spells_needing_targets(game, viewer_player_id, &castable_spells);
     let attackable_creatures = compute_attackable_creatures(game, viewer_player_id);
     let blockable_creatures = compute_blockable_creatures(game, viewer_player_id);
     let result = AllowedActionsResult {
         playable_lands,
         tappable_lands,
         castable_spells,
+        spells_needing_targets,
         attackable_creatures,
         blockable_creatures,
     };
@@ -213,6 +215,37 @@ pub(crate) fn compute_castable_spells(game: &Game, player_id: &str) -> Vec<Strin
             can_pay_cost(mana_pool, &cost)
         })
         .map(|card| card.instance_id().to_owned())
+        .collect()
+}
+
+/// Returns the subset of `castable_spell_ids` whose cards declare a non-`None`
+/// `TargetRequirement`.
+///
+/// These spells require the player to choose a target in the UI before the
+/// `CastSpell` action is dispatched. The hand click handler checks this list
+/// and enters target-selection mode instead of casting immediately.
+pub(crate) fn compute_spells_needing_targets(
+    game: &Game,
+    player_id: &str,
+    castable_spell_ids: &[String],
+) -> Vec<String> {
+    use echomancy_core::domain::targets::TargetRequirement;
+
+    let hand = match game.hand(player_id) {
+        Ok(h) => h,
+        Err(_) => return Vec::new(),
+    };
+
+    castable_spell_ids
+        .iter()
+        .filter(|id| {
+            hand.iter()
+                .find(|card| card.instance_id() == id.as_str())
+                .is_some_and(|card| {
+                    card.definition().target_requirement() != TargetRequirement::None
+                })
+        })
+        .cloned()
         .collect()
 }
 
@@ -675,6 +708,87 @@ mod tests {
                 "Castable card should be a Bear"
             );
         }
+    }
+
+    // ---- compute_spells_needing_targets ------------------------------------
+
+    /// `compute_spells_needing_targets` must only include IDs that are already in
+    /// the castable-spells list. An ID not in `castable_spell_ids` must never appear
+    /// in the output even if the card's definition requires a target.
+    ///
+    /// Note: Lightning Strike is an Instant; it is excluded from `castable_spells`
+    /// (which currently only covers sorcery-speed Creature/Sorcery cards). Therefore
+    /// `spells_needing_targets` is always a subset of castable_spells and will be
+    /// empty when the only targeting spell (Lightning Strike) is not castable yet.
+    #[test]
+    fn spells_needing_targets_is_subset_of_castable_spells() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        // Give mana so castable_spells is non-empty.
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+        game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+
+        let castable = compute_castable_spells(&game, &p1);
+        let needs_targets = compute_spells_needing_targets(&game, &p1, &castable);
+
+        // Every ID in needs_targets must also be in castable.
+        for id in &needs_targets {
+            assert!(
+                castable.contains(id),
+                "needs_targets must be a subset of castable_spells, but '{id}' is not in castable"
+            );
+        }
+    }
+
+    /// Bears require no targets; they must NOT appear in `spells_needing_targets`.
+    #[test]
+    fn spells_needing_targets_excludes_bear() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        // Give mana for a Bear ({1}{G}).
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+        game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+
+        let castable = compute_castable_spells(&game, &p1);
+        let needs_targets = compute_spells_needing_targets(&game, &p1, &castable);
+
+        // Any castable Bear should NOT appear in needs_targets.
+        for id in &castable {
+            let card = game
+                .hand(&p1)
+                .unwrap()
+                .iter()
+                .find(|c| c.instance_id() == id)
+                .expect("castable ID should be in hand");
+            if card.definition().id() == "bear" {
+                assert!(
+                    !needs_targets.contains(id),
+                    "Bear should not need a target"
+                );
+            }
+        }
+    }
+
+    /// Empty castable list → empty needs-targets list (no panics, no incorrect entries).
+    #[test]
+    fn spells_needing_targets_empty_when_nothing_castable() {
+        let (game, p1, _) = make_game_in_first_main();
+        // No mana given — castable_spells should be empty.
+        let castable = compute_castable_spells(&game, &p1);
+        assert!(castable.is_empty(), "Precondition: no castable spells");
+        let needs_targets = compute_spells_needing_targets(&game, &p1, &castable);
+        assert!(needs_targets.is_empty(), "No castable spells → no spells needing targets");
+    }
+
+    /// Passing a fake instance ID in the castable list returns empty needs-targets
+    /// (the function must not panic on IDs not found in hand).
+    #[test]
+    fn spells_needing_targets_ignores_unknown_ids() {
+        let (game, p1, _) = make_game_in_first_main();
+        let fake_ids = vec!["unknown-id-xyz".to_owned()];
+        let needs_targets = compute_spells_needing_targets(&game, &p1, &fake_ids);
+        assert!(
+            needs_targets.is_empty(),
+            "Unknown IDs must not appear in needs_targets"
+        );
     }
 
     // ---- humanize_error -----------------------------------------------------

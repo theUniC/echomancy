@@ -63,6 +63,11 @@ pub struct CombatSummary {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CardSnapshot {
     pub instance_id: String,
+    /// The card's definition ID (e.g. `"lightning-strike"`, `"bear"`).
+    ///
+    /// Used by UI systems that need to look up card properties (such as whether
+    /// the card requires a target) without access to the domain layer.
+    pub definition_id: String,
     /// Resolved human-readable name (from the card registry).
     pub name: String,
     pub types: Vec<CardType>,
@@ -341,6 +346,7 @@ fn make_card_snapshot(
 
     CardSnapshot {
         instance_id: card.instance_id.clone(),
+        definition_id: card.card_definition_id.clone(),
         name,
         types: card.types.clone(),
         static_keywords: card.static_abilities.clone(),

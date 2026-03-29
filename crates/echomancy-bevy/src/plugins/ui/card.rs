@@ -130,11 +130,6 @@ pub(crate) struct CardSpawnData<'a> {
     pub(crate) is_opponent: bool,
 }
 
-/// Spawn a card as a Bevy UI node subtree and return its root `Entity`.
-pub(crate) fn spawn_card(commands: &mut Commands, data: &CardSpawnData<'_>) -> Entity {
-    spawn_card_inner(commands, data, None).id()
-}
-
 /// Spawn a card as a Bevy UI node subtree and return the `EntityCommands` for the root.
 ///
 /// `override_border` overrides the default type-based border color (e.g. gold for

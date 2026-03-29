@@ -20,6 +20,12 @@ pub struct AllowedActionsResult {
     /// - Timing permits (sorcery-speed: main phase, active player, empty stack).
     /// - The player can pay the mana cost from their current pool.
     pub castable_spells: Vec<String>,
+    /// Subset of `castable_spells`: instance IDs of spells that require the player
+    /// to choose a target before the spell is dispatched.
+    ///
+    /// When a spell's `CardDefinition::target_requirement` is not `None`, it appears
+    /// here so the UI can enter target-selection mode instead of casting immediately.
+    pub spells_needing_targets: Vec<String>,
     /// Instance IDs of creatures on the active player's battlefield that can
     /// legally be declared as attackers during the `DeclareAttackers` step.
     ///

@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use super::{
     ActivePlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, GameState, PlayableCards,
-    PlayerIds, PlayerInfo, SnapshotChangedMessage,
+    PlayerIds, PlayerInfo, SnapshotChangedMessage, TargetSelectionState,
 };
 use super::snapshot::{compute_snapshot, humanize_error, resolve_ui_player_id};
 
@@ -71,6 +71,7 @@ pub(crate) fn setup_game(mut commands: Commands) {
         result: playable_cards,
     });
     commands.insert_resource(ErrorMessage::default());
+    commands.insert_resource(TargetSelectionState::default());
 }
 
 /// One-shot system that fires after startup to notify UI of initial state.
@@ -181,6 +182,20 @@ pub(crate) fn handle_game_actions(
     }
 }
 
+/// Update system: send `SnapshotChangedMessage` when `TargetSelectionState` changes.
+///
+/// The battlefield and hand systems rebuild on snapshot-changed messages.
+/// When the player enters or exits target-selection mode, we broadcast this
+/// message so those systems immediately update their highlights and interactivity.
+pub(crate) fn notify_on_target_selection_change(
+    target_selection: Res<TargetSelectionState>,
+    mut snapshot_changed: MessageWriter<SnapshotChangedMessage>,
+) {
+    if target_selection.is_changed() {
+        snapshot_changed.write(SnapshotChangedMessage);
+    }
+}
+
 // ============================================================================
 // Plugin
 // ============================================================================
@@ -194,6 +209,6 @@ impl Plugin for GamePlugin {
             .add_message::<SnapshotChangedMessage>()
             .add_systems(Startup, (setup_camera, setup_game))
             .add_systems(PostStartup, send_initial_snapshot_message)
-            .add_systems(Update, handle_game_actions);
+            .add_systems(Update, (handle_game_actions, notify_on_target_selection_change));
     }
 }
