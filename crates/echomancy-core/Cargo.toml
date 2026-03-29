@@ -7,8 +7,6 @@ edition = "2021"
 thiserror = { workspace = true }
 uuid = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 rand = { workspace = true }
 clips-sys = { workspace = true }
-
-[dev-dependencies]
-serde_json = { workspace = true }
