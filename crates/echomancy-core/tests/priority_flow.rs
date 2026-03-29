@@ -121,6 +121,9 @@ fn play_land_then_auto_pass_stops_because_land_is_tappable() {
 
     let forest = CardInstance::new("forest-1", catalog::forest(), &p1);
     game.add_card_to_hand(&p1, forest).unwrap();
+    // Also add a castable spell so tapping the land is meaningful
+    let bear = CardInstance::new("bear-1", catalog::bear(), &p1);
+    game.add_card_to_hand(&p1, bear).unwrap();
 
     // P1 plays the Forest.
     game.apply(Action::PlayLand {

@@ -45,9 +45,16 @@ pub fn compute_legal_actions(game: &Game, player_id: &str) -> AllowedActionsResu
         compute_spells_needing_targets(game, player_id, &castable_spells);
     let attackable_creatures = compute_attackable_creatures(game, player_id);
     let blockable_creatures = compute_blockable_creatures(game, player_id);
+    let has_potential_plays = if !tappable_lands.is_empty() {
+        game.hand(player_id)
+            .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
+            .unwrap_or(false)
+    } else {
+        false
+    };
     let auto_pass_eligible = playable_lands.is_empty()
         && castable_spells.is_empty()
-        && tappable_lands.is_empty()
+        && !has_potential_plays
         && attackable_creatures.is_empty()
         && blockable_creatures.is_empty()
         && game.priority_player_id() == Some(player_id);
@@ -338,9 +345,23 @@ pub fn compute_auto_pass_eligible(game: &Game, player_id: &str) -> bool {
         return false;
     }
     let actions = compute_legal_actions(game, player_id);
+    // Check if the player has untapped lands AND non-land cards in hand.
+    // This approximates "could cast something after tapping" without
+    // computing exact mana availability. It's conservative: the player
+    // keeps priority if they MIGHT be able to act after tapping.
+    let has_potential_plays = if !actions.tappable_lands.is_empty() {
+        // Check if the player has any non-land cards in hand
+        let has_spells_in_hand = game.hand(player_id)
+            .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
+            .unwrap_or(false);
+        has_spells_in_hand
+    } else {
+        false
+    };
+
     actions.playable_lands.is_empty()
         && actions.castable_spells.is_empty()
-        && actions.tappable_lands.is_empty()
+        && !has_potential_plays
         && actions.attackable_creatures.is_empty()
         && actions.blockable_creatures.is_empty()
 }
