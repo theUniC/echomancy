@@ -47,6 +47,7 @@ pub fn compute_legal_actions(game: &Game, player_id: &str) -> AllowedActionsResu
     let blockable_creatures = compute_blockable_creatures(game, player_id);
     let auto_pass_eligible = playable_lands.is_empty()
         && castable_spells.is_empty()
+        && tappable_lands.is_empty()
         && attackable_creatures.is_empty()
         && blockable_creatures.is_empty()
         && game.priority_player_id() == Some(player_id);
@@ -339,6 +340,7 @@ pub fn compute_auto_pass_eligible(game: &Game, player_id: &str) -> bool {
     let actions = compute_legal_actions(game, player_id);
     actions.playable_lands.is_empty()
         && actions.castable_spells.is_empty()
+        && actions.tappable_lands.is_empty()
         && actions.attackable_creatures.is_empty()
         && actions.blockable_creatures.is_empty()
 }
