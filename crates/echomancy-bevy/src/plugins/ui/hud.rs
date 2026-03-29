@@ -857,7 +857,7 @@ pub(crate) fn handle_pass_priority_click(
                 has_priority(pub_state.priority_player_id.as_deref(), &active_player.player_id);
 
             if player_has_priority {
-                action_writer.write(GameActionMessage(Action::AdvanceStep {
+                action_writer.write(GameActionMessage(Action::PassPriority {
                     player_id: PlayerId::new(&active_player.player_id),
                 }));
             }
@@ -866,6 +866,10 @@ pub(crate) fn handle_pass_priority_click(
 }
 
 /// Update system: handle End Turn button clicks.
+///
+/// "End Turn" is only valid for the active player (the player whose turn it is),
+/// not just whoever currently has priority. A non-active player holding priority
+/// (e.g. during DeclareBlockers) cannot end the active player's turn.
 pub(crate) fn handle_end_turn_click(
     query: Query<&Interaction, (Changed<Interaction>, With<EndTurnButton>)>,
     current_snapshot: Res<CurrentSnapshot>,
@@ -875,10 +879,12 @@ pub(crate) fn handle_end_turn_click(
     for interaction in &query {
         if *interaction == Interaction::Pressed {
             let pub_state = &current_snapshot.snapshot.public_game_state;
+            // Only the active player (whose turn it is) can End Turn.
+            let is_current_player = pub_state.current_player_id == active_player.player_id;
             let player_has_priority =
                 has_priority(pub_state.priority_player_id.as_deref(), &active_player.player_id);
 
-            if player_has_priority {
+            if is_current_player && player_has_priority {
                 action_writer.write(GameActionMessage(Action::EndTurn {
                     player_id: PlayerId::new(&active_player.player_id),
                 }));
