@@ -757,8 +757,18 @@ impl Game {
                 // Try as player damage first
                 if let Ok(player) = self.player_state_mut(target) {
                     player.life_total -= *amount as i32;
+                } else if let Some(pstate) = self.permanent_states.get(target).cloned() {
+                    // Creature damage: accumulate damage on the permanent
+                    let current_damage = pstate
+                        .creature_state()
+                        .map(|cs| cs.damage_marked_this_turn())
+                        .unwrap_or(0);
+                    if let Ok(damaged) = pstate.with_damage(current_damage + *amount as i32) {
+                        self.permanent_states.insert(target.clone(), damaged);
+                    }
+                    // SBA checks lethal damage and destroys the creature
+                    self.perform_state_based_actions();
                 }
-                // TODO(M4): creature damage needs permanent lookup
             }
             RulesAction::DrawCards { player, amount } => {
                 self.draw_cards_internal(player, *amount);
