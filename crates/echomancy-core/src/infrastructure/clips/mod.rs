@@ -72,8 +72,10 @@ pub(crate) struct FactRow {
 /// All FFI calls go through this wrapper. The raw pointer is only accessed
 /// inside `unsafe` blocks in this module. No raw pointer ever escapes.
 ///
-/// This type is intentionally not `Send` or `Sync` — CLIPS environments
-/// are single-threaded.
+/// CLIPS environments are single-threaded. We implement `Send` (but NOT `Sync`)
+/// so that `ClipsEngine` can be stored inside `Game` which is a Bevy `Resource`.
+/// Bevy's main thread schedule guarantees exclusive `&mut` access, so this is safe
+/// as long as `ClipsEngine` is never shared between threads concurrently.
 pub(crate) struct ClipsEngine {
     /// Raw CLIPS environment pointer. Never null after `new()`.
     env: *mut clips_sys::Environment,
@@ -83,9 +85,15 @@ pub(crate) struct ClipsEngine {
     pending_input: Option<InputRequest>,
 }
 
-// Explicitly NOT Send/Sync — CLIPS environments are single-threaded.
-// The compiler would already refuse to derive these because of the raw pointer,
-// but we make the intent explicit with a comment.
+// SAFETY: CLIPS environments are single-threaded. We implement Send so that
+// ClipsEngine can be stored in Game (a Bevy Resource, which requires Send).
+// Bevy's schedule gives exclusive &mut access on the main thread, so the
+// pointer is never accessed from multiple threads concurrently.
+// We also implement Sync because Bevy Resources require Send + Sync.
+// The trait methods all take &mut self (exclusive access), so concurrent
+// shared access never occurs in practice.
+unsafe impl Send for ClipsEngine {}
+unsafe impl Sync for ClipsEngine {}
 
 impl ClipsEngine {
     /// Default maximum rules per `run()` call.

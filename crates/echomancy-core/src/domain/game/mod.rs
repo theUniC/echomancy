@@ -42,6 +42,7 @@ use crate::domain::enums::{GameLifecycleState, Step};
 use crate::domain::errors::GameError;
 use crate::domain::events::GameEvent;
 use crate::domain::entities::the_stack::StackItem;
+use crate::domain::rules_engine::RulesEngine;
 use crate::domain::types::PlayerId;
 use crate::domain::value_objects::mana::ManaPool;
 use crate::domain::value_objects::permanent_state::PermanentState;
@@ -163,6 +164,12 @@ pub struct Game {
     /// Draw step of the game (turn 1, their turn). All other players draw
     /// normally on their first turn.
     starting_player_id: String,
+    /// Optional rules engine (CLIPS) for evaluating spell and ability effects.
+    ///
+    /// `None` by default — the game operates without a rules engine.
+    /// Set via `set_rules_engine()`. The domain depends on the `RulesEngine`
+    /// abstraction only; the CLIPS implementation lives in the infrastructure layer.
+    rules_engine: Option<Box<dyn RulesEngine>>,
 }
 
 impl Game {
@@ -191,7 +198,22 @@ impl Game {
             players_who_attempted_empty_library_draw: HashSet::new(),
             outcome: None,
             starting_player_id: String::new(),
+            rules_engine: None,
         }
+    }
+
+    /// Attach a rules engine to this game.
+    ///
+    /// The engine will be called inside `resolve_spell()` to determine spell
+    /// effects. Pass `None` implicitly by not calling this (the default).
+    ///
+    /// # Design
+    ///
+    /// We store `Option<Box<dyn RulesEngine>>` rather than a concrete type so
+    /// that the domain layer depends only on the abstraction. The CLIPS
+    /// implementation lives entirely in the infrastructure layer.
+    pub fn set_rules_engine(&mut self, engine: Box<dyn RulesEngine>) {
+        self.rules_engine = Some(engine);
     }
 
     /// Add a player to the game before it has started.

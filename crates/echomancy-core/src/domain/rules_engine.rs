@@ -20,8 +20,7 @@
 //! If CLIPS needs player input, `RulesResult::awaiting_input` is `Some(InputRequest)`.
 //! The caller prompts the player, gets a `PlayerChoice`, then calls `resume_after_choice()`.
 
-// M1: trait and types defined but not yet implemented or wired to production code.
-#![allow(dead_code)]
+// M3: trait and types are wired to resolve_spell() in domain/game/internals.rs.
 
 use thiserror::Error;
 
@@ -177,7 +176,7 @@ pub enum RulesError {
 ///
 /// Implemented by `ClipsEngine` in the infrastructure layer.
 /// The domain knows only this trait — never the CLIPS FFI.
-pub trait RulesEngine {
+pub trait RulesEngine: Send + Sync {
     /// Evaluate a game event against the current game state.
     ///
     /// The engine serializes `state` into CLIPS facts, asserts `event`, runs
