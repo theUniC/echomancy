@@ -358,8 +358,8 @@ impl Game {
             Action::PlayLand { player_id, card_id } => {
                 play_land::handle(self, player_id.as_str(), card_id.as_str())?
             }
-            Action::CastSpell { player_id, card_id } => {
-                cast_spell::handle(self, player_id.as_str(), card_id.as_str())?
+            Action::CastSpell { player_id, card_id, targets } => {
+                cast_spell::handle(self, player_id.as_str(), card_id.as_str(), targets)?
             }
             Action::PassPriority { player_id } => {
                 pass_priority::handle(self, player_id.as_str())?

@@ -4,6 +4,7 @@ use crate::domain::entities::the_stack::{SpellOnStack, StackItem};
 use crate::domain::errors::GameError;
 use crate::domain::events::GameEvent;
 use crate::domain::services::spell_timing::is_instant_speed;
+use crate::domain::targets::{Target, TargetRequirement};
 use crate::domain::types::{CardInstanceId, PlayerId};
 
 use super::Game;
@@ -18,7 +19,12 @@ use super::Game;
 /// 4. Timing rules apply:
 ///    - Instant-speed: can cast any time player has priority.
 ///    - Sorcery-speed: must be active player's turn, main phase, empty stack.
-/// 5. Mana cost must be payable.
+/// 5. Target validation (CR 601.2c):
+///    - Spells with `AnyTarget` or `Creature` requirement must have exactly one target.
+///    - `AnyTarget` accepts `Player` or `Creature` targets; both are validated.
+///    - `Creature` requirement only accepts `Creature` targets.
+///    - `None` requirement ignores provided targets.
+/// 6. Mana cost must be payable.
 ///
 /// After validation, the card is removed from hand and placed on the stack.
 /// Priority is passed to the opponent.
@@ -30,6 +36,7 @@ pub(crate) fn handle(
     game: &mut Game,
     player_id: &str,
     card_id: &str,
+    targets: Vec<Target>,
 ) -> Result<Vec<GameEvent>, GameError> {
     // 1. Player must have priority
     if !game.has_priority(player_id) {
@@ -60,7 +67,10 @@ pub(crate) fn handle(
         });
     }
 
-    // 4. Timing validation
+    // 4. Target validation (CR 601.2c)
+    let validated_targets = validate_targets(game, card_id, card.definition().target_requirement(), &targets)?;
+
+    // 5. Timing validation
     if !is_instant_speed(&card) {
         let is_creature = card.definition().is_creature();
 
@@ -80,7 +90,7 @@ pub(crate) fn handle(
         }
     }
 
-    // 5. Pay mana cost
+    // 6. Pay mana cost
     game.pay_mana_cost_for_spell(player_id, &card)?;
 
     // Remove from hand
@@ -93,12 +103,97 @@ pub(crate) fn handle(
     game.push_stack(StackItem::Spell(SpellOnStack {
         card,
         controller_id: player_id.to_owned(),
-        targets: Vec::new(),
+        targets: validated_targets,
     }));
 
     // Give priority to opponent
     let events = game.give_priority_to_opponent_of(player_id);
     Ok(events)
+}
+
+/// Validate the chosen targets against the card's requirement.
+///
+/// Returns the validated target list (identical to input when valid) or a
+/// `GameError` describing the first violation.
+fn validate_targets(
+    game: &Game,
+    card_id: &str,
+    requirement: TargetRequirement,
+    targets: &[Target],
+) -> Result<Vec<Target>, GameError> {
+    match requirement {
+        TargetRequirement::None => {
+            // Targets are silently ignored for spells that don't need them.
+            Ok(Vec::new())
+        }
+        TargetRequirement::AnyTarget => {
+            if targets.is_empty() {
+                return Err(GameError::TargetRequired {
+                    card_id: card_id.to_owned(),
+                });
+            }
+            // Validate the first target (MVP: exactly one target).
+            let target = &targets[0];
+            match target {
+                Target::Player { player_id } => {
+                    // Validate the player exists in the game.
+                    if game.player_life_total(player_id).is_err() {
+                        return Err(GameError::InvalidTarget {
+                            reason: format!("player '{player_id}' is not in the game"),
+                        });
+                    }
+                }
+                Target::Creature { permanent_id } => {
+                    // Validate the permanent exists on the battlefield as a creature.
+                    validate_creature_target(game, permanent_id)?;
+                }
+            }
+            Ok(targets[..1].to_vec())
+        }
+        TargetRequirement::Creature => {
+            if targets.is_empty() {
+                return Err(GameError::TargetRequired {
+                    card_id: card_id.to_owned(),
+                });
+            }
+            let target = &targets[0];
+            match target {
+                Target::Player { player_id } => {
+                    return Err(GameError::InvalidTarget {
+                        reason: format!(
+                            "player '{player_id}' is not a valid creature target"
+                        ),
+                    });
+                }
+                Target::Creature { permanent_id } => {
+                    validate_creature_target(game, permanent_id)?;
+                }
+            }
+            Ok(targets[..1].to_vec())
+        }
+    }
+}
+
+/// Validate that a permanent ID refers to a creature on the battlefield.
+fn validate_creature_target(game: &Game, permanent_id: &str) -> Result<(), GameError> {
+    // Search all players' battlefields for the permanent.
+    for pid in game.turn_order() {
+        if let Ok(battlefield) = game.battlefield(pid) {
+            if let Some(card) = battlefield.iter().find(|c| c.instance_id() == permanent_id) {
+                if !card.definition().is_creature() {
+                    return Err(GameError::InvalidTarget {
+                        reason: format!(
+                            "permanent '{permanent_id}' is not a creature"
+                        ),
+                    });
+                }
+                return Ok(());
+            }
+        }
+    }
+    Err(GameError::InvalidTarget {
+        reason: format!("permanent '{permanent_id}' is not on the battlefield"),
+    })
 }
 
 #[cfg(test)]
@@ -148,6 +243,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("spell-1"),
+            targets: vec![],
         })
         .unwrap();
 
@@ -164,6 +260,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("spell-1"),
+            targets: vec![],
         })
         .unwrap();
 
@@ -180,6 +277,7 @@ mod tests {
             .apply(Action::CastSpell {
                 player_id: PlayerId::new(&p1),
                 card_id: CardInstanceId::new("land-1"),
+                targets: vec![],
             })
             .unwrap_err();
         assert!(matches!(err, GameError::CardIsNotSpell { .. }));
@@ -195,6 +293,7 @@ mod tests {
             .apply(Action::CastSpell {
                 player_id: PlayerId::new(&p1),
                 card_id: CardInstanceId::new("spell-1"),
+                targets: vec![],
             })
             .unwrap_err();
         assert!(matches!(err, GameError::NotMainPhase { .. }));
@@ -212,6 +311,7 @@ mod tests {
             .apply(Action::CastSpell {
                 player_id: PlayerId::new(&p2),
                 card_id: CardInstanceId::new("spell-1"),
+                targets: vec![],
             })
             .unwrap_err();
         // p2 doesn't have priority, so the game returns InvalidPlayerAction
@@ -234,6 +334,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("spell-1"),
+            targets: vec![],
         })
         .unwrap();
 
@@ -259,6 +360,7 @@ mod tests {
             .apply(Action::CastSpell {
                 player_id: PlayerId::new(&p1_2),
                 card_id: CardInstanceId::new("s3"),
+                targets: vec![],
             })
             .unwrap();
 
@@ -268,6 +370,7 @@ mod tests {
             .apply(Action::CastSpell {
                 player_id: PlayerId::new(&p1_2),
                 card_id: CardInstanceId::new("s4"),
+                targets: vec![],
             })
             .unwrap_err();
         assert!(matches!(
@@ -288,6 +391,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("sorcery-1"),
+            targets: vec![],
         })
         .unwrap();
 
@@ -295,6 +399,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p2),
             card_id: CardInstanceId::new("instant-1"),
+            targets: vec![],
         })
         .unwrap();
 
@@ -321,6 +426,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("bear-1"),
+            targets: vec![],
         })
         .unwrap();
 
@@ -340,6 +446,7 @@ mod tests {
             .apply(Action::CastSpell {
                 player_id: PlayerId::new(&p1),
                 card_id: CardInstanceId::new("s1"),
+                targets: vec![],
             })
             .unwrap_err();
         assert!(matches!(err, GameError::InsufficientManaForSpell { .. }));
@@ -357,6 +464,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("s1"),
+            targets: vec![],
         })
         .unwrap();
 
@@ -364,6 +472,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p2),
             card_id: CardInstanceId::new("flash-1"),
+            targets: vec![],
         })
         .unwrap();
         assert_eq!(game.stack().len(), 2);
@@ -380,6 +489,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("bear-1"),
+            targets: vec![],
         })
         .unwrap();
 
@@ -430,6 +540,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("bear-1"),
+            targets: vec![],
         })
         .unwrap();
 
@@ -457,5 +568,206 @@ mod tests {
             1,
             "Bear should be on P1's battlefield"
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // Target validation tests
+    // -------------------------------------------------------------------------
+
+    fn make_instant_any_target(instance_id: &str, owner_id: &str) -> CardInstance {
+        use crate::domain::targets::TargetRequirement;
+        let def = CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant])
+            .with_target_requirement(TargetRequirement::AnyTarget);
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    fn make_instant_creature_target(instance_id: &str, owner_id: &str) -> CardInstance {
+        use crate::domain::targets::TargetRequirement;
+        let def = CardDefinition::new("doom-blade", "Doom Blade", vec![CardType::Instant])
+            .with_target_requirement(TargetRequirement::Creature);
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    #[test]
+    fn any_target_spell_with_no_targets_returns_target_required() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+        let spell = make_instant_any_target("strike-1", &p1);
+        add_card_to_hand(&mut game, &p1, spell);
+
+        let err = game
+            .apply(Action::CastSpell {
+                player_id: PlayerId::new(&p1),
+                card_id: CardInstanceId::new("strike-1"),
+                targets: vec![],
+            })
+            .unwrap_err();
+        assert!(
+            matches!(err, GameError::TargetRequired { .. }),
+            "expected TargetRequired, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn creature_requirement_spell_with_no_targets_returns_target_required() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+        let spell = make_instant_creature_target("blade-1", &p1);
+        add_card_to_hand(&mut game, &p1, spell);
+
+        let err = game
+            .apply(Action::CastSpell {
+                player_id: PlayerId::new(&p1),
+                card_id: CardInstanceId::new("blade-1"),
+                targets: vec![],
+            })
+            .unwrap_err();
+        assert!(matches!(err, GameError::TargetRequired { .. }));
+    }
+
+    #[test]
+    fn any_target_spell_with_valid_player_target_succeeds() {
+        use crate::domain::targets::Target;
+        let (mut game, p1, p2) = make_game_in_first_main();
+        let spell = make_instant_any_target("strike-1", &p1);
+        add_card_to_hand(&mut game, &p1, spell);
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("strike-1"),
+            targets: vec![Target::player(&p2)],
+        })
+        .expect("casting with a valid player target should succeed");
+
+        assert_eq!(game.stack().len(), 1);
+        // Verify the target was stored on the stack item
+        if let crate::domain::entities::the_stack::StackItem::Spell(spell) = &game.stack()[0] {
+            assert_eq!(spell.targets.len(), 1);
+            assert_eq!(spell.targets[0].player_id(), Some(p2.as_str()));
+        } else {
+            panic!("expected a spell on the stack");
+        }
+    }
+
+    #[test]
+    fn any_target_spell_with_valid_creature_target_succeeds() {
+        use crate::domain::targets::Target;
+        use crate::domain::game::test_helpers::add_permanent_to_battlefield;
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        // Put a creature on p2's battlefield
+        let creature = make_creature_card("bear-99", &p2, 2, 2);
+        add_permanent_to_battlefield(&mut game, &p2, creature);
+
+        let spell = make_instant_any_target("strike-1", &p1);
+        add_card_to_hand(&mut game, &p1, spell);
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("strike-1"),
+            targets: vec![Target::creature("bear-99")],
+        })
+        .expect("casting with a valid creature target should succeed");
+
+        assert_eq!(game.stack().len(), 1);
+    }
+
+    #[test]
+    fn any_target_spell_with_nonexistent_player_returns_invalid_target() {
+        use crate::domain::targets::Target;
+        let (mut game, p1, _p2) = make_game_in_first_main();
+        let spell = make_instant_any_target("strike-1", &p1);
+        add_card_to_hand(&mut game, &p1, spell);
+
+        let err = game
+            .apply(Action::CastSpell {
+                player_id: PlayerId::new(&p1),
+                card_id: CardInstanceId::new("strike-1"),
+                targets: vec![Target::player("ghost-player")],
+            })
+            .unwrap_err();
+        assert!(
+            matches!(err, GameError::InvalidTarget { .. }),
+            "expected InvalidTarget, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn any_target_spell_with_nonexistent_creature_returns_invalid_target() {
+        use crate::domain::targets::Target;
+        let (mut game, p1, _p2) = make_game_in_first_main();
+        let spell = make_instant_any_target("strike-1", &p1);
+        add_card_to_hand(&mut game, &p1, spell);
+
+        let err = game
+            .apply(Action::CastSpell {
+                player_id: PlayerId::new(&p1),
+                card_id: CardInstanceId::new("strike-1"),
+                targets: vec![Target::creature("perm-doesnt-exist")],
+            })
+            .unwrap_err();
+        assert!(matches!(err, GameError::InvalidTarget { .. }));
+    }
+
+    #[test]
+    fn creature_requirement_spell_with_player_target_returns_invalid_target() {
+        use crate::domain::targets::Target;
+        let (mut game, p1, p2) = make_game_in_first_main();
+        let spell = make_instant_creature_target("blade-1", &p1);
+        add_card_to_hand(&mut game, &p1, spell);
+
+        let err = game
+            .apply(Action::CastSpell {
+                player_id: PlayerId::new(&p1),
+                card_id: CardInstanceId::new("blade-1"),
+                targets: vec![Target::player(&p2)],
+            })
+            .unwrap_err();
+        assert!(
+            matches!(err, GameError::InvalidTarget { .. }),
+            "expected InvalidTarget for player target on creature-only spell, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn no_target_spell_with_extra_targets_ignores_them() {
+        // A Bear (TargetRequirement::None) should succeed even if targets are provided,
+        // and the stored spell on the stack should have an empty target list.
+        use crate::domain::targets::Target;
+        let (mut game, p1, p2) = make_game_in_first_main();
+        let bear = make_creature_card("bear-1", &p1, 2, 2);
+        add_card_to_hand(&mut game, &p1, bear);
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("bear-1"),
+            targets: vec![Target::player(&p2)], // ignored
+        })
+        .expect("bear with no target requirement should accept extra targets");
+
+        assert_eq!(game.stack().len(), 1);
+        if let crate::domain::entities::the_stack::StackItem::Spell(spell) = &game.stack()[0] {
+            assert!(spell.targets.is_empty(), "targets should be ignored for non-targeting spells");
+        }
+    }
+
+    #[test]
+    fn target_stored_on_stack_item() {
+        use crate::domain::targets::Target;
+        let (mut game, p1, p2) = make_game_in_first_main();
+        let spell = make_instant_any_target("strike-1", &p1);
+        add_card_to_hand(&mut game, &p1, spell);
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("strike-1"),
+            targets: vec![Target::player(&p2)],
+        })
+        .unwrap();
+
+        if let crate::domain::entities::the_stack::StackItem::Spell(spell) = &game.stack()[0] {
+            assert_eq!(spell.targets.len(), 1, "should have one stored target");
+            assert_eq!(spell.targets[0], Target::player(&p2));
+        } else {
+            panic!("expected spell on stack");
+        }
     }
 }

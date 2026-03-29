@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::domain::targets::Target;
 use crate::domain::types::{CardInstanceId, PlayerId};
 
 /// Represents the number of cards to draw.
@@ -38,6 +39,11 @@ pub enum Action {
         player_id: PlayerId,
         #[serde(rename = "cardId")]
         card_id: CardInstanceId,
+        /// Chosen targets for the spell. Empty when the spell requires no targets.
+        /// `#[serde(default)]` ensures old serialized actions without this field
+        /// still deserialize correctly (backward compatibility).
+        #[serde(default)]
+        targets: Vec<Target>,
     },
 
     /// Pass priority to the next player.
@@ -99,10 +105,53 @@ mod tests {
         let action = Action::CastSpell {
             player_id: PlayerId::new("player-1"),
             card_id: CardInstanceId::new("card-abc"),
+            targets: vec![],
         };
         let json = serde_json::to_string(&action).unwrap();
         let decoded: Action = serde_json::from_str(&json).unwrap();
         assert_eq!(action, decoded);
+    }
+
+    #[test]
+    fn cast_spell_with_player_target_serde_roundtrip() {
+        use crate::domain::targets::Target;
+        let action = Action::CastSpell {
+            player_id: PlayerId::new("player-1"),
+            card_id: CardInstanceId::new("card-abc"),
+            targets: vec![Target::player("player-2")],
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        let decoded: Action = serde_json::from_str(&json).unwrap();
+        assert_eq!(action, decoded);
+    }
+
+    #[test]
+    fn cast_spell_with_creature_target_serde_roundtrip() {
+        use crate::domain::targets::Target;
+        let action = Action::CastSpell {
+            player_id: PlayerId::new("player-1"),
+            card_id: CardInstanceId::new("card-abc"),
+            targets: vec![Target::creature("perm-42")],
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        let decoded: Action = serde_json::from_str(&json).unwrap();
+        assert_eq!(action, decoded);
+    }
+
+    #[test]
+    fn cast_spell_old_json_without_targets_deserializes_with_empty_vec() {
+        // Backward compatibility: JSON produced before the targets field was added
+        // should still deserialize successfully (serde default = empty vec).
+        let old_json = r#"{"type":"CAST_SPELL","playerId":"p1","cardId":"c1"}"#;
+        let decoded: Action = serde_json::from_str(old_json).unwrap();
+        assert_eq!(
+            decoded,
+            Action::CastSpell {
+                player_id: PlayerId::new("p1"),
+                card_id: CardInstanceId::new("c1"),
+                targets: vec![],
+            }
+        );
     }
 
     #[test]

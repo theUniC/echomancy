@@ -236,15 +236,18 @@ pub(crate) fn serialize_game_event(event: &GameEvent) -> String {
             )
         }
 
-        GameEvent::SpellResolved { card, controller_id } => {
+        GameEvent::SpellResolved { card, controller_id, targets } => {
+            let target_id = targets.first().map(|t| t.target_id()).unwrap_or("");
             format!(
                 "(game-event \
                  (type SPELL_RESOLVING) \
                  (source-id {card_id}) \
                  (controller {controller}) \
+                 (target-id {target_id_s}) \
                  (data {def_id}))",
                 card_id = clips_string(card.instance_id.as_str()),
                 controller = clips_string(controller_id.as_str()),
+                target_id_s = clips_string(target_id),
                 def_id = clips_string(card.definition_id.as_str()),
             )
         }
@@ -366,9 +369,7 @@ fn serialize_stack_item(item: &StackItem) -> String {
 
 /// Extract an ID string from a `Target`.
 fn target_id(target: &crate::domain::targets::Target) -> String {
-    match target {
-        crate::domain::targets::Target::Player { player_id } => player_id.clone(),
-    }
+    target.target_id().to_owned()
 }
 
 
@@ -653,6 +654,7 @@ mod tests {
                 owner_id: PlayerId::new("p1"),
             },
             controller_id: PlayerId::new("p1"),
+            targets: vec![],
         };
         let fact = serialize_game_event(&event);
         assert!(fact.contains("(type SPELL_RESOLVING)"), "should use SPELL_RESOLVING type");
@@ -660,6 +662,26 @@ mod tests {
         assert!(
             fact.contains(r#"(data "lightning-bolt")"#),
             "should include card definition id in data slot, got: {fact}"
+        );
+    }
+
+    #[test]
+    fn serialize_spell_resolved_event_with_player_target() {
+        use crate::domain::targets::Target;
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("strike-1"),
+                definition_id: CardDefinitionId::new("lightning-strike"),
+                owner_id: PlayerId::new("p1"),
+            },
+            controller_id: PlayerId::new("p1"),
+            targets: vec![Target::player("p2")],
+        };
+        let fact = serialize_game_event(&event);
+        assert!(fact.contains("(type SPELL_RESOLVING)"), "should use SPELL_RESOLVING type");
+        assert!(
+            fact.contains(r#"(target-id "p2")"#),
+            "should include target-id in fact, got: {fact}"
         );
     }
 

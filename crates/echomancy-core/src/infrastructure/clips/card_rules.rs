@@ -141,18 +141,40 @@ mod tests {
     // CLIPS rule correctness: Lightning Strike
     // =========================================================================
 
-    /// Lightning Strike rule fires and produces an action-damage fact.
+    /// Lightning Strike rule fires and produces an action-damage fact targeting the chosen player.
+    ///
+    /// The rule reads the target from the `stack-item` fact (not from a player heuristic).
     #[test]
     fn lightning_strike_rule_produces_damage_action_for_opponent() {
         use crate::domain::events::GameEvent;
         use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::targets::Target;
         use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
-        use crate::domain::game::test_helpers::make_started_game;
 
         let mut engine = engine_for(&["lightning-strike"]);
-        let (game, p1, _p2) = make_started_game();
+        let (mut game, p1, p2) = make_game_in_first_main();
 
-        // Synthesize a SpellResolved event for lightning-strike cast by p1
+        // Put a free Lightning Strike (with AnyTarget requirement) in p1's hand.
+        let strike = CardInstance::new(
+            "strike-1",
+            CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant])
+                .with_target_requirement(crate::domain::targets::TargetRequirement::AnyTarget),
+            &p1,
+        );
+        add_card_to_hand(&mut game, &p1, strike);
+
+        // Cast targeting p2 — this puts the spell on the stack with targets=[p2].
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("strike-1"),
+            targets: vec![Target::player(&p2)],
+        })
+        .expect("cast should succeed");
+
+        assert_eq!(game.stack().len(), 1, "spell should be on stack");
+
+        // Synthesize a SpellResolved event for lightning-strike cast by p1.
+        // Include the target so the CLIPS rule reads target-id from the game-event.
         let event = GameEvent::SpellResolved {
             card: CardInstanceSnapshot {
                 instance_id: CardInstanceId::new("strike-1"),
@@ -160,6 +182,7 @@ mod tests {
                 owner_id: PlayerId::new(&p1),
             },
             controller_id: PlayerId::new(&p1),
+            targets: vec![Target::player(&p2)],
         };
 
         let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
@@ -172,9 +195,9 @@ mod tests {
             matches!(
                 &result.actions[0],
                 RulesAction::DealDamage { source, target, amount: 3 }
-                    if source == "strike-1" && target == "p2"
+                    if source == "strike-1" && target == p2.as_str()
             ),
-            "should deal 3 damage to p2 (opponent), got: {:?}",
+            "should deal 3 damage to p2 (chosen target), got: {:?}",
             result.actions[0]
         );
     }
@@ -188,7 +211,7 @@ mod tests {
         use crate::domain::game::test_helpers::make_started_game;
 
         let mut engine = engine_for(&["lightning-strike"]);
-        let (game, p1, _p2) = make_started_game();
+        let (game, p1, p2) = make_started_game();
 
         let event = GameEvent::SpellResolved {
             card: CardInstanceSnapshot {
@@ -197,6 +220,7 @@ mod tests {
                 owner_id: PlayerId::new(&p1),
             },
             controller_id: PlayerId::new(&p1),
+            targets: vec![crate::domain::targets::Target::player(&p2)],
         };
 
         let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
@@ -228,6 +252,7 @@ mod tests {
                 owner_id: PlayerId::new(&p1),
             },
             controller_id: PlayerId::new(&p1),
+            targets: vec![],
         };
 
         let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
@@ -265,6 +290,7 @@ mod tests {
                 owner_id: PlayerId::new(&p1),
             },
             controller_id: PlayerId::new(&p1),
+            targets: vec![],
         };
 
         let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
@@ -293,10 +319,12 @@ mod tests {
         let engine = engine_for(&["lightning-strike"]);
         game.set_rules_engine(Box::new(engine));
 
-        // Put a free Lightning Strike in p1's hand (no mana cost to avoid payment logic)
+        // Put a free Lightning Strike in p1's hand (no mana cost to avoid payment logic).
+        // The definition must declare AnyTarget so the cast-spell handler accepts the target.
         let strike = CardInstance::new(
             "strike-1",
-            CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant]),
+            CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant])
+                .with_target_requirement(crate::domain::targets::TargetRequirement::AnyTarget),
             &p1,
         );
         add_card_to_hand(&mut game, &p1, strike);
@@ -304,10 +332,11 @@ mod tests {
         let p2_life_before = game.player_life_total(&p2).unwrap();
         assert_eq!(p2_life_before, 20);
 
-        // Cast the spell — goes on stack, priority passes to p2
+        // Cast the spell targeting p2 — goes on stack, priority passes to p2.
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("strike-1"),
+            targets: vec![crate::domain::targets::Target::player(&p2)],
         })
         .expect("p1 should be able to cast Lightning Strike");
 
@@ -362,6 +391,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("div-1"),
+            targets: vec![],
         })
         .expect("cast should succeed");
 

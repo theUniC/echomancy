@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::abilities::ActivatedAbility;
 use crate::domain::enums::{CardType, StaticAbility};
+use crate::domain::targets::TargetRequirement;
 use crate::domain::triggers::Trigger;
 use crate::domain::value_objects::mana::ManaCost;
 
@@ -42,6 +43,9 @@ pub struct CardDefinition {
     /// Triggered abilities on this card.
     #[serde(skip)]
     triggers: Vec<Trigger>,
+    /// What kind of target this spell requires at cast time.
+    #[serde(skip)]
+    target_requirement: TargetRequirement,
 }
 
 impl CardDefinition {
@@ -61,6 +65,7 @@ impl CardDefinition {
             static_abilities: Vec::new(),
             activated_ability: None,
             triggers: Vec::new(),
+            target_requirement: TargetRequirement::None,
         }
     }
 
@@ -111,6 +116,11 @@ impl CardDefinition {
     /// Triggered abilities on this card.
     pub fn triggers(&self) -> &[Trigger] {
         &self.triggers
+    }
+
+    /// What kind of target this spell requires at cast time.
+    pub fn target_requirement(&self) -> TargetRequirement {
+        self.target_requirement
     }
 
     // -------------------------------------------------------------------------
@@ -169,6 +179,12 @@ impl CardDefinition {
     /// Add a triggered ability.
     pub fn with_trigger(mut self, trigger: Trigger) -> Self {
         self.triggers.push(trigger);
+        self
+    }
+
+    /// Set the target requirement for this spell.
+    pub fn with_target_requirement(mut self, req: TargetRequirement) -> Self {
+        self.target_requirement = req;
         self
     }
 }

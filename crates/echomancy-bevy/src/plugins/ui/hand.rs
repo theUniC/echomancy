@@ -250,6 +250,7 @@ pub(crate) fn handle_castable_spell_clicks(
             action_writer.write(GameActionMessage(Action::CastSpell {
                 player_id: PlayerId::new(&active_player.player_id),
                 card_id: CardInstanceId::new(&castable.instance_id),
+                targets: vec![],
             }));
         }
     }

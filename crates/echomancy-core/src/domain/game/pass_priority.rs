@@ -103,6 +103,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(&p1),
             card_id: crate::domain::types::CardInstanceId::new("bear-1"),
+            targets: vec![],
         })
         .unwrap();
 

@@ -712,6 +712,7 @@ impl Game {
         let event = GameEvent::SpellResolved {
             card: snapshot,
             controller_id: PlayerId::new(&spell.controller_id),
+            targets: spell.targets.clone(),
         };
         events.push(event.clone());
 
@@ -1123,6 +1124,7 @@ mod tests {
         game.apply(Action::CastSpell {
             player_id: PlayerId::new(player_id),
             card_id: CardInstanceId::new(card_id),
+            targets: vec![],
         })
         .expect("cast should succeed");
 

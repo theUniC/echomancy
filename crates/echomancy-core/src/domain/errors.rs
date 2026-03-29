@@ -181,6 +181,15 @@ pub enum GameError {
 
     #[error("Can only cast sorceries when the stack is empty (during your main phase){hint}")]
     StackNotEmpty { hint: String },
+
+    // ========================================================================
+    // Targeting errors
+    // ========================================================================
+    #[error("Spell '{card_id}' requires a target but none was provided")]
+    TargetRequired { card_id: String },
+
+    #[error("Invalid target: {reason}")]
+    InvalidTarget { reason: String },
 }
 
 impl GameError {

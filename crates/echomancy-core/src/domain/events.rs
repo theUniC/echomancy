@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::domain::enums::{ManaColor, Step, ZoneName};
+use crate::domain::targets::Target;
 use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
 
 /// A snapshot of a card instance for event payloads.
@@ -69,6 +70,10 @@ pub enum GameEvent {
         card: CardInstanceSnapshot,
         #[serde(rename = "controllerId")]
         controller_id: PlayerId,
+        /// The targets the spell had when it was cast (CR 608.2b: re-checked at resolution).
+        /// Empty for spells with no target requirement.
+        #[serde(default)]
+        targets: Vec<Target>,
     },
 
     /// Mana was added to a player's pool (from a mana ability).
@@ -176,6 +181,7 @@ mod tests {
         let event = GameEvent::SpellResolved {
             card: make_snapshot(),
             controller_id: PlayerId::new("player-1"),
+            targets: vec![],
         };
         let json = serde_json::to_string(&event).unwrap();
         let decoded: GameEvent = serde_json::from_str(&json).unwrap();

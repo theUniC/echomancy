@@ -10,6 +10,7 @@ use crate::domain::abilities::{ActivatedAbility, ActivationCost};
 use crate::domain::cards::card_definition::CardDefinition;
 use crate::domain::effects::Effect;
 use crate::domain::enums::{CardType, ManaColor};
+use crate::domain::targets::TargetRequirement;
 use crate::domain::value_objects::mana::ManaCost;
 
 // ============================================================================
@@ -122,10 +123,12 @@ pub fn giant_growth() -> CardDefinition {
 /// Return the `Lightning Strike` instant definition.
 ///
 /// Mana cost: {1}{R} (1 generic + 1 red).
+/// Targets: any target (player or creature) — CR 115.6.
 pub fn lightning_strike() -> CardDefinition {
     let cost = ManaCost::parse("1R").expect("lightning strike mana cost is valid");
     CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant])
         .with_mana_cost(cost)
+        .with_target_requirement(TargetRequirement::AnyTarget)
 }
 
 /// Return the `Divination` sorcery definition.
