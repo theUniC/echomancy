@@ -14,10 +14,10 @@
 
 use crate::domain::enums::{CardType, StaticAbility, Step};
 use crate::domain::game::Game;
+use crate::domain::services::mana_payment::can_pay_cost;
 use crate::domain::targets::TargetRequirement;
 use crate::domain::value_objects::mana::ManaCost;
 use crate::infrastructure::allowed_actions::AllowedActionsResult;
-use crate::domain::services::mana_payment::can_pay_cost;
 
 /// Compute the full set of actions a player can legally take right now.
 ///
@@ -45,6 +45,12 @@ pub fn compute_legal_actions(game: &Game, player_id: &str) -> AllowedActionsResu
         compute_spells_needing_targets(game, player_id, &castable_spells);
     let attackable_creatures = compute_attackable_creatures(game, player_id);
     let blockable_creatures = compute_blockable_creatures(game, player_id);
+    let auto_pass_eligible = playable_lands.is_empty()
+        && castable_spells.is_empty()
+        && tappable_lands.is_empty()
+        && attackable_creatures.is_empty()
+        && blockable_creatures.is_empty()
+        && game.priority_player_id() == Some(player_id);
 
     AllowedActionsResult {
         playable_lands,
@@ -53,6 +59,7 @@ pub fn compute_legal_actions(game: &Game, player_id: &str) -> AllowedActionsResu
         spells_needing_targets,
         attackable_creatures,
         blockable_creatures,
+        auto_pass_eligible,
     }
 }
 
@@ -133,32 +140,25 @@ pub(crate) fn compute_tappable_lands(game: &Game, player_id: &str) -> Vec<String
 }
 
 /// Returns the instance IDs of non-land spells in the player's hand that can
-/// be cast right now at sorcery speed.
+/// be cast right now.
 ///
-/// Conditions:
+/// Two timing paths are checked:
+///
+/// **Instant-speed** (always available with priority):
+/// - The card is an Instant, OR has the Flash static ability.
+/// - Player can pay the mana cost.
+///
+/// **Sorcery-speed** (restricted):
 /// 1. Player has priority.
 /// 2. Player is the active player (their turn).
-/// 3. Current step is a main phase.
+/// 3. Current step is a main phase (FirstMain or SecondMain).
 /// 4. Stack is empty.
-/// 5. Player can pay the mana cost from their current pool.
+/// 5. Player can pay the mana cost.
+///
+/// Returns the union of both paths. Lands are never included (CR 305.1).
 pub(crate) fn compute_castable_spells(game: &Game, player_id: &str) -> Vec<String> {
-    // 1. Must have priority.
+    // Both paths require priority.
     if game.priority_player_id() != Some(player_id) {
-        return Vec::new();
-    }
-
-    // 2. Must be the active player.
-    if game.current_player_id() != player_id {
-        return Vec::new();
-    }
-
-    // 3. Must be a main phase.
-    if !matches!(game.current_step(), Step::FirstMain | Step::SecondMain) {
-        return Vec::new();
-    }
-
-    // 4. Stack must be empty (sorcery speed).
-    if game.stack_has_items() {
         return Vec::new();
     }
 
@@ -172,28 +172,41 @@ pub(crate) fn compute_castable_spells(game: &Game, player_id: &str) -> Vec<Strin
         Err(_) => return Vec::new(),
     };
 
+    // Pre-compute sorcery-speed conditions (shared across all cards).
+    let is_active = game.current_player_id() == player_id;
+    let in_main = matches!(game.current_step(), Step::FirstMain | Step::SecondMain);
+    let stack_empty = !game.stack_has_items();
+    let sorcery_speed_ok = is_active && in_main && stack_empty;
+
     hand.iter()
         .filter(|card| {
-            // Lands are played, not cast.
+            // Lands are played, not cast (CR 305.1).
             if card.definition().types().contains(&CardType::Land) {
                 return false;
             }
-            // Allow creatures, sorceries, and instants to be cast during main phase.
-            // Instants can also be cast at other times (future feature), but for now
-            // they are at least castable at sorcery speed.
-            let is_castable_type = card.definition().types().iter().any(|t| {
-                matches!(t, CardType::Creature | CardType::Sorcery | CardType::Instant)
-            });
-            if !is_castable_type {
-                return false;
-            }
-            // Must be able to pay the mana cost.
+
             let cost = card
                 .definition()
                 .mana_cost()
                 .cloned()
                 .unwrap_or_else(ManaCost::zero);
-            can_pay_cost(mana_pool, &cost)
+
+            if !can_pay_cost(mana_pool, &cost) {
+                return false;
+            }
+
+            // Instant-speed: Instant type or Flash keyword — always castable with priority.
+            let is_instant_speed = card.definition().types().contains(&CardType::Instant)
+                || card
+                    .definition()
+                    .static_abilities()
+                    .contains(&StaticAbility::Flash);
+            if is_instant_speed {
+                return true;
+            }
+
+            // Sorcery-speed: active player, main phase, empty stack.
+            sorcery_speed_ok
         })
         .map(|card| card.instance_id().to_owned())
         .collect()
@@ -306,6 +319,30 @@ pub(crate) fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<S
         })
         .map(|card| card.instance_id().to_owned())
         .collect()
+}
+
+/// Returns `true` if the player has priority but cannot take any meaningful
+/// instant-speed action.
+///
+/// The Bevy layer uses this to auto-pass priority without requiring the player
+/// to click "Pass Priority" when they have no legal actions at all.
+///
+/// Auto-pass is eligible when ALL of the following are true:
+/// 1. Player has priority.
+/// 2. No spells are castable (`compute_castable_spells` is empty).
+/// 3. No lands are playable (`compute_playable_lands` is empty).
+/// 4. No creatures are attackable (`compute_attackable_creatures` is empty).
+/// 5. No creatures are blockable (`compute_blockable_creatures` is empty).
+pub fn compute_auto_pass_eligible(game: &Game, player_id: &str) -> bool {
+    if game.priority_player_id() != Some(player_id) {
+        return false;
+    }
+    let actions = compute_legal_actions(game, player_id);
+    actions.playable_lands.is_empty()
+        && actions.castable_spells.is_empty()
+        && actions.tappable_lands.is_empty()
+        && actions.attackable_creatures.is_empty()
+        && actions.blockable_creatures.is_empty()
 }
 
 // ============================================================================
@@ -599,6 +636,408 @@ mod tests {
         assert!(
             blockable.is_empty(),
             "No blockable creatures outside DeclareBlockers step"
+        );
+    }
+
+    // ---- instant-speed casting: compute_castable_spells --------------------
+
+    /// Helper: advance a started empty-deck game to FirstMain for p1.
+    fn make_empty_game_in_first_main() -> (Game, String, String) {
+        use crate::domain::game::test_helpers::make_game_in_first_main;
+        make_game_in_first_main()
+    }
+
+    /// Helper: make a lightning-strike-like instant card instance.
+    fn make_instant_card(instance_id: &str, owner_id: &str) -> crate::domain::cards::card_instance::CardInstance {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+        let cost = crate::domain::value_objects::mana::ManaCost::parse("1R").unwrap();
+        let def = CardDefinition::new("instant-test", "Test Instant", vec![CardType::Instant])
+            .with_mana_cost(cost);
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    /// Helper: make a sorcery card instance.
+    fn make_sorcery_card(instance_id: &str, owner_id: &str) -> crate::domain::cards::card_instance::CardInstance {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+        let cost = crate::domain::value_objects::mana::ManaCost::parse("1R").unwrap();
+        let def = CardDefinition::new("sorcery-test", "Test Sorcery", vec![CardType::Sorcery])
+            .with_mana_cost(cost);
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    /// Helper: make a creature card with Flash.
+    fn make_flash_creature_card(instance_id: &str, owner_id: &str) -> crate::domain::cards::card_instance::CardInstance {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::{CardType, StaticAbility};
+        let cost = crate::domain::value_objects::mana::ManaCost::parse("1G").unwrap();
+        let def = CardDefinition::new("flash-creature", "Flash Creature", vec![CardType::Creature])
+            .with_power_toughness(2, 2)
+            .with_mana_cost(cost)
+            .with_static_ability(StaticAbility::Flash);
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    /// Helper: make a plain creature card (no flash, sorcery-speed).
+    fn make_creature_card_with_cost(instance_id: &str, owner_id: &str) -> crate::domain::cards::card_instance::CardInstance {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+        let cost = crate::domain::value_objects::mana::ManaCost::parse("1G").unwrap();
+        let def = CardDefinition::new("creature-test", "Test Creature", vec![CardType::Creature])
+            .with_power_toughness(2, 2)
+            .with_mana_cost(cost);
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    #[test]
+    fn instant_in_hand_is_castable_during_opponents_turn_with_mana() {
+        // p1 is active. After p1 passes, p2 has priority during p1's main phase.
+        // p2 holds an instant and has mana — it must be castable.
+        let (mut game, p1, p2) = make_empty_game_in_first_main();
+        let instant = make_instant_card("instant-1", &p2);
+        game.add_card_to_hand(&p2, instant).unwrap();
+        game.add_mana(&p2, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p2, ManaColor::Red, 1).unwrap();
+
+        // p1 passes priority → p2 gets priority
+        game.apply(Action::PassPriority {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        assert_eq!(game.priority_player_id(), Some(p2.as_str()));
+        let castable = compute_castable_spells(&game, &p2);
+        assert!(
+            !castable.is_empty(),
+            "p2 should be able to cast instant during p1's main phase"
+        );
+        assert!(
+            castable.contains(&"instant-1".to_owned()),
+            "instant-1 should be castable"
+        );
+    }
+
+    #[test]
+    fn instant_in_hand_is_castable_during_combat_step_with_mana() {
+        // Advance p1's turn to DeclareAttackers step, then pass priority to p2.
+        let (mut game, p1, p2) = make_empty_game_in_first_main();
+        let instant = make_instant_card("instant-1", &p2);
+        game.add_card_to_hand(&p2, instant).unwrap();
+        game.add_mana(&p2, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p2, ManaColor::Red, 1).unwrap();
+
+        // Advance from FirstMain through combat steps to DeclareAttackers
+        // FirstMain → BeginningOfCombat → DeclareAttackers
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap(); // → BeginningOfCombat
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap(); // → DeclareAttackers
+
+        // p1 passes → p2 gets priority during DeclareAttackers
+        game.apply(Action::PassPriority {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+        assert_eq!(game.priority_player_id(), Some(p2.as_str()));
+
+        let castable = compute_castable_spells(&game, &p2);
+        assert!(
+            castable.contains(&"instant-1".to_owned()),
+            "instant should be castable during DeclareAttackers step"
+        );
+    }
+
+    #[test]
+    fn instant_is_castable_with_spell_on_stack() {
+        // p1 casts a creature → stack has a spell → p1 retains priority (CR 117.3c) → passes → p2 gets priority
+        // p2 holds instant + mana → instant should be castable
+        let (mut game, p1, p2) = make_empty_game_in_first_main();
+        let creature = make_creature_card_with_cost("bear-1", &p1);
+        game.add_card_to_hand(&p1, creature).unwrap();
+        game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+
+        let instant = make_instant_card("instant-1", &p2);
+        game.add_card_to_hand(&p2, instant).unwrap();
+        game.add_mana(&p2, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p2, ManaColor::Red, 1).unwrap();
+
+        // p1 casts the creature → on the stack
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: crate::domain::types::CardInstanceId::new("bear-1"),
+            targets: vec![],
+        })
+        .unwrap();
+
+        assert!(game.stack_has_items(), "creature should be on the stack");
+
+        // Per CR 117.3c, p1 retains priority. p1 passes → p2 gets priority.
+        game.apply(Action::PassPriority {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        assert_eq!(game.priority_player_id(), Some(p2.as_str()));
+        let castable = compute_castable_spells(&game, &p2);
+        assert!(
+            castable.contains(&"instant-1".to_owned()),
+            "p2 should be able to cast instant in response to spell on stack"
+        );
+    }
+
+    #[test]
+    fn sorcery_is_not_castable_during_combat_step() {
+        // p1 is active at DeclareAttackers. A sorcery card in p1's hand should NOT be castable.
+        let (mut game, p1, _p2) = make_empty_game_in_first_main();
+        let sorcery = make_sorcery_card("sorcery-1", &p1);
+        game.add_card_to_hand(&p1, sorcery).unwrap();
+        game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p1, ManaColor::Red, 1).unwrap();
+
+        // Advance to DeclareAttackers
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap(); // → BeginningOfCombat
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap(); // → DeclareAttackers
+
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+        assert_eq!(game.priority_player_id(), Some(p1.as_str()));
+
+        let castable = compute_castable_spells(&game, &p1);
+        assert!(
+            !castable.contains(&"sorcery-1".to_owned()),
+            "sorcery should NOT be castable during DeclareAttackers"
+        );
+    }
+
+    #[test]
+    fn sorcery_is_not_castable_with_spell_on_stack() {
+        // p1 casts a creature → p1 retains priority. Sorcery should not be castable with a spell on stack.
+        let (mut game, p1, _p2) = make_empty_game_in_first_main();
+        let creature = make_creature_card_with_cost("bear-1", &p1);
+        game.add_card_to_hand(&p1, creature).unwrap();
+        game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+
+        // Put a second sorcery in p1's hand
+        let sorcery = make_sorcery_card("sorcery-1", &p1);
+        game.add_card_to_hand(&p1, sorcery).unwrap();
+        game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p1, ManaColor::Red, 1).unwrap();
+
+        // Cast the creature → it goes on the stack. p1 retains priority.
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: crate::domain::types::CardInstanceId::new("bear-1"),
+            targets: vec![],
+        })
+        .unwrap();
+
+        assert!(game.stack_has_items());
+
+        let castable = compute_castable_spells(&game, &p1);
+        assert!(
+            !castable.contains(&"sorcery-1".to_owned()),
+            "sorcery should NOT be castable with spell on stack"
+        );
+    }
+
+    #[test]
+    fn flash_creature_is_castable_during_opponents_turn() {
+        // p2 holds a Flash creature. After p1 passes priority in main phase, p2 can cast it.
+        let (mut game, p1, p2) = make_empty_game_in_first_main();
+        let flash_creature = make_flash_creature_card("flash-1", &p2);
+        game.add_card_to_hand(&p2, flash_creature).unwrap();
+        game.add_mana(&p2, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p2, ManaColor::Green, 1).unwrap();
+
+        // p1 passes priority → p2 gets priority
+        game.apply(Action::PassPriority {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        assert_eq!(game.priority_player_id(), Some(p2.as_str()));
+        let castable = compute_castable_spells(&game, &p2);
+        assert!(
+            castable.contains(&"flash-1".to_owned()),
+            "Flash creature should be castable during opponent's turn"
+        );
+    }
+
+    // ---- compute_auto_pass_eligible ----------------------------------------
+
+    #[test]
+    fn auto_pass_eligible_when_no_actions_available() {
+        // p1 in first main, no cards, no mana → auto-pass should be true
+        let (game, p1, _p2) = make_empty_game_in_first_main();
+        assert!(
+            compute_auto_pass_eligible(&game, &p1),
+            "Player with no actions should be auto-pass eligible"
+        );
+    }
+
+    #[test]
+    fn auto_pass_not_eligible_when_has_instant_and_mana() {
+        // p2 has priority, holds instant + mana → should NOT auto-pass
+        let (mut game, p1, p2) = make_empty_game_in_first_main();
+        let instant = make_instant_card("instant-1", &p2);
+        game.add_card_to_hand(&p2, instant).unwrap();
+        game.add_mana(&p2, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p2, ManaColor::Red, 1).unwrap();
+
+        // p1 passes → p2 gets priority
+        game.apply(Action::PassPriority {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+
+        assert!(
+            !compute_auto_pass_eligible(&game, &p2),
+            "Player with castable instant should NOT be auto-pass eligible"
+        );
+    }
+
+    #[test]
+    fn auto_pass_not_eligible_when_has_playable_land() {
+        // p1 in first main, has a land in hand → should NOT auto-pass
+        let (mut game, p1, _p2) = make_empty_game_in_first_main();
+        let land = {
+            use crate::domain::cards::card_definition::CardDefinition;
+            use crate::domain::cards::card_instance::CardInstance;
+            let def = CardDefinition::new("forest", "Forest", vec![crate::domain::enums::CardType::Land]);
+            CardInstance::new("land-1", def, &p1)
+        };
+        game.add_card_to_hand(&p1, land).unwrap();
+
+        assert!(
+            !compute_auto_pass_eligible(&game, &p1),
+            "Player with playable land should NOT be auto-pass eligible"
+        );
+    }
+
+    #[test]
+    fn auto_pass_not_eligible_when_has_attackable_creatures() {
+        // p1 in DeclareAttackers, has an attackable creature → should NOT auto-pass
+        let (mut game, p1, _p2) = make_empty_game_in_first_main();
+
+        // Add a ready creature to p1's battlefield
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+        let def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let creature = CardInstance::new("bear-1", def, &p1);
+        game.add_permanent_to_battlefield(&p1, creature).unwrap();
+        // Clear summoning sickness
+        crate::domain::game::test_helpers::clear_summoning_sickness(&mut game, "bear-1");
+
+        // Advance to DeclareAttackers
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap(); // → BeginningOfCombat
+        game.apply(Action::AdvanceStep {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap(); // → DeclareAttackers
+
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+        assert!(
+            !compute_auto_pass_eligible(&game, &p1),
+            "Player with attackable creatures should NOT be auto-pass eligible"
+        );
+    }
+
+    #[test]
+    fn auto_pass_not_eligible_after_tapping_land_with_castable_creature_in_hand() {
+        // Reproduces the bug: player at FirstMain, taps land for mana,
+        // has a creature in hand that costs exactly that mana.
+        // After tapping, auto-pass should NOT fire.
+        use crate::domain::abilities::{ActivatedAbility, ActivationCost};
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::effects::Effect;
+        use crate::domain::enums::CardType;
+        use crate::domain::types::CardInstanceId;
+
+        let (mut game, p1, _p2) = make_empty_game_in_first_main();
+        assert_eq!(game.current_step(), Step::FirstMain);
+        assert_eq!(game.priority_player_id(), Some(p1.as_str()));
+
+        // Add a Mountain to P1's battlefield
+        let mountain = CardInstance::new(
+            "mtn-1",
+            CardDefinition::new("mountain", "Mountain", vec![CardType::Land])
+                .with_activated_ability(ActivatedAbility {
+                    cost: ActivationCost::Tap,
+                    effect: Effect::AddMana { color: ManaColor::Red, amount: 1 },
+                }),
+            &p1,
+        );
+        game.add_permanent_to_battlefield(&p1, mountain).unwrap();
+
+        // Add a Goblin ({R}) to P1's hand
+        let goblin = CardInstance::new(
+            "goblin-1",
+            CardDefinition::new("goblin", "Goblin", vec![CardType::Creature])
+                .with_power_toughness(1, 1)
+                .with_mana_cost(crate::domain::value_objects::mana::ManaCost::parse("R").unwrap()),
+            &p1,
+        );
+        game.add_card_to_hand(&p1, goblin).unwrap();
+
+        // Before tapping: has tappable land → NOT auto-pass
+        assert!(
+            !compute_auto_pass_eligible(&game, &p1),
+            "Before tapping: has tappable land, should NOT auto-pass"
+        );
+
+        // Tap the Mountain → R in pool
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("mtn-1"),
+        }).unwrap();
+
+        // After tapping: R in pool, Goblin ({R}) in hand → castable!
+        let castable = compute_castable_spells(&game, &p1);
+        assert!(
+            castable.iter().any(|id| id == "goblin-1"),
+            "Goblin should be castable with R in pool. Castable: {:?}, step: {:?}, active: {}, priority: {:?}",
+            castable, game.current_step(), game.current_player_id(), game.priority_player_id()
+        );
+
+        assert!(
+            !compute_auto_pass_eligible(&game, &p1),
+            "After tapping: has castable Goblin, should NOT auto-pass"
+        );
+    }
+
+    #[test]
+    fn auto_pass_eligible_field_set_in_allowed_actions_result() {
+        // AllowedActionsResult.auto_pass_eligible should match compute_auto_pass_eligible
+        let (game, p1, _p2) = make_empty_game_in_first_main();
+        let actions = compute_legal_actions(&game, &p1);
+        assert_eq!(
+            actions.auto_pass_eligible,
+            compute_auto_pass_eligible(&game, &p1),
+            "auto_pass_eligible in AllowedActionsResult must match compute_auto_pass_eligible"
         );
     }
 }
