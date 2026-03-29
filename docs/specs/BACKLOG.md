@@ -38,18 +38,18 @@ See `docs/architecture-clips-integration.md` for full design spec.
 
 | # | Description | Status | Dependency | Notes |
 |---|-------------|--------|------------|-------|
-| M1 | ClipsEngine safe wrapper + router + tests | TODO | clips-sys PoC ✅ | `infrastructure/clips/`, `RulesEngine` trait |
-| M2 | Bridge: serialize Game state → CLIPS facts | TODO | M1 | Full reset cycle, deftemplates |
-| M3 | Connect `resolve_spell()` to CLIPS | BLOCKED | M1, M2 | Minimal change to existing internals.rs |
-| M4 | Connect triggered abilities to CLIPS | BLOCKED | M3 | Wire `execute_triggered_abilities()` |
-| M5 | Write .clp rules for existing cards (Bear, Goblin, etc.) | BLOCKED | M3 | Core rules + card rules |
-| M6 | MTGJSON card data loader | BLOCKED | M5 | CardDefinition from JSON, load at startup |
+| M1 | ClipsEngine safe wrapper + router + tests | DONE | clips-sys PoC ✅ | `infrastructure/clips/`, `RulesEngine` trait |
+| M2 | Bridge: serialize Game state → CLIPS facts | DONE | M1 | Full reset cycle, deftemplates |
+| M3 | Connect `resolve_spell()` to CLIPS | DONE | M1, M2 | Minimal change to existing internals.rs |
+| M4 | Connect triggered abilities to CLIPS | DONE | M3 | Wire `execute_triggered_abilities()` |
+| M5 | Write .clp rules for existing cards (Bear, Goblin, etc.) | DONE | M3 | Core rules + card rules |
+| M6 | MTGJSON card data loader | DONE | M5 | CardDefinition from JSON, load at startup |
 
 ### Phase 2: Expanding Card Coverage
 
 | # | Description | Status | Dependency | Notes |
 |---|-------------|--------|------------|-------|
-| P1 | Target selection system (creature/player targeting) | TODO | M3 | Required for damage spells, removal |
+| P1 | Target selection system (creature/player targeting) | DONE | M3 | Required for damage spells, removal |
 | P2 | Instant-speed casting (during combat, opponent's turn) | TODO | M3 | Priority before combat damage |
 | P3 | More card types: Enchantments, Artifacts | TODO | M4 | Static abilities, continuous effects |
 | P4 | Continuous effects / 7-layer system in CLIPS | TODO | P3 | Lords, enchantments, buff/debuff |
