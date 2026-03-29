@@ -124,10 +124,8 @@ pub fn run_auto_pass_loop(game: &mut Game) -> u32 {
             None => break,
         };
 
-        // A player who clicked "End Turn" always auto-passes (they've
-        // expressed intent to not act for the rest of this turn cycle).
-        let force_pass = game.is_auto_pass(&holder);
-        if !force_pass && !compute_auto_pass_eligible(game, &holder) {
+        // Stop if the player has meaningful actions available
+        if !compute_auto_pass_eligible(game, &holder) {
             break;
         }
 

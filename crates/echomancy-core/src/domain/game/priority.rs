@@ -62,11 +62,23 @@ impl Game {
         let mut events = Vec::new();
         let max_iterations = 100;
         let mut iterations = 0;
+        let mut passed_cleanup = false;
 
         while iterations < max_iterations {
             iterations += 1;
 
             let current_player = self.turn_state.current_player_id().as_str().to_owned();
+
+            // After passing Cleanup (turn changed), keep advancing through
+            // the new player's non-interactive/empty steps until FirstMain.
+            if passed_cleanup {
+                if self.turn_state.current_step() == Step::FirstMain {
+                    break; // Reached FirstMain of new turn — stop.
+                }
+                // Force-advance through Untap/Upkeep/Draw of new turn.
+                events.extend(self.perform_step_advance());
+                continue;
+            }
 
             // Stop if active player is not in auto-pass
             if !self.auto_pass_players.contains(&current_player) {
@@ -81,7 +93,8 @@ impl Game {
             // Advance through cleanup to next turn
             if self.turn_state.current_step() == Step::Cleanup {
                 events.extend(self.perform_step_advance());
-                break; // Turn has ended
+                passed_cleanup = true;
+                continue; // Don't break — advance to new player's FirstMain.
             }
 
             events.extend(self.perform_step_advance());

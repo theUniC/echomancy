@@ -58,9 +58,9 @@ mod tests {
         })
         .unwrap();
 
-        // After EndTurn, the game should have advanced past CLEANUP to next player's UNTAP
+        // After EndTurn, the game advances to the next player's FirstMain
         assert_eq!(game.current_player_id(), &p2);
-        assert_eq!(game.current_step(), Step::Untap);
+        assert_eq!(game.current_step(), Step::FirstMain);
     }
 
     #[test]
