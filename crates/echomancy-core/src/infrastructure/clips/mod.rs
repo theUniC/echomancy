@@ -17,16 +17,19 @@
 //! `RulesEngine` trait implementation (the bridge from Game state to CLIPS)
 //! is added in M2/M3.
 
-// M1: the types are fully implemented but not yet wired to production code.
-// Dead-code warnings are expected until the bridge (M2) uses ClipsEngine.
-#![allow(dead_code)]
-
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 
-use crate::domain::rules_engine::RulesError;
+use crate::domain::events::GameEvent;
+use crate::domain::game::Game;
+use crate::domain::rules_engine::{InputRequest, PlayerChoice, RulesEngine, RulesError, RulesResult};
 
+pub(crate) mod actions;
+pub(crate) mod bridge;
 pub(crate) mod router;
+
+/// CLIPS fact templates embedded in the binary.
+const CORE_TEMPLATES: &str = include_str!("../../../../../rules/core/templates.clp");
 
 // ============================================================================
 // Slot value
@@ -36,6 +39,9 @@ pub(crate) mod router;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum SlotValue {
     Integer(i64),
+    // FIXME(M3): add clips_value_as_float C shim to support float slot reads.
+    // The game schema uses INTEGER for all numerics, so this path is not yet hit.
+    #[allow(dead_code)]
     Float(f64),
     String(String),
     Symbol(String),
@@ -73,6 +79,8 @@ pub(crate) struct ClipsEngine {
     env: *mut clips_sys::Environment,
     /// Upper bound on rules fired per `run()` call (prevents infinite loops).
     max_rules: i64,
+    /// The last pending input request, if a CLIPS rule called `(halt)`.
+    pending_input: Option<InputRequest>,
 }
 
 // Explicitly NOT Send/Sync — CLIPS environments are single-threaded.
@@ -81,6 +89,8 @@ pub(crate) struct ClipsEngine {
 
 impl ClipsEngine {
     /// Default maximum rules per `run()` call.
+    // Used in tests and will be used in production when M3 wires ClipsEngine into the game loop.
+    #[allow(dead_code)]
     pub(crate) const DEFAULT_MAX_RULES: i64 = 10_000;
 
     /// Create a new CLIPS environment.
@@ -89,6 +99,8 @@ impl ClipsEngine {
     ///
     /// Returns `RulesError::EnvironmentCreationFailed` if CLIPS cannot
     /// allocate the environment (extremely rare — out-of-memory condition).
+    // Used in tests and will be used in production when M3 wires ClipsEngine.
+    #[allow(dead_code)]
     pub(crate) fn new() -> Result<Self, RulesError> {
         let env = unsafe { clips_sys::CreateEnvironment() };
         if env.is_null() {
@@ -97,10 +109,13 @@ impl ClipsEngine {
         Ok(Self {
             env,
             max_rules: Self::DEFAULT_MAX_RULES,
+            pending_input: None,
         })
     }
 
     /// Create a new engine with a custom max-rules limit.
+    // Used in tests.
+    #[allow(dead_code)]
     pub(crate) fn with_max_rules(max_rules: i64) -> Result<Self, RulesError> {
         let mut engine = Self::new()?;
         engine.max_rules = max_rules;
@@ -301,6 +316,120 @@ impl Drop for ClipsEngine {
     fn drop(&mut self) {
         // SAFETY: self.env is always non-null (enforced in new()) and we own it.
         unsafe { clips_sys::DestroyEnvironment(self.env) };
+    }
+}
+
+// ============================================================================
+// RulesEngine trait implementation
+// ============================================================================
+
+impl RulesEngine for ClipsEngine {
+    /// Evaluate a game event against the current game state.
+    ///
+    /// Cycle:
+    /// 1. Reset working memory (clean slate).
+    /// 2. Load core templates (if not already done — idempotent via Reset).
+    /// 3. Assert all game state facts.
+    /// 4. Assert the event fact.
+    /// 5. Run the inference engine (bounded).
+    /// 6. Check for `awaiting-input` facts (CLIPS called halt).
+    /// 7. Collect and sort `action-*` facts.
+    /// 8. Return `RulesResult`.
+    fn evaluate(
+        &mut self,
+        state: &Game,
+        event: &GameEvent,
+    ) -> Result<RulesResult, RulesError> {
+        // 1. Reset — wipe all facts, reload deffacts
+        self.reset();
+
+        // Templates are already loaded into the environment (they survive Reset).
+        // Load them now if this is the first evaluate() call.
+        // We detect this by checking whether the "player" deftemplate exists.
+        let player_template_exists = {
+            let c = std::ffi::CString::new("player").unwrap();
+            let ptr = unsafe { clips_sys::FindDeftemplate(self.env, c.as_ptr()) };
+            !ptr.is_null()
+        };
+        if !player_template_exists {
+            self.load_rules(CORE_TEMPLATES)?;
+        }
+
+        // 2. Assert all game state facts
+        for fact in bridge::serialize_game_state(state) {
+            self.assert_fact(&fact)?;
+        }
+
+        // 3. Assert the event fact
+        let event_fact = bridge::serialize_game_event(event);
+        self.assert_fact(&event_fact)?;
+
+        // 4. Run (bounded)
+        let rules_fired = match self.run() {
+            Ok(n) => n,
+            Err(RulesError::MaxRulesExceeded { limit }) => {
+                return Err(RulesError::MaxRulesExceeded { limit });
+            }
+            Err(e) => return Err(e),
+        };
+
+        // 5. Check for awaiting-input
+        let awaiting_input = actions::parse_awaiting_input(self);
+        if let Some(ref req) = awaiting_input {
+            self.pending_input = Some(req.clone());
+        } else {
+            self.pending_input = None;
+        }
+
+        // 6. Collect action-* facts
+        let action_list = actions::parse_action_facts(self)?;
+
+        Ok(RulesResult {
+            actions: action_list,
+            awaiting_input,
+            rules_fired,
+            warnings: Vec::new(),
+        })
+    }
+
+    /// Resume rule execution after the player has made a choice.
+    ///
+    /// Asserts a `player-choice` fact and runs the engine again.
+    fn resume_after_choice(
+        &mut self,
+        choice: &PlayerChoice,
+    ) -> Result<RulesResult, RulesError> {
+        if self.pending_input.is_none() {
+            return Err(RulesError::NoInputPending);
+        }
+
+        // Assert the player's choice fact
+        let choice_fact = format!(
+            "(player-choice (input-type \"{input_type}\") (player \"{player}\") (chosen \"{chosen}\"))",
+            input_type = choice.input_type.replace('"', "\\\""),
+            player = choice.player.replace('"', "\\\""),
+            chosen = choice.chosen.replace('"', "\\\""),
+        );
+        // Ignore assert failure — the player-choice template may not be loaded yet.
+        // Rules that use it must define it themselves.
+        let _ = self.assert_fact(&choice_fact);
+
+        self.pending_input = None;
+
+        let rules_fired = self.run()?;
+        let awaiting_input = actions::parse_awaiting_input(self);
+        if let Some(ref req) = awaiting_input {
+            self.pending_input = Some(req.clone());
+        }
+
+        let action_list = actions::parse_action_facts(self)?;
+
+        Ok(RulesResult {
+            actions: action_list,
+            awaiting_input,
+            rules_fired,
+            warnings: Vec::new(),
+        })
     }
 }
 
@@ -571,5 +700,103 @@ mod tests {
             rows[0].slots.get("name"),
             Some(&SlotValue::Symbol("TRUE".to_owned()))
         );
+    }
+
+    // ---- RulesEngine trait implementation -----------------------------------
+
+    #[test]
+    fn rules_engine_evaluate_returns_empty_actions_for_no_rules() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::enums::Step;
+        use crate::domain::types::PlayerId;
+        use crate::domain::game::test_helpers::make_started_game;
+        use crate::domain::rules_engine::RulesEngine;
+
+        let mut engine = ClipsEngine::new().unwrap();
+        engine.load_rules(CORE_TEMPLATES).unwrap();
+
+        let (game, p1, _) = make_started_game();
+        let event = GameEvent::StepStarted {
+            step: Step::FirstMain,
+            active_player_id: PlayerId::new(&p1),
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert!(result.actions.is_empty(), "no rules defined, so no actions");
+        assert!(result.awaiting_input.is_none());
+    }
+
+    #[test]
+    fn rules_engine_evaluate_produces_action_from_rule() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::enums::Step;
+        use crate::domain::types::PlayerId;
+        use crate::domain::game::test_helpers::make_started_game;
+        use crate::domain::rules_engine::{RulesAction, RulesEngine};
+
+        // A simple test rule: when STEP_STARTED fires, draw a card.
+        const TEST_RULE: &str = r#"
+(defrule test-draw-on-first-main
+  (game-event (type STEP_STARTED) (data "FIRST_MAIN"))
+  (player (id ?p) (has-priority TRUE))
+  =>
+  (assert (action-draw (player ?p) (amount 1))))
+"#;
+        let mut engine = ClipsEngine::new().unwrap();
+        engine.load_rules(CORE_TEMPLATES).unwrap();
+        engine.load_rules(TEST_RULE).unwrap();
+
+        let (game, p1, _) = make_started_game();
+        let event = GameEvent::StepStarted {
+            step: Step::FirstMain,
+            active_player_id: PlayerId::new(&p1),
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(
+            &result.actions[0],
+            RulesAction::DrawCards { player, amount: 1 } if player == "p1"
+        ));
+    }
+
+    #[test]
+    fn rules_engine_reset_between_cycles_clears_facts() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::enums::Step;
+        use crate::domain::types::PlayerId;
+        use crate::domain::game::test_helpers::make_started_game;
+        use crate::domain::rules_engine::RulesEngine;
+
+        let mut engine = ClipsEngine::new().unwrap();
+        engine.load_rules(CORE_TEMPLATES).unwrap();
+
+        let (game, p1, _) = make_started_game();
+        let event = GameEvent::StepStarted {
+            step: Step::Upkeep,
+            active_player_id: PlayerId::new(&p1),
+        };
+
+        // Two evaluations: each should produce independent results
+        let result1 = engine.evaluate(&game, &event).expect("first evaluate");
+        let result2 = engine.evaluate(&game, &event).expect("second evaluate");
+        // Both should have the same number of actions (deterministic)
+        assert_eq!(result1.actions.len(), result2.actions.len());
+    }
+
+    #[test]
+    fn rules_engine_resume_after_choice_errors_when_no_input_pending() {
+        use crate::domain::rules_engine::{PlayerChoice, RulesEngine, RulesError};
+
+        let mut engine = ClipsEngine::new().unwrap();
+        engine.load_rules(CORE_TEMPLATES).unwrap();
+
+        let choice = PlayerChoice {
+            input_type: "sacrifice".to_owned(),
+            player: "p1".to_owned(),
+            chosen: "creature-1".to_owned(),
+        };
+        let err = engine.resume_after_choice(&choice).unwrap_err();
+        assert!(matches!(err, RulesError::NoInputPending));
     }
 }
