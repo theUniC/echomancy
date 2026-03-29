@@ -321,6 +321,31 @@ impl std::fmt::Debug for ClipsEngine {
     }
 }
 
+// ============================================================================
+// Public factory: create a ready-to-use rules engine for a game
+// ============================================================================
+
+/// Create a CLIPS rules engine loaded with core templates and card rules
+/// for the given card definition IDs.
+///
+/// This is the public entry point for consumers outside `echomancy-core`
+/// (e.g. `echomancy-bevy`). It returns a boxed `dyn RulesEngine` ready
+/// to be passed to `Game::set_rules_engine()`.
+///
+/// # Arguments
+///
+/// * `card_ids` — definition IDs of all cards in the current game
+///   (e.g. `["lightning-strike", "bear", "forest"]`). Cards without
+///   a `.clp` file are silently skipped.
+pub fn create_rules_engine(card_ids: &[&str]) -> Result<Box<dyn crate::domain::rules_engine::RulesEngine>, RulesError> {
+    let mut engine = ClipsEngine::new()?;
+    card_rules::load_core_templates(&mut engine)?;
+    for card_id in card_ids {
+        card_rules::load_card_rules(&mut engine, card_id)?;
+    }
+    Ok(Box::new(engine))
+}
+
 impl Drop for ClipsEngine {
     fn drop(&mut self) {
         // SAFETY: self.env is always non-null (enforced in new()) and we own it.

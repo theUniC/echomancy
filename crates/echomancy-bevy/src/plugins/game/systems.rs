@@ -43,6 +43,20 @@ pub(crate) fn setup_game(mut commands: Commands) {
     // Use OS entropy for shuffling (non-deterministic, as expected in production).
     game.start(&p1_id, None).expect("start game");
 
+    // Wire up the CLIPS rules engine so spells have real effects.
+    // Load rules for all card types that appear in either deck.
+    let card_ids = ["lightning-strike", "giant-growth", "divination",
+                    "bear", "goblin", "forest", "mountain"];
+    match create_rules_engine(&card_ids) {
+        Ok(engine) => {
+            game.set_rules_engine(engine);
+            info!("CLIPS rules engine loaded");
+        }
+        Err(err) => {
+            error!(%err, "Failed to create CLIPS rules engine — spells will have no effects");
+        }
+    }
+
     // Auto-advance through Untap → Upkeep → Draw → FirstMain so the player
     // immediately sees playable lands on startup.
     auto_advance_to_main_phase(&mut game, &p1_id);

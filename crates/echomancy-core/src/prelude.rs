@@ -2,6 +2,7 @@
 
 // Infrastructure layer
 pub use crate::infrastructure::allowed_actions::AllowedActionsResult;
+pub use crate::infrastructure::create_rules_engine;
 pub use crate::infrastructure::game_snapshot::{
     CardRegistry, CardSnapshot, CombatStateSnapshot, CombatSummary, GameSnapshot,
     OpponentState, PrivatePlayerState, PublicGameState, SnapshotError, StackItemSnapshot,
