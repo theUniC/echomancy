@@ -53,7 +53,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 | P2 | Instant-speed casting (during combat, opponent's turn) | TODO | M3 | Priority before combat damage |
 | P3 | More card types: Enchantments, Artifacts | TODO | M4 | Static abilities, continuous effects |
 | P4 | Continuous effects / 7-layer system in CLIPS | TODO | P3 | Lords, enchantments, buff/debuff |
-| P5 | Combat keywords (First Strike, Trample, Deathtouch) | TODO | M3 | Core CLIPS rules |
+| P5 | Combat keywords (First Strike, Trample, Deathtouch, Lifelink) | DONE | M3 | Domain model, no CLIPS needed |
 
 ### Phase 3: Game Experience
 
