@@ -45,17 +45,28 @@ pub fn compute_legal_actions(game: &Game, player_id: &str) -> AllowedActionsResu
         compute_spells_needing_targets(game, player_id, &castable_spells);
     let attackable_creatures = compute_attackable_creatures(game, player_id);
     let blockable_creatures = compute_blockable_creatures(game, player_id);
-    let is_own_sorcery_timing = game.current_player_id() == player_id
-        && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
-        && !game.stack_has_items();
-    let has_potential_plays = is_own_sorcery_timing
-        && !tappable_lands.is_empty()
-        && game.hand(player_id)
-            .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
-            .unwrap_or(false);
+    let has_potential_plays_inline = if tappable_lands.is_empty() {
+        false
+    } else {
+        let is_own_sorcery = game.current_player_id() == player_id
+            && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
+            && !game.stack_has_items();
+        if is_own_sorcery {
+            game.hand(player_id)
+                .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
+                .unwrap_or(false)
+        } else {
+            game.hand(player_id)
+                .map(|hand| hand.iter().any(|c| {
+                    c.definition().is_instant()
+                        || c.definition().has_static_ability(StaticAbility::Flash)
+                }))
+                .unwrap_or(false)
+        }
+    };
     let auto_pass_eligible = playable_lands.is_empty()
         && castable_spells.is_empty()
-        && !has_potential_plays
+        && !has_potential_plays_inline
         && attackable_creatures.is_empty()
         && blockable_creatures.is_empty()
         && game.priority_player_id() == Some(player_id);
@@ -346,22 +357,37 @@ pub fn compute_auto_pass_eligible(game: &Game, player_id: &str) -> bool {
         return false;
     }
     let actions = compute_legal_actions(game, player_id);
-    // "Potential plays" = player has tappable lands + spells in hand but
-    // hasn't tapped yet (no mana in pool). This only matters during the
-    // player's OWN turn at sorcery-speed timing (main phase, empty stack).
-    // During the opponent's turn, we only check castable_spells (which
-    // requires mana already in pool for instants). This avoids stopping
-    // at every priority window during the opponent's turn just because
-    // the player COULD tap a land.
-    let is_own_sorcery_timing = game.current_player_id() == player_id
-        && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
-        && !game.stack_has_items();
+    // Check potential plays: player has tappable lands + relevant spells.
+    //
+    // During OWN turn (sorcery timing): tappable lands + ANY non-land card
+    // means the player might want to tap and cast.
+    //
+    // During OPPONENT's turn: tappable lands + INSTANT (or Flash) in hand
+    // means the player might want to tap and respond. Without this check,
+    // the player would never get a chance to respond with instants because
+    // auto-pass fires before they can tap their lands.
+    let has_potential_plays = if actions.tappable_lands.is_empty() {
+        false
+    } else {
+        let is_own_sorcery_timing = game.current_player_id() == player_id
+            && matches!(game.current_step(), Step::FirstMain | Step::SecondMain)
+            && !game.stack_has_items();
 
-    let has_potential_plays = is_own_sorcery_timing
-        && !actions.tappable_lands.is_empty()
-        && game.hand(player_id)
-            .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
-            .unwrap_or(false);
+        if is_own_sorcery_timing {
+            // Own turn: any non-land card counts (creatures, sorceries, instants)
+            game.hand(player_id)
+                .map(|hand| hand.iter().any(|c| !c.definition().is_land()))
+                .unwrap_or(false)
+        } else {
+            // Opponent's turn: only instants / Flash cards count
+            game.hand(player_id)
+                .map(|hand| hand.iter().any(|c| {
+                    c.definition().is_instant()
+                        || c.definition().has_static_ability(StaticAbility::Flash)
+                }))
+                .unwrap_or(false)
+        }
+    };
 
     actions.playable_lands.is_empty()
         && actions.castable_spells.is_empty()
