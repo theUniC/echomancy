@@ -29,6 +29,7 @@ use crate::plugins::game::{
     HumanPlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, PlayerIds,
     SnapshotChangedMessage, TargetSelectionState,
 };
+use crate::plugins::ui::graveyard::{GraveyardOpponentButton, GraveyardPlayerButton};
 
 // ============================================================================
 // Constants
@@ -411,9 +412,12 @@ pub(crate) fn spawn_hud(mut commands: Commands) {
                 TextColor(MUTED_COLOR),
             ));
 
-            // Player graveyard count
+            // Player graveyard count (clickable — opens graveyard viewer)
             panel.spawn((
                 HudPlayerGraveyard,
+                GraveyardPlayerButton,
+                Button,
+                Interaction::default(),
                 Text::new("Your GY: 0"),
                 TextFont {
                     font_size: 12.0,
@@ -422,9 +426,12 @@ pub(crate) fn spawn_hud(mut commands: Commands) {
                 TextColor(MUTED_COLOR),
             ));
 
-            // Opponent graveyard count
+            // Opponent graveyard count (clickable — opens graveyard viewer)
             panel.spawn((
                 HudOpponentGraveyard,
+                GraveyardOpponentButton,
+                Button,
+                Interaction::default(),
                 Text::new("Opp GY: 0"),
                 TextFont {
                     font_size: 12.0,
