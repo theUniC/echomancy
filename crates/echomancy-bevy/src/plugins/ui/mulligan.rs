@@ -428,12 +428,16 @@ fn rebuild_mulligan_screen(
 // Button hover / press visual feedback
 // ============================================================================
 
+type MulliganButtonQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static Interaction, &'static mut BackgroundColor),
+    (With<MulliganButton>, Without<KeepButton>),
+>;
+
 fn update_button_colors(
     mut keep_q: Query<(&Interaction, &mut BackgroundColor), With<KeepButton>>,
-    mut mulligan_q: Query<
-        (&Interaction, &mut BackgroundColor),
-        (With<MulliganButton>, Without<KeepButton>),
-    >,
+    mut mulligan_q: MulliganButtonQuery,
 ) {
     for (interaction, mut bg) in keep_q.iter_mut() {
         *bg = match interaction {
