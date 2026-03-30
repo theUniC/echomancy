@@ -308,9 +308,11 @@ pub(crate) struct HandPlugin;
 
 impl Plugin for HandPlugin {
     fn build(&self, app: &mut App) {
+        use crate::plugins::game::AppState;
         app.add_systems(
             Update,
-            (rebuild_hand, handle_card_clicks, handle_castable_spell_clicks),
+            (rebuild_hand, handle_card_clicks, handle_castable_spell_clicks)
+                .run_if(in_state(AppState::InGame)),
         );
     }
 }

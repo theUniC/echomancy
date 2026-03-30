@@ -142,6 +142,28 @@ pub enum GameOutcomeExport {
     Draw(DrawOutcomeExport),
 }
 
+/// Per-player mulligan status for export.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlayerMulliganExport {
+    /// Whether the player has kept their opening hand.
+    pub has_kept: bool,
+    /// Number of mulligans taken.
+    pub mulligan_count: u32,
+    /// Number of cards still to be placed on the bottom of the library.
+    pub cards_to_put_back: u32,
+}
+
+/// Mulligan phase state for export.
+///
+/// Present when the game is in the mulligan phase (`is_in_mulligan == true`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MulliganStateExport {
+    /// Whether the game is currently in the mulligan phase.
+    pub is_in_mulligan: bool,
+    /// Per-player mulligan status, keyed by player ID.
+    pub player_statuses: HashMap<String, PlayerMulliganExport>,
+}
+
 /// The complete game state export.
 ///
 /// INVARIANTS:
@@ -162,6 +184,9 @@ pub struct GameStateExport {
     pub stack: Vec<StackItemExport>,
     pub scheduled_steps: Vec<Step>,
     pub resume_step_after_scheduled: Option<Step>,
+    /// Mulligan phase state. Always present; `is_in_mulligan` signals whether
+    /// the game is currently in the mulligan phase.
+    pub mulligan: MulliganStateExport,
 }
 
 // ============================================================================
@@ -226,6 +251,9 @@ pub(crate) trait ExportableGameContext {
 
     /// All items currently on the stack, from bottom (index 0) to top.
     fn stack_items(&self) -> Vec<StackItemExport>;
+
+    /// Mulligan state export. Returns `None` if the game is not in mulligan phase.
+    fn mulligan_state_export(&self) -> MulliganStateExport;
 }
 
 /// Produces a complete `GameStateExport` from any type that implements
@@ -299,6 +327,7 @@ pub(crate) fn export_game_state(ctx: &impl ExportableGameContext) -> GameStateEx
         stack: ctx.stack_items(),
         scheduled_steps: Vec::new(),
         resume_step_after_scheduled: None,
+        mulligan: ctx.mulligan_state_export(),
     }
 }
 

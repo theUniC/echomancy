@@ -653,7 +653,8 @@ pub(crate) struct BattlefieldPlugin;
 
 impl Plugin for BattlefieldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_ui_root)
+        use crate::plugins::game::AppState;
+        app.add_systems(OnEnter(AppState::InGame), spawn_ui_root)
             .add_systems(
                 Update,
                 (
@@ -662,7 +663,8 @@ impl Plugin for BattlefieldPlugin {
                     handle_attacker_click,
                     handle_blocker_click,
                     handle_valid_target_click,
-                ),
+                )
+                    .run_if(in_state(AppState::InGame)),
             );
     }
 }

@@ -11,8 +11,8 @@ use echomancy_core::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    HumanPlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, GameState, PlayableCards,
-    PlayerIds, PlayerInfo, SnapshotChangedMessage, TargetSelectionState,
+    AppState, HumanPlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, GameState,
+    PlayableCards, PlayerIds, PlayerInfo, SnapshotChangedMessage, TargetSelectionState,
 };
 use super::snapshot::{compute_snapshot, humanize_error};
 
@@ -56,7 +56,8 @@ pub(crate) fn setup_game(mut commands: Commands) {
         .expect("assign red deck");
 
     // Use OS entropy for shuffling (non-deterministic, as expected in production).
-    game.start(&p1_id, None).expect("start game");
+    // start_with_mulligan initialises the mulligan phase and auto-keeps for P2.
+    game.start_with_mulligan(&p1_id, None).expect("start game");
 
     // Wire up the CLIPS rules engine so spells have real effects.
     // Load rules for all card types that appear in either deck.
@@ -72,10 +73,9 @@ pub(crate) fn setup_game(mut commands: Commands) {
         }
     }
 
-    // Auto-advance to FirstMain using the same loop the game uses after every action.
-    run_auto_pass_loop(&mut game);
-    // If P2 acts first (unusual), let the bot handle it.
-    run_bot_stabilization(&mut game, &p2_id, 10);
+    // NOTE: We do NOT run auto_pass_loop here. The game starts in the mulligan
+    // phase. Auto-pass and bot stabilization run when the player transitions to
+    // AppState::InGame (via the mulligan completion system).
 
     let (snapshot, playable_cards) =
         compute_snapshot(&game, &p1_id).expect("initial snapshot");
@@ -502,15 +502,62 @@ mod tests {
     }
 }
 
+/// System that runs once when entering `AppState::InGame`.
+///
+/// Runs auto-pass and bot stabilization to advance the game from Turn 1 Untap
+/// to FirstMain. This is deferred from startup because the game starts in the
+/// Mulligan phase; we must not advance the turn until mulligan is complete.
+pub(crate) fn on_enter_in_game(
+    mut game_state: ResMut<GameState>,
+    mut snapshot_res: ResMut<CurrentSnapshot>,
+    mut playable_res: ResMut<PlayableCards>,
+    mut snapshot_changed: MessageWriter<SnapshotChangedMessage>,
+    player_ids: Res<PlayerIds>,
+) {
+    let game = &mut game_state.game;
+
+    // Advance from Turn 1 Untap → FirstMain via auto-pass.
+    run_auto_pass_loop(game);
+    // If P2 goes first (unusual), let the bot handle it.
+    run_bot_stabilization(game, &player_ids.p2.id, 10);
+
+    info!(
+        step = ?game.current_step(),
+        player = %game.current_player_id(),
+        "Entered InGame — advanced to FirstMain"
+    );
+
+    let view_player_id = &player_ids.p1.id;
+    match compute_snapshot(game, view_player_id) {
+        Ok((snapshot, playable_cards)) => {
+            *snapshot_res = CurrentSnapshot { snapshot };
+            *playable_res = PlayableCards { result: playable_cards };
+            snapshot_changed.write(SnapshotChangedMessage);
+        }
+        Err(err) => {
+            error!(%err, "Failed to compute snapshot on InGame entry");
+        }
+    }
+}
+
 /// Registers all game-related resources, messages, and systems.
 pub(crate) struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<GameActionMessage>()
+        app.init_state::<AppState>()
+            .add_message::<GameActionMessage>()
             .add_message::<SnapshotChangedMessage>()
             .add_systems(Startup, (setup_camera, setup_game))
             .add_systems(PostStartup, send_initial_snapshot_message)
-            .add_systems(Update, (handle_game_actions, notify_on_target_selection_change));
+            .add_systems(
+                OnEnter(AppState::InGame),
+                on_enter_in_game,
+            )
+            .add_systems(
+                Update,
+                (handle_game_actions, notify_on_target_selection_change)
+                    .run_if(in_state(AppState::InGame)),
+            );
     }
 }

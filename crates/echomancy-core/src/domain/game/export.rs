@@ -9,8 +9,8 @@ use crate::domain::entities::the_stack::StackItem;
 use crate::domain::enums::{GameLifecycleState, StaticAbility, Step};
 use crate::domain::services::combat_declarations::CombatValidationContext;
 use crate::infrastructure::game_state_export::{
-    DrawOutcomeExport, ExportableGameContext, GameOutcomeExport, StackItemExport, StackItemKind,
-    WinOutcomeExport,
+    DrawOutcomeExport, ExportableGameContext, GameOutcomeExport, MulliganStateExport,
+    PlayerMulliganExport, StackItemExport, StackItemKind, WinOutcomeExport,
 };
 use crate::domain::types::PlayerId;
 use crate::domain::value_objects::mana::ManaPool;
@@ -121,6 +121,35 @@ impl ExportableGameContext for Game {
 
     fn permanent_state(&self, instance_id: &str) -> Option<&PermanentState> {
         self.permanent_states.get(instance_id)
+    }
+
+    fn mulligan_state_export(&self) -> MulliganStateExport {
+        match &self.mulligan_state {
+            None => MulliganStateExport {
+                is_in_mulligan: false,
+                player_statuses: std::collections::HashMap::new(),
+            },
+            Some(ms) => {
+                let player_statuses = ms
+                    .statuses
+                    .iter()
+                    .map(|(id, status)| {
+                        (
+                            id.clone(),
+                            PlayerMulliganExport {
+                                has_kept: status.has_kept,
+                                mulligan_count: status.mulligan_count,
+                                cards_to_put_back: status.cards_to_put_back,
+                            },
+                        )
+                    })
+                    .collect();
+                MulliganStateExport {
+                    is_in_mulligan: true,
+                    player_statuses,
+                }
+            }
+        }
     }
 
     fn stack_items(&self) -> Vec<StackItemExport> {

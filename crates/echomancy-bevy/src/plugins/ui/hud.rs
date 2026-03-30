@@ -912,7 +912,8 @@ pub(crate) struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_hud)
+        use crate::plugins::game::AppState;
+        app.add_systems(OnEnter(AppState::InGame), spawn_hud)
             .add_systems(
                 Update,
                 (
@@ -923,7 +924,8 @@ impl Plugin for HudPlugin {
                     handle_end_turn_click,
                     handle_cancel_target_click,
                     handle_target_opponent_click,
-                ),
+                )
+                    .run_if(in_state(AppState::InGame)),
             );
     }
 }

@@ -6,8 +6,8 @@ pub use crate::infrastructure::legal_actions::{compute_auto_pass_eligible, compu
 pub use crate::infrastructure::create_rules_engine;
 pub use crate::infrastructure::game_snapshot::{
     CardRegistry, CardSnapshot, CombatStateSnapshot, CombatSummary, GameSnapshot,
-    OpponentState, PrivatePlayerState, PublicGameState, SnapshotError, StackItemSnapshot,
-    StackSnapshot, UiHints, create_game_snapshot,
+    OpponentState, PlayerMulliganSnapshot, PrivatePlayerState, PublicGameState, SnapshotError,
+    StackItemSnapshot, StackSnapshot, UiHints, create_game_snapshot,
 };
 
 // Domain — game aggregate
@@ -17,8 +17,8 @@ pub use crate::domain::game::bot::run_bot_turn;
 // Domain — export types
 pub use crate::infrastructure::game_state_export::{
     CardInstanceExport, CreatureStateExport, DrawOutcomeExport, GameOutcomeExport,
-    GameStateExport, ManaPoolExport, PlayerStateExport, StackItemExport, StackItemKind,
-    WinOutcomeExport,
+    GameStateExport, ManaPoolExport, MulliganStateExport, PlayerMulliganExport,
+    PlayerStateExport, StackItemExport, StackItemKind, WinOutcomeExport,
 };
 
 pub use crate::domain::abilities::{ActivatedAbility, ActivationCost, Ability};

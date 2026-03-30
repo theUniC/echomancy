@@ -84,6 +84,36 @@ pub enum Action {
         player_id: PlayerId,
         amount: DrawAmount,
     },
+
+    // -------------------------------------------------------------------------
+    // Mulligan actions (only valid during the mulligan phase)
+    // -------------------------------------------------------------------------
+
+    /// Keep the current opening hand and complete the mulligan phase for this player.
+    ///
+    /// If the player has taken N mulligans, they will enter the put-back sub-step
+    /// and must place N cards on the bottom of their library.
+    MulliganKeep {
+        #[serde(rename = "playerId")]
+        player_id: PlayerId,
+    },
+
+    /// Shuffle the current hand back into the library and draw 7 new cards,
+    /// incrementing the player's mulligan count by 1.
+    MulliganRedraw {
+        #[serde(rename = "playerId")]
+        player_id: PlayerId,
+    },
+
+    /// Place the specified card from the player's hand on the bottom of their library.
+    ///
+    /// Valid only after `MulliganKeep` when the player has cards to put back.
+    PutCardOnBottom {
+        #[serde(rename = "playerId")]
+        player_id: PlayerId,
+        #[serde(rename = "cardId")]
+        card_id: CardInstanceId,
+    },
 }
 
 #[cfg(test)]

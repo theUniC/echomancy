@@ -22,7 +22,8 @@ use thiserror::Error;
 
 use crate::domain::enums::{CardType, GameLifecycleState, StaticAbility, Step};
 use crate::infrastructure::game_state_export::{
-    CardInstanceExport, GameOutcomeExport, GameStateExport, StackItemExport, StackItemKind,
+    CardInstanceExport, GameOutcomeExport, GameStateExport, MulliganStateExport,
+    StackItemExport, StackItemKind,
 };
 
 // ============================================================================
@@ -176,6 +177,17 @@ pub struct UiHints {
     pub highlighted_blockers: Vec<String>,
 }
 
+/// Mulligan phase info for a single player, as visible in the snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerMulliganSnapshot {
+    /// How many times this player has taken a mulligan.
+    pub mulligan_count: u32,
+    /// How many cards this player still needs to put on the bottom of their library.
+    pub cards_to_put_back: u32,
+    /// Whether this player has made their keep decision.
+    pub has_kept: bool,
+}
+
 /// Complete player-relative game snapshot.
 ///
 /// # Invariants
@@ -193,6 +205,8 @@ pub struct GameSnapshot {
     pub opponent_states: Vec<OpponentState>,
     pub visible_stack: StackSnapshot,
     pub ui_hints: Option<UiHints>,
+    /// Mulligan info for the viewer player. `None` when not in mulligan phase.
+    pub mulligan_info: Option<PlayerMulliganSnapshot>,
 }
 
 // ============================================================================
@@ -290,6 +304,9 @@ pub fn create_game_snapshot(
     // ---- UI hints ----
     let ui_hints = build_ui_hints(state, viewer_player_id);
 
+    // ---- Mulligan info ----
+    let mulligan_info = build_mulligan_info(&state.mulligan, viewer_player_id);
+
     Ok(GameSnapshot {
         viewer_player_id: viewer_player_id.to_owned(),
         public_game_state,
@@ -297,6 +314,7 @@ pub fn create_game_snapshot(
         opponent_states,
         visible_stack,
         ui_hints,
+        mulligan_info,
     })
 }
 
@@ -491,6 +509,26 @@ fn build_ui_hints(state: &GameStateExport, viewer_player_id: &str) -> Option<UiH
         highlighted_attackers,
         highlighted_blockers,
     })
+}
+
+/// Build the viewer-relative mulligan info from the raw export.
+///
+/// Returns `None` when the game is not in the mulligan phase.
+fn build_mulligan_info(
+    mulligan: &MulliganStateExport,
+    viewer_player_id: &str,
+) -> Option<PlayerMulliganSnapshot> {
+    if !mulligan.is_in_mulligan {
+        return None;
+    }
+    mulligan
+        .player_statuses
+        .get(viewer_player_id)
+        .map(|s| PlayerMulliganSnapshot {
+            mulligan_count: s.mulligan_count,
+            cards_to_put_back: s.cards_to_put_back,
+            has_kept: s.has_kept,
+        })
 }
 
 /// Derive the current phase name from the step.

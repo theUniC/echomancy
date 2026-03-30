@@ -24,6 +24,23 @@ use bevy::prelude::*;
 use echomancy_core::prelude::*;
 
 // ============================================================================
+// Application state
+// ============================================================================
+
+/// Top-level Bevy application state.
+///
+/// The app starts in `Mulligan`. Once both players have completed their
+/// mulligan decisions, it transitions to `InGame` where normal gameplay runs.
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) enum AppState {
+    /// Mulligan phase — P1 chooses whether to keep their opening hand.
+    #[default]
+    Mulligan,
+    /// Normal gameplay — turn-based game loop runs.
+    InGame,
+}
+
+// ============================================================================
 // Resources
 // ============================================================================
 

@@ -162,7 +162,11 @@ pub(crate) struct GameOverPlugin;
 
 impl Plugin for GameOverPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, spawn_game_over_overlay);
+        use crate::plugins::game::AppState;
+        app.add_systems(
+            Update,
+            spawn_game_over_overlay.run_if(in_state(AppState::InGame)),
+        );
     }
 }
 

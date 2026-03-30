@@ -25,6 +25,7 @@ mod activate_ability;
 mod advance_step;
 pub mod automation;
 pub mod bot;
+mod mulligan;
 mod cast_spell;
 mod declare_attacker;
 mod declare_blocker;
@@ -50,6 +51,7 @@ use crate::domain::entities::the_stack::StackItem;
 use crate::domain::rules_engine::RulesEngine;
 use crate::domain::types::PlayerId;
 use crate::domain::value_objects::mana::ManaPool;
+use crate::domain::value_objects::mulligan_state::MulliganState;
 use crate::domain::value_objects::permanent_state::PermanentState;
 use crate::domain::value_objects::turn_state::TurnState;
 
@@ -182,6 +184,11 @@ pub struct Game {
     /// Set via `set_rules_engine()`. The domain depends on the `RulesEngine`
     /// abstraction only; the CLIPS implementation lives in the infrastructure layer.
     rules_engine: Option<Box<dyn RulesEngine>>,
+    /// Mulligan phase state.
+    ///
+    /// `Some(state)` means the game is in the mulligan phase (before Turn 1).
+    /// `None` means mulligan is complete and normal gameplay is underway.
+    pub(crate) mulligan_state: Option<MulliganState>,
 }
 
 impl Game {
@@ -211,6 +218,7 @@ impl Game {
             outcome: None,
             starting_player_id: String::new(),
             rules_engine: None,
+            mulligan_state: None,
         }
     }
 
@@ -393,6 +401,15 @@ impl Game {
             Action::DrawCard { player_id, amount } => {
                 draw_card::handle(self, player_id.as_str(), amount)?
             }
+            Action::MulliganKeep { player_id } => {
+                mulligan::handle_keep(self, player_id.as_str())?
+            }
+            Action::MulliganRedraw { player_id } => {
+                mulligan::handle_redraw(self, player_id.as_str())?
+            }
+            Action::PutCardOnBottom { player_id, card_id } => {
+                mulligan::handle_put_card_on_bottom(self, player_id.as_str(), card_id.as_str())?
+            }
         };
 
         self.events.extend_from_slice(&events);
@@ -474,6 +491,53 @@ impl Game {
         self.permanent_states.insert(instance_id, perm_state);
         let player = self.player_state_mut(player_id)?;
         player.battlefield.push(card);
+        Ok(())
+    }
+
+    /// Return `true` when the game is currently in the mulligan phase.
+    pub fn is_in_mulligan(&self) -> bool {
+        self.mulligan_state.is_some()
+    }
+
+    /// Start the game with the mulligan phase enabled.
+    ///
+    /// This is identical to `start()` except:
+    /// 1. The game is placed in the mulligan phase (mulligan state is initialized).
+    /// 2. P2 (the non-starting player) automatically keeps with 0 mulligans.
+    /// 3. The game does NOT advance to Untap step until P1 completes their mulligan.
+    ///
+    /// Use this in the Bevy app. Use `start()` in tests that do not need the
+    /// mulligan phase.
+    ///
+    /// # Errors
+    ///
+    /// Same as `start()`.
+    pub fn start_with_mulligan(
+        &mut self,
+        starting_player_id: &str,
+        shuffle_seed: Option<u64>,
+    ) -> Result<(), crate::domain::errors::GameError> {
+        self.start(starting_player_id, shuffle_seed)?;
+
+        // Initialize mulligan state for all players.
+        let player_ids: Vec<String> = self
+            .players
+            .iter()
+            .map(|p| p.player_id.as_str().to_owned())
+            .collect();
+        let mut mulligan_state = MulliganState::new(player_ids);
+
+        // P2 (non-starting player) always keeps immediately with 0 mulligans.
+        for player in &self.players {
+            let id = player.player_id.as_str();
+            if id != starting_player_id {
+                if let Some(status) = mulligan_state.status_mut(id) {
+                    status.record_keep();
+                }
+            }
+        }
+
+        self.mulligan_state = Some(mulligan_state);
         Ok(())
     }
 

@@ -190,6 +190,24 @@ pub enum GameError {
 
     #[error("Invalid target: {reason}")]
     InvalidTarget { reason: String },
+
+    // ========================================================================
+    // Mulligan errors
+    // ========================================================================
+
+    #[error("Cannot perform mulligan actions: game is not in the mulligan phase")]
+    NotInMulliganPhase,
+
+    #[error("Player '{player_id}' has already kept their opening hand")]
+    PlayerAlreadyKept { player_id: PlayerId },
+
+    #[error("Player '{player_id}' has not kept yet — cannot put cards on the bottom")]
+    PlayerHasNotKeptYet { player_id: PlayerId },
+
+    #[error(
+        "Player '{player_id}' has no cards left to put on the bottom (put-back count is 0)"
+    )]
+    NoPutBackRequired { player_id: PlayerId },
 }
 
 impl GameError {
