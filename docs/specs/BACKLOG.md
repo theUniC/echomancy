@@ -16,10 +16,11 @@ This is the **single source of truth** for project status and prioritized work.
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Core Engine | Complete | Rust, 665+ tests, DDD architecture |
-| Bevy UI | Functional | Play lands, cast creatures, combat, game end |
-| Rules Engine | PoC done | CLIPS 6.4.2 via C FFI, architecture designed |
-| Playable Game | Partial | Lands + creatures + combat work. No spell effects, no AI, no networking |
+| Core Engine | Complete | Rust, 900+ tests, DDD architecture |
+| Bevy UI | Functional | Play lands, cast creatures/instants, combat, game end |
+| Rules Engine | Integrated | CLIPS 6.4.2 via C FFI, spell effects work |
+| Bot (P2) | Functional | Greedy bot: plays lands, casts, attacks. Replaces hotseat |
+| Playable Game | Single-player | P1 vs bot. Instant-speed responses, priority flow, combat keywords |
 | Tech Stack | Rust / Bevy 0.18 / CLIPS 6.4.2 | Single native binary |
 
 ---
@@ -59,7 +60,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 
 | # | Description | Status | Dependency | Notes |
 |---|-------------|--------|------------|-------|
-| G1 | Basic AI opponent (plays lands, casts creatures, attacks) | TODO | M5 | Single-player mode |
+| G1 | Basic AI opponent (plays lands, casts creatures, attacks) | DONE | M5 | Greedy bot replaces hotseat, P1 perspective fixed |
 | G2 | MTGJSON Oracle text → .clp auto-generation | TODO | M6 | ~25-30% of cards auto-generated |
 | G3 | P2P networking | TODO | G1 | Real multiplayer |
 | G4 | Deck builder | TODO | M6, G6 | Choose cards from MTGJSON catalog |
@@ -75,7 +76,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 | U3 | Exile zone | TODO | - | |
 | U4 | Card detail view (hover/click for full text) | TODO | - | |
 | U5 | Animations (card movement, damage, phase transitions) | TODO | - | |
-| U6 | Hotseat transition screen | TODO | - | "Pass to Player 2" overlay |
+| U6 | ~~Hotseat transition screen~~ | N/A | - | Superseded by G1 (bot replaces hotseat) |
 
 ---
 
@@ -112,9 +113,15 @@ Full migration from TypeScript/Next.js to Rust/Bevy.
 - Combat UI (declare attackers with red border, blockers with blue)
 - HUD panel (turn/step, priority, life totals, mana pool, hand/graveyard counts)
 - Pass Priority / End Turn buttons
-- Active player switching (perspective follows current player)
+- Bot-driven P2 (greedy AI: lands, mana, cast, attack)
+- Fixed P1 perspective (no more hotseat confusion)
+- HUD shows whose turn it is ("Player 2's Turn")
+- Instant-speed casting during opponent's turn
+- Target selection (creature/player targeting for damage spells)
+- Combat keywords: First Strike, Trample, Deathtouch, Lifelink
 - Game end overlay (YOU WIN / YOU LOSE / DRAW)
 - Error message display with humanized player names
+- Debug logging for auto-pass, priority, and legal actions
 
 ### Architecture Refactoring
 
@@ -138,15 +145,14 @@ Full migration from TypeScript/Next.js to Rust/Bevy.
 
 | Limitation | Reason | Resolved by |
 |------------|--------|-------------|
-| Spell effects are no-ops | No rules engine connected yet | M3 |
-| Triggered abilities don't execute | No CLIPS integration yet | M4 |
 | No continuous effects / layers | Not implemented | P4 |
 | 1 blocker per attacker | MVP simplification | Future |
-| Only player targets | No target selection system | P1 |
-| No priority before combat damage | Auto-advances through combat | P2 |
-| No AI opponent | Not implemented | G1 |
+| Bot doesn't block | MVP simplification | Future |
+| Bot targets opponent only | No creature targeting | Future |
+| No mulligan | Not implemented | G5 |
 | No networking | Not implemented | G3 |
-| 5 hardcoded cards | No card database | M6 |
+| No stack display in UI | Not implemented | U1 |
+| Auto-pass stops for potential plays even without valid targets | Conservative heuristic | Future (auto-yield) |
 
 ---
 
