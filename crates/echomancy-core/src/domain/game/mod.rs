@@ -107,6 +107,8 @@ pub(crate) struct GamePlayerState {
     pub(crate) graveyard: Vec<CardInstance>,
     /// Cards in library, index 0 = top.
     pub(crate) library: Vec<CardInstance>,
+    /// Cards in the exile zone.
+    pub(crate) exile: Vec<CardInstance>,
     /// The player's current mana pool.
     pub(crate) mana_pool: ManaPool,
 }
@@ -121,6 +123,7 @@ impl GamePlayerState {
             battlefield: Vec::new(),
             graveyard: Vec::new(),
             library: Vec::new(),
+            exile: Vec::new(),
             mana_pool: ManaPool::empty(),
         }
     }

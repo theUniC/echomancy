@@ -110,6 +110,7 @@ pub struct PlayerZonesExport {
     pub battlefield: ZoneExport,
     pub graveyard: ZoneExport,
     pub library: ZoneExport,
+    pub exile: ZoneExport,
 }
 
 /// Per-player state export.
@@ -242,6 +243,9 @@ pub(crate) trait ExportableGameContext {
     /// All cards in the given player's graveyard.
     fn graveyard_cards(&self, player_id: &str) -> &[CardInstance];
 
+    /// All cards in the given player's exile zone.
+    fn exile_cards(&self, player_id: &str) -> &[CardInstance];
+
     /// All cards in the given player's library, in order (top = index 0).
     fn library_cards(&self, player_id: &str) -> &[CardInstance];
 
@@ -290,6 +294,14 @@ pub(crate) fn export_game_state(ctx: &impl ExportableGameContext) -> GameStateEx
                 .collect(),
         };
 
+        let exile = ZoneExport {
+            cards: ctx
+                .exile_cards(player_id)
+                .iter()
+                .map(|c| export_card_instance(c, player_id, None))
+                .collect(),
+        };
+
         let library = ZoneExport {
             cards: ctx
                 .library_cards(player_id)
@@ -308,6 +320,7 @@ pub(crate) fn export_game_state(ctx: &impl ExportableGameContext) -> GameStateEx
                     hand,
                     battlefield,
                     graveyard,
+                    exile,
                     library,
                 },
             },

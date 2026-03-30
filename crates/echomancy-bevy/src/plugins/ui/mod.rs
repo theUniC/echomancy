@@ -8,9 +8,11 @@
 //! - `GameOverPlugin` — full-screen overlay when game ends (Phase F)
 //! - `StackPlugin` — center overlay showing the game stack (U1)
 //! - `GraveyardPlugin` — toggle overlay showing graveyard contents (U2)
+//! - `ExilePlugin` — toggle overlay showing exile zone contents (U3)
 
 pub(crate) mod battlefield;
 pub(crate) mod card;
+pub(crate) mod exile;
 pub(crate) mod game_over;
 pub(crate) mod graveyard;
 pub(crate) mod hand;
@@ -20,6 +22,7 @@ pub(crate) mod stack;
 
 use bevy::prelude::*;
 use battlefield::BattlefieldPlugin;
+use exile::ExilePlugin;
 use game_over::GameOverPlugin;
 use graveyard::GraveyardPlugin;
 use hand::HandPlugin;
@@ -40,6 +43,7 @@ impl Plugin for UiPlugin {
             GameOverPlugin,
             StackPlugin,
             GraveyardPlugin,
+            ExilePlugin,
         ));
     }
 }

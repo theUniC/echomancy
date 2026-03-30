@@ -29,6 +29,7 @@ use crate::plugins::game::{
     HumanPlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, PlayerIds,
     SnapshotChangedMessage, TargetSelectionState,
 };
+use crate::plugins::ui::exile::{ExileOpponentButton, ExilePlayerButton};
 use crate::plugins::ui::graveyard::{GraveyardOpponentButton, GraveyardPlayerButton};
 
 // ============================================================================
@@ -113,6 +114,14 @@ pub(crate) struct HudPlayerGraveyard;
 /// Marks the opponent graveyard count label.
 #[derive(Component)]
 pub(crate) struct HudOpponentGraveyard;
+
+/// Marks the player exile count label.
+#[derive(Component)]
+pub(crate) struct HudPlayerExile;
+
+/// Marks the opponent exile count label.
+#[derive(Component)]
+pub(crate) struct HudOpponentExile;
 
 /// Marks the mana pool label.
 #[derive(Component)]
@@ -440,6 +449,34 @@ pub(crate) fn spawn_hud(mut commands: Commands) {
                 TextColor(MUTED_COLOR),
             ));
 
+            // Player exile count (clickable — opens exile viewer)
+            panel.spawn((
+                HudPlayerExile,
+                ExilePlayerButton,
+                Button,
+                Interaction::default(),
+                Text::new("Your Exile: 0"),
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor(MUTED_COLOR),
+            ));
+
+            // Opponent exile count (clickable — opens exile viewer)
+            panel.spawn((
+                HudOpponentExile,
+                ExileOpponentButton,
+                Button,
+                Interaction::default(),
+                Text::new("Opp Exile: 0"),
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor(MUTED_COLOR),
+            ));
+
             // Separator
             panel.spawn((
                 Node {
@@ -641,12 +678,48 @@ type OppGraveyardQuery<'w, 's> = Query<
     ),
 >;
 
+type PlayerExileQuery<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut Text,
+    (
+        With<HudPlayerExile>,
+        Without<HudOpponentGraveyard>,
+        Without<HudPlayerGraveyard>,
+        Without<HudOpponentHandCount>,
+        Without<HudOpponentLife>,
+        Without<HudPlayerLife>,
+        Without<HudPriorityLabel>,
+        Without<HudTurnLabel>,
+        Without<HudActivePlayerLabel>,
+    ),
+>;
+type OppExileQuery<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut Text,
+    (
+        With<HudOpponentExile>,
+        Without<HudPlayerExile>,
+        Without<HudOpponentGraveyard>,
+        Without<HudPlayerGraveyard>,
+        Without<HudOpponentHandCount>,
+        Without<HudOpponentLife>,
+        Without<HudPlayerLife>,
+        Without<HudPriorityLabel>,
+        Without<HudTurnLabel>,
+        Without<HudActivePlayerLabel>,
+    ),
+>;
+
 type ManaPoolQuery<'w, 's> = Query<
     'w,
     's,
     &'static mut Text,
     (
         With<HudManaPool>,
+        Without<HudOpponentExile>,
+        Without<HudPlayerExile>,
         Without<HudOpponentGraveyard>,
         Without<HudPlayerGraveyard>,
         Without<HudOpponentHandCount>,
@@ -663,6 +736,9 @@ type ManaPoolQuery<'w, 's> = Query<
 // ============================================================================
 
 /// Update system: refresh all HUD text labels when the snapshot changes.
+///
+/// Zone counts (graveyard, exile) are handled by `update_hud_zone_counts` to
+/// stay within Bevy's system parameter tuple limit.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn update_hud(
     current_snapshot: Res<CurrentSnapshot>,
@@ -678,8 +754,6 @@ pub(crate) fn update_hud(
     mut player_life_q: PlayerLifeQuery,
     mut opponent_life_q: OpponentLifeQuery,
     mut opp_hand_q: OppHandQuery,
-    mut player_gy_q: PlayerGraveyardQuery,
-    mut opp_gy_q: OppGraveyardQuery,
     mut mana_pool_q: ManaPoolQuery,
 ) {
     if snapshot_changed.read().count() == 0 {
@@ -752,18 +826,47 @@ pub(crate) fn update_hud(
         if let Ok(mut text) = opp_hand_q.single_mut() {
             *text = Text::new(format!("Opp Hand: {} card(s)", opponent.hand_size));
         }
-        if let Ok(mut text) = opp_gy_q.single_mut() {
-            *text = Text::new(format!("Opp GY: {}", opponent.graveyard.len()));
-        }
-    }
-
-    if let Ok(mut text) = player_gy_q.single_mut() {
-        *text = Text::new(format!("Your GY: {}", priv_state.graveyard.len()));
     }
 
     // Mana pool
     if let Ok(mut text) = mana_pool_q.single_mut() {
         *text = Text::new(format_mana_pool(&priv_state.mana_pool));
+    }
+}
+
+/// Update system: refresh graveyard and exile counts in the HUD when the snapshot changes.
+///
+/// Separated from `update_hud` to stay within Bevy's system parameter limit.
+pub(crate) fn update_hud_zone_counts(
+    current_snapshot: Res<CurrentSnapshot>,
+    mut snapshot_changed: MessageReader<SnapshotChangedMessage>,
+    mut player_gy_q: PlayerGraveyardQuery,
+    mut opp_gy_q: OppGraveyardQuery,
+    mut player_exile_q: PlayerExileQuery,
+    mut opp_exile_q: OppExileQuery,
+) {
+    if snapshot_changed.read().count() == 0 {
+        return;
+    }
+
+    let snapshot = &current_snapshot.snapshot;
+    let priv_state = &snapshot.private_player_state;
+
+    if let Ok(mut text) = player_gy_q.single_mut() {
+        *text = Text::new(format!("Your GY: {}", priv_state.graveyard.len()));
+    }
+
+    if let Some(opponent) = snapshot.opponent_states.first() {
+        if let Ok(mut text) = opp_gy_q.single_mut() {
+            *text = Text::new(format!("Opp GY: {}", opponent.graveyard.len()));
+        }
+        if let Ok(mut text) = opp_exile_q.single_mut() {
+            *text = Text::new(format!("Opp Exile: {}", opponent.exile.len()));
+        }
+    }
+
+    if let Ok(mut text) = player_exile_q.single_mut() {
+        *text = Text::new(format!("Your Exile: {}", priv_state.exile.len()));
     }
 }
 
@@ -925,6 +1028,7 @@ impl Plugin for HudPlugin {
                 Update,
                 (
                     update_hud,
+                    update_hud_zone_counts,
                     update_error_display,
                     update_targeting_display,
                     handle_pass_priority_click,

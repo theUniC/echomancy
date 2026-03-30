@@ -143,6 +143,79 @@ impl Game {
         Ok(vec![event])
     }
 
+    /// Move a permanent from any battlefield to its owner's exile zone.
+    ///
+    /// Cleans up permanent state. Use this for effects like Path to Exile or
+    /// Swords to Plowshares.
+    pub(crate) fn move_permanent_to_exile(
+        &mut self,
+        permanent_id: &str,
+    ) -> Result<Vec<GameEvent>, GameError> {
+        // Find which player controls this permanent.
+        let (controller_id, card_idx) = {
+            let mut found = None;
+            for player in &self.players {
+                if let Some(idx) = player
+                    .battlefield
+                    .iter()
+                    .position(|c| c.instance_id() == permanent_id)
+                {
+                    found = Some((player.player_id.as_str().to_owned(), idx));
+                    break;
+                }
+            }
+            found.ok_or_else(|| GameError::PermanentNotFound {
+                permanent_id: CardInstanceId::new(permanent_id),
+            })?
+        };
+
+        // Build the event snapshot while the card is still on the battlefield.
+        let (snapshot, owner_id) = {
+            let player = self
+                .players
+                .iter()
+                .find(|p| p.player_id.as_str() == controller_id)
+                .ok_or_else(|| GameError::PlayerNotFound {
+                    player_id: PlayerId::new(&controller_id),
+                })?;
+            let card = &player.battlefield[card_idx];
+            let snap = CardInstanceSnapshot {
+                instance_id: CardInstanceId::new(card.instance_id()),
+                definition_id: CardDefinitionId::new(card.definition().id()),
+                owner_id: PlayerId::new(card.owner_id()),
+            };
+            (snap, card.owner_id().to_owned())
+        };
+
+        let event = GameEvent::ZoneChanged {
+            card: snapshot,
+            from_zone: ZoneName::Battlefield,
+            to_zone: ZoneName::Exile,
+            controller_id: PlayerId::new(&controller_id),
+        };
+
+        // Collect triggers while the source permanent is still on the battlefield.
+        let triggered = self.collect_triggered_abilities(&event);
+
+        // Perform the zone change.
+        let card = {
+            let player = self.player_state_mut(&controller_id)?;
+            player.battlefield.remove(card_idx)
+        };
+
+        // Clean up permanent state.
+        self.permanent_states.remove(permanent_id);
+
+        // Add to owner's exile zone.
+        if let Ok(owner) = self.player_state_mut(&owner_id) {
+            owner.exile.push(card);
+        }
+
+        self.execute_triggered_abilities(triggered);
+
+        Ok(vec![event])
+    }
+
     /// Tap a permanent.
     pub(crate) fn tap_permanent(&mut self, permanent_id: &str) -> Result<(), GameError> {
         let state = self.permanent_states.get(permanent_id).ok_or_else(|| {
@@ -178,5 +251,82 @@ impl Game {
     #[allow(dead_code)]
     pub(crate) fn remove_permanent_state(&mut self, permanent_id: &str) {
         self.permanent_states.remove(permanent_id);
+    }
+}
+
+// ============================================================================
+// Tests for exile zone
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
+
+    #[test]
+    fn exile_starts_empty() {
+        let (game, p1, _p2) = make_game_in_first_main();
+        assert_eq!(
+            game.exile(&p1).expect("player should exist").len(),
+            0,
+            "exile zone should be empty at game start"
+        );
+    }
+
+    #[test]
+    fn exile_accessor_returns_exiled_cards() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let card = CardInstance::new("bear-1", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        game.move_permanent_to_exile("bear-1")
+            .expect("exile should succeed");
+
+        let exile = game.exile(&p1).expect("player should exist");
+        assert_eq!(exile.len(), 1);
+        assert_eq!(exile[0].instance_id(), "bear-1");
+    }
+
+    #[test]
+    fn move_permanent_to_exile_removes_from_battlefield() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let card = CardInstance::new("bear-1", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        assert_eq!(game.battlefield(&p1).unwrap().len(), 1);
+
+        game.move_permanent_to_exile("bear-1")
+            .expect("exile should succeed");
+
+        assert_eq!(
+            game.battlefield(&p1).unwrap().len(),
+            0,
+            "battlefield should be empty after exile"
+        );
+        assert_eq!(
+            game.exile(&p1).unwrap().len(),
+            1,
+            "exile should have the card"
+        );
+    }
+
+    #[test]
+    fn move_permanent_to_exile_unknown_id_returns_error() {
+        let (mut game, _p1, _p2) = make_game_in_first_main();
+        let result = game.move_permanent_to_exile("nonexistent-999");
+        assert!(result.is_err(), "should fail for unknown permanent id");
     }
 }

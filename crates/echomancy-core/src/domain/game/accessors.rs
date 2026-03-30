@@ -91,6 +91,11 @@ impl Game {
         self.player_state(player_id).map(|p| p.graveyard.as_slice())
     }
 
+    /// All cards in a player's exile zone (read-only slice).
+    pub fn exile(&self, player_id: &str) -> Result<&[CardInstance], GameError> {
+        self.player_state(player_id).map(|p| p.exile.as_slice())
+    }
+
     /// Number of cards in a player's library.
     pub fn library_count(&self, player_id: &str) -> Result<usize, GameError> {
         self.player_state(player_id).map(|p| p.library.len())

@@ -202,6 +202,10 @@ impl Game {
                     let _ = self.add_mana_to_pool(player, mana_color, *amount);
                 }
             }
+            RulesAction::Exile { target } => {
+                // Ignore if the permanent no longer exists.
+                let _ = self.move_permanent_to_exile(target);
+            }
             // Stubs for M3: log but don't crash
             RulesAction::MoveZone { .. }
             | RulesAction::AddCounter { .. }

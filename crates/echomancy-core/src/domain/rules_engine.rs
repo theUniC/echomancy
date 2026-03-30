@@ -84,6 +84,8 @@ pub enum RulesAction {
         types: Vec<String>,
         keywords: Vec<String>,
     },
+    /// Exile a permanent (move it from the battlefield to exile).
+    Exile { target: String },
 }
 
 // ============================================================================

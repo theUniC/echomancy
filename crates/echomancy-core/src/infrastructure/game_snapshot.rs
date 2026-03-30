@@ -246,6 +246,7 @@ pub fn create_game_snapshot(
     let viewer_hand = map_zone(&viewer_state.zones.hand.cards, registry, state);
     let viewer_battlefield = map_zone(&viewer_state.zones.battlefield.cards, registry, state);
     let viewer_graveyard = map_zone(&viewer_state.zones.graveyard.cards, registry, state);
+    let viewer_exile = map_zone(&viewer_state.zones.exile.cards, registry, state);
 
     // ---- Opponent states ----
     let mut opponent_states = Vec::new();
@@ -256,6 +257,7 @@ pub fn create_game_snapshot(
 
         let battlefield = map_zone(&player_state.zones.battlefield.cards, registry, state);
         let graveyard = map_zone(&player_state.zones.graveyard.cards, registry, state);
+        let exile = map_zone(&player_state.zones.exile.cards, registry, state);
 
         opponent_states.push(OpponentState {
             player_id: player_id.clone(),
@@ -265,7 +267,7 @@ pub fn create_game_snapshot(
             hand_size: player_state.zones.hand.cards.len(),
             battlefield,
             graveyard,
-            exile: Vec::new(),
+            exile,
         });
     }
 
@@ -295,7 +297,7 @@ pub fn create_game_snapshot(
         hand: viewer_hand,
         battlefield: viewer_battlefield,
         graveyard: viewer_graveyard,
-        exile: Vec::new(),
+        exile: viewer_exile,
     };
 
     // ---- Stack snapshot ----

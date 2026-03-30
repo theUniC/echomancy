@@ -111,6 +111,14 @@ impl ExportableGameContext for Game {
             .unwrap_or(&[])
     }
 
+    fn exile_cards(&self, player_id: &str) -> &[CardInstance] {
+        self.players
+            .iter()
+            .find(|p| p.player_id.as_str() == player_id)
+            .map(|p| p.exile.as_slice())
+            .unwrap_or(&[])
+    }
+
     fn library_cards(&self, player_id: &str) -> &[CardInstance] {
         self.players
             .iter()
