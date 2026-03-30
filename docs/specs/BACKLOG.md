@@ -64,7 +64,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 | G2 | MTGJSON Oracle text → .clp auto-generation | TODO | M6 | ~25-30% of cards auto-generated |
 | G3 | P2P networking | TODO | G1 | Real multiplayer |
 | G4 | Deck builder | TODO | M6, G6 | Choose cards from MTGJSON catalog |
-| G5 | Mulligan system | TODO | - | Vancouver/London mulligan |
+| G5 | Mulligan system | DONE | - | Vancouver mulligan with put-back |
 | G6 | Build-time card catalog pre-compilation | TODO | M6 | `build.rs` or CLI to convert AtomicCards.json → binary format, avoid parsing 100MB JSON at every startup |
 
 ### Phase 4: UI Polish
