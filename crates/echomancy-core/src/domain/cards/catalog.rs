@@ -118,6 +118,7 @@ pub fn giant_growth() -> CardDefinition {
     let cost = ManaCost::parse("G").expect("giant growth mana cost is valid");
     CardDefinition::new("giant-growth", "Giant Growth", vec![CardType::Instant])
         .with_mana_cost(cost)
+        .with_target_requirement(TargetRequirement::Creature)
 }
 
 /// Return the `Lightning Strike` instant definition.

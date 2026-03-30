@@ -8,6 +8,7 @@
 
 use echomancy_core::prelude::*;
 use echomancy_core::domain::game::automation::{auto_advance_to_main_phase, auto_resolve_stack};
+use echomancy_core::domain::targets::Target;
 
 // ============================================================================
 // Setup helper
@@ -318,16 +319,33 @@ fn spell_without_clips_rule_is_noop() {
     let growth = CardInstance::new("growth-1", catalog::giant_growth(), &p1);
     game.add_card_to_hand(&p1, growth).unwrap();
 
+    // Put a creature on P1's battlefield so Giant Growth has a valid target.
+    let bear = CardInstance::new("bear-target", catalog::bear(), &p1);
+    game.add_card_to_hand(&p1, bear).unwrap();
+    game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+    game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+    game.apply(Action::CastSpell {
+        player_id: PlayerId::new(&p1),
+        card_id: CardInstanceId::new("bear-target"),
+        targets: vec![],
+    }).unwrap();
+    auto_resolve_stack(&mut game);
+    assert!(game.battlefield(&p1).unwrap().iter().any(|c| c.instance_id() == "bear-target"));
+
+    // Re-add mana for Giant Growth
+    game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+
+    // Capture state AFTER bear is on BF, BEFORE Giant Growth
     let p1_life_before = game.player_life_total(&p1).unwrap();
     let p2_life_before = game.player_life_total(&p2).unwrap();
     let p1_battlefield_before = game.battlefield(&p1).unwrap().len();
     let p2_battlefield_before = game.battlefield(&p2).unwrap().len();
 
-    // Cast Giant Growth (no target — it has TargetRequirement::None in the catalog).
+    // Cast Giant Growth targeting the bear.
     game.apply(Action::CastSpell {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("growth-1"),
-        targets: vec![],
+        targets: vec![Target::creature("bear-target")],
     })
     .expect("P1 should be able to cast Giant Growth");
 
