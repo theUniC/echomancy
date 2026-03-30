@@ -12,6 +12,7 @@ pub use crate::infrastructure::game_snapshot::{
 
 // Domain — game aggregate
 pub use crate::domain::game::Game;
+pub use crate::domain::game::bot::run_bot_turn;
 
 // Domain — export types
 pub use crate::infrastructure::game_state_export::{

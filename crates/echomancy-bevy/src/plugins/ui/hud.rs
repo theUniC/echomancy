@@ -26,7 +26,7 @@ use bevy::prelude::*;
 use echomancy_core::prelude::{Action, CardInstanceId, PlayerId, Step, Target};
 
 use crate::plugins::game::{
-    ActivePlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, PlayerIds,
+    HumanPlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, PlayerIds,
     SnapshotChangedMessage, TargetSelectionState,
 };
 
@@ -180,9 +180,14 @@ pub(crate) fn has_priority(priority_player_id: Option<&str>, active_player_id: &
 
 /// Format the turn-info label shown at the top of the HUD.
 ///
-/// Example: `"Turn 3 — First Main"`
-pub(crate) fn format_turn_label(turn_number: u32, step: Step) -> String {
-    format!("Turn {} \u{2014} {}", turn_number, step_display_name(step))
+/// Example: `"Turn 3 — First Main\nPlayer 2's Turn"`
+pub(crate) fn format_turn_label(turn_number: u32, step: Step, active_player_name: &str) -> String {
+    format!(
+        "Turn {} \u{2014} {}\n{}'s Turn",
+        turn_number,
+        step_display_name(step),
+        active_player_name,
+    )
 }
 
 /// Format the "Playing as" label shown in the HUD.
@@ -654,7 +659,7 @@ type ManaPoolQuery<'w, 's> = Query<
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn update_hud(
     current_snapshot: Res<CurrentSnapshot>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     player_ids: Res<PlayerIds>,
     mut snapshot_changed: MessageReader<SnapshotChangedMessage>,
     mut active_player_label_q: ActivePlayerLabelQuery,
@@ -685,9 +690,14 @@ pub(crate) fn update_hud(
         *text = Text::new(format_active_player_label(name));
     }
 
-    // Turn label
+    // Turn label — includes whose turn it is so the player knows
     if let Ok(mut text) = turn_label_q.single_mut() {
-        *text = Text::new(format_turn_label(pub_state.turn_number, pub_state.current_step));
+        let active_name = player_ids.name_for(&pub_state.active_player_id);
+        *text = Text::new(format_turn_label(
+            pub_state.turn_number,
+            pub_state.current_step,
+            active_name,
+        ));
     }
 
     // Priority
@@ -815,7 +825,7 @@ pub(crate) fn handle_cancel_target_click(
 /// The opponent is the player who is NOT the active player (the one controlling the UI).
 pub(crate) fn handle_target_opponent_click(
     query: Query<&Interaction, (Changed<Interaction>, With<TargetOpponentButton>)>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     player_ids: Res<PlayerIds>,
     mut target_selection: ResMut<TargetSelectionState>,
     mut action_writer: MessageWriter<GameActionMessage>,
@@ -847,7 +857,7 @@ pub(crate) fn handle_target_opponent_click(
 pub(crate) fn handle_pass_priority_click(
     query: Query<&Interaction, (Changed<Interaction>, With<PassPriorityButton>)>,
     current_snapshot: Res<CurrentSnapshot>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     mut action_writer: MessageWriter<GameActionMessage>,
 ) {
     for interaction in &query {
@@ -873,7 +883,7 @@ pub(crate) fn handle_pass_priority_click(
 pub(crate) fn handle_end_turn_click(
     query: Query<&Interaction, (Changed<Interaction>, With<EndTurnButton>)>,
     current_snapshot: Res<CurrentSnapshot>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     mut action_writer: MessageWriter<GameActionMessage>,
 ) {
     for interaction in &query {
@@ -1017,25 +1027,29 @@ mod tests {
 
     #[test]
     fn format_turn_label_first_turn_untap() {
-        let label = format_turn_label(1, Step::Untap);
-        assert_eq!(label, "Turn 1 \u{2014} Untap");
+        let label = format_turn_label(1, Step::Untap, "Alice");
+        assert!(label.contains("Turn 1"));
+        assert!(label.contains("Untap"));
+        assert!(label.contains("Alice's Turn"));
     }
 
     #[test]
     fn format_turn_label_third_turn_first_main() {
-        let label = format_turn_label(3, Step::FirstMain);
-        assert_eq!(label, "Turn 3 \u{2014} First Main");
+        let label = format_turn_label(3, Step::FirstMain, "Bob");
+        assert!(label.contains("Turn 3"));
+        assert!(label.contains("First Main"));
+        assert!(label.contains("Bob's Turn"));
     }
 
     #[test]
     fn format_turn_label_contains_turn_number() {
-        let label = format_turn_label(7, Step::Draw);
+        let label = format_turn_label(7, Step::Draw, "Alice");
         assert!(label.contains("7"), "Label should contain the turn number");
     }
 
     #[test]
     fn format_turn_label_contains_step_name() {
-        let label = format_turn_label(1, Step::CombatDamage);
+        let label = format_turn_label(1, Step::CombatDamage, "Alice");
         assert!(
             label.contains("Combat Damage"),
             "Label should contain the step name"

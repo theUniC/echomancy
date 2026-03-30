@@ -6,6 +6,8 @@
 //! the domain model owns all the rules about which steps require player
 //! interaction and which can be skipped automatically.
 
+use tracing::debug;
+
 use crate::domain::actions::Action;
 use crate::domain::enums::Step;
 use crate::domain::types::PlayerId;
@@ -100,18 +102,33 @@ pub fn auto_resolve_stack(game: &mut Game) {
 /// Returns the number of auto-passes performed.
 pub fn run_auto_pass_loop(game: &mut Game) -> u32 {
     let mut count = 0u32;
-    for _ in 0..50 {
+    debug!(
+        step = ?game.current_step(),
+        active = %game.current_player_id(),
+        priority = ?game.priority_player_id(),
+        stack = game.stack().len(),
+        turn = game.turn_number(),
+        "auto_pass_loop: START"
+    );
+    for iteration in 0..50 {
         let step = game.current_step();
 
         // Untap and Cleanup: no priority, force advance
         if step == Step::Untap || step == Step::Cleanup {
             let active = game.current_player_id().to_owned();
+            debug!(
+                iteration,
+                ?step,
+                active = %active,
+                "auto_pass_loop: force-advance non-interactive"
+            );
             if game
                 .apply(Action::AdvanceStep {
                     player_id: PlayerId::new(&active),
                 })
                 .is_err()
             {
+                debug!(iteration, "auto_pass_loop: AdvanceStep failed, breaking");
                 break;
             }
             count += 1;
@@ -121,25 +138,55 @@ pub fn run_auto_pass_loop(game: &mut Game) -> u32 {
         // Need a priority holder to pass
         let holder = match game.priority_player_id() {
             Some(id) => id.to_owned(),
-            None => break,
+            None => {
+                debug!(
+                    iteration,
+                    ?step,
+                    "auto_pass_loop: no priority holder, breaking"
+                );
+                break;
+            }
         };
 
         // Stop if the player has meaningful actions available
         if !compute_auto_pass_eligible(game, &holder) {
+            debug!(
+                iteration,
+                ?step,
+                holder = %holder,
+                "auto_pass_loop: STOP — player has actions"
+            );
             break;
         }
 
         // Auto-pass
+        debug!(
+            iteration,
+            ?step,
+            holder = %holder,
+            active = %game.current_player_id(),
+            stack = game.stack().len(),
+            "auto_pass_loop: auto-passing"
+        );
         if game
             .apply(Action::PassPriority {
                 player_id: PlayerId::new(&holder),
             })
             .is_err()
         {
+            debug!(iteration, "auto_pass_loop: PassPriority failed, breaking");
             break;
         }
         count += 1;
     }
+    debug!(
+        count,
+        step = ?game.current_step(),
+        active = %game.current_player_id(),
+        priority = ?game.priority_player_id(),
+        turn = game.turn_number(),
+        "auto_pass_loop: END"
+    );
     count
 }
 
@@ -483,6 +530,166 @@ mod tests {
         assert!(game.stack_has_items(), "Bear should still be on stack");
         assert_eq!(game.priority_player_id(), Some(p2.as_str()),
             "P2 should have priority — has instant to respond with");
+    }
+
+    // ---- opponent-turn instant response (the P2 bug scenario) ---------------
+
+    /// Regression test: P1 has untapped Forest on BF + Giant Growth (instant) in
+    /// hand during P2's turn. When P2 casts a creature, run_auto_pass_loop should
+    /// stop with P1 holding priority so they can respond, NOT auto-pass P1.
+    #[test]
+    fn auto_pass_loop_stops_for_opponent_with_tappable_land_and_instant_on_their_turn() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::cards::catalog;
+        use crate::domain::enums::{CardType, ManaColor};
+        use crate::domain::game::test_helpers::{add_card_to_hand, add_permanent_to_battlefield};
+        use crate::domain::types::CardInstanceId;
+        use crate::domain::value_objects::mana::ManaCost;
+
+        let (mut game, p1, p2) = make_started_game();
+        advance_to_first_main(&mut game);
+
+        // Put an untapped Forest on P1's battlefield (mana source)
+        let forest = CardInstance::new("forest-bf", catalog::forest(), &p1);
+        add_permanent_to_battlefield(&mut game, &p1, forest);
+
+        // Ensure P1 has a Giant Growth (instant, costs G) in hand
+        let gg = CardInstance::new(
+            "gg-test",
+            CardDefinition::new("giant-growth", "Giant Growth", vec![CardType::Instant])
+                .with_mana_cost(ManaCost::parse("G").unwrap()),
+            &p1,
+        );
+        add_card_to_hand(&mut game, &p1, gg);
+
+        // P1 ends turn → advances to P2's FirstMain
+        game.apply(Action::EndTurn {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        run_auto_pass_loop(&mut game);
+
+        assert_eq!(game.current_player_id(), p2.as_str(), "Should be P2's turn");
+        assert_eq!(game.current_step(), Step::FirstMain, "P2 at FirstMain");
+
+        // Verify P1's Forest is still on BF and untapped
+        let bf = game.battlefield(&p1).unwrap();
+        assert!(
+            bf.iter().any(|c| c.instance_id() == "forest-bf"),
+            "P1 should still have Forest on battlefield"
+        );
+        let forest_state = game.permanent_state("forest-bf").unwrap();
+        assert!(!forest_state.is_tapped(), "Forest should be untapped");
+
+        // P2 casts a Goblin
+        let goblin = CardInstance::new(
+            "goblin-test",
+            CardDefinition::new("goblin", "Goblin", vec![CardType::Creature])
+                .with_power_toughness(1, 1)
+                .with_mana_cost(ManaCost::parse("R").unwrap()),
+            &p2,
+        );
+        add_card_to_hand(&mut game, &p2, goblin);
+        game.add_mana(&p2, ManaColor::Red, 1).unwrap();
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p2),
+            card_id: CardInstanceId::new("goblin-test"),
+            targets: vec![],
+        })
+        .unwrap();
+
+        // P2 retains priority after cast (CR 117.3c)
+        assert_eq!(game.priority_player_id(), Some(p2.as_str()));
+        assert!(game.stack_has_items(), "Goblin should be on stack");
+
+        // Auto-pass: P2 should pass (no more actions), P1 should get priority
+        // and NOT auto-pass because P1 can tap Forest → cast Giant Growth.
+        let count = run_auto_pass_loop(&mut game);
+
+        assert!(
+            game.stack_has_items(),
+            "Goblin should still be on stack (auto_passes={})",
+            count
+        );
+        assert_eq!(
+            game.priority_player_id(),
+            Some(p1.as_str()),
+            "P1 should have priority — has Forest + Giant Growth to respond (auto_passes={})",
+            count
+        );
+    }
+
+    /// Direct unit test: compute_auto_pass_eligible returns false when the
+    /// opponent has an untapped mana source + instant in hand.
+    #[test]
+    fn compute_auto_pass_eligible_false_for_opponent_with_tappable_land_and_instant() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::cards::catalog;
+        use crate::domain::enums::{CardType, ManaColor};
+        use crate::domain::game::test_helpers::{add_card_to_hand, add_permanent_to_battlefield};
+        use crate::domain::types::CardInstanceId;
+        use crate::domain::value_objects::mana::ManaCost;
+
+        let (mut game, p1, p2) = make_started_game();
+        advance_to_first_main(&mut game);
+
+        // Put an untapped Forest on P1's battlefield
+        let forest = CardInstance::new("forest-bf", catalog::forest(), &p1);
+        add_permanent_to_battlefield(&mut game, &p1, forest);
+
+        // Add Giant Growth to P1's hand
+        let gg = CardInstance::new(
+            "gg-test",
+            CardDefinition::new("giant-growth", "Giant Growth", vec![CardType::Instant])
+                .with_mana_cost(ManaCost::parse("G").unwrap()),
+            &p1,
+        );
+        add_card_to_hand(&mut game, &p1, gg);
+
+        // P1 ends turn → P2's FirstMain
+        game.apply(Action::EndTurn {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        run_auto_pass_loop(&mut game);
+
+        // P2 casts Goblin
+        let goblin = CardInstance::new(
+            "goblin-test",
+            CardDefinition::new("goblin", "Goblin", vec![CardType::Creature])
+                .with_power_toughness(1, 1)
+                .with_mana_cost(ManaCost::parse("R").unwrap()),
+            &p2,
+        );
+        add_card_to_hand(&mut game, &p2, goblin);
+        game.add_mana(&p2, ManaColor::Red, 1).unwrap();
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p2),
+            card_id: CardInstanceId::new("goblin-test"),
+            targets: vec![],
+        })
+        .unwrap();
+
+        // Manually pass P2's priority so P1 gets it
+        game.apply(Action::PassPriority {
+            player_id: PlayerId::new(&p2),
+        })
+        .unwrap();
+
+        // P1 should now have priority
+        assert_eq!(game.priority_player_id(), Some(p1.as_str()));
+        assert!(game.stack_has_items());
+
+        // Key assertion: P1 has untapped Forest + Giant Growth (instant)
+        // → should NOT be eligible for auto-pass
+        assert!(
+            !compute_auto_pass_eligible(&game, &p1),
+            "P1 has untapped Forest + Giant Growth (instant) — must NOT auto-pass"
+        );
     }
 
     // ---- auto_resolve_stack ------------------------------------------------

@@ -23,7 +23,7 @@ use echomancy_core::prelude::{Action, CardInstanceId, PlayerId, Target};
 
 use super::card::{CardSpawnData, CARD_GAP, spawn_card_with_tappable};
 use super::hand::HandRoot;
-use crate::plugins::game::{ActivePlayerId, CurrentSnapshot, GameActionMessage, PlayableCards, SnapshotChangedMessage, TargetSelectionState};
+use crate::plugins::game::{HumanPlayerId, CurrentSnapshot, GameActionMessage, PlayableCards, SnapshotChangedMessage, TargetSelectionState};
 
 // ============================================================================
 // Marker components
@@ -417,7 +417,7 @@ pub(crate) fn rebuild_battlefields(
 /// Click handler: detect clicks on `TappableLand` buttons and send `ActivateAbility`.
 pub(crate) fn handle_battlefield_land_click(
     query: Query<(&Interaction, &TappableLand), Changed<Interaction>>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     mut action_writer: MessageWriter<GameActionMessage>,
 ) {
     for (interaction, tappable) in &query {
@@ -433,7 +433,7 @@ pub(crate) fn handle_battlefield_land_click(
 /// Click handler: detect clicks on `AttackableCreature` buttons and send `DeclareAttacker`.
 pub(crate) fn handle_attacker_click(
     query: Query<(&Interaction, &AttackableCreature), Changed<Interaction>>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     mut action_writer: MessageWriter<GameActionMessage>,
 ) {
     for (interaction, attackable) in &query {
@@ -452,7 +452,7 @@ pub(crate) fn handle_attacker_click(
 /// the chosen target, and clears the pending state.
 pub(crate) fn handle_valid_target_click(
     query: Query<(&Interaction, &ValidTarget), Changed<Interaction>>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     mut target_selection: ResMut<TargetSelectionState>,
     mut action_writer: MessageWriter<GameActionMessage>,
 ) {
@@ -477,7 +477,7 @@ pub(crate) fn handle_valid_target_click(
 /// on the opponent's battlefield. This avoids needing a two-click targeting UI.
 pub(crate) fn handle_blocker_click(
     query: Query<(&Interaction, &BlockableCreature), Changed<Interaction>>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     current_snapshot: Res<CurrentSnapshot>,
     mut action_writer: MessageWriter<GameActionMessage>,
 ) {

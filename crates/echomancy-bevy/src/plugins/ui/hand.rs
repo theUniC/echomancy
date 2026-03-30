@@ -17,7 +17,7 @@ use bevy::prelude::*;
 use echomancy_core::prelude::{Action, CardInstanceId, PlayerId};
 
 use super::card::{CARD_BORDER, CARD_HEIGHT, CARD_WIDTH, CardNode, card_background_color, card_border_color, card_pt_text, card_type_line};
-use crate::plugins::game::{ActivePlayerId, CurrentSnapshot, GameActionMessage, PendingSpell, PlayableCards, SnapshotChangedMessage, TargetSelectionState};
+use crate::plugins::game::{HumanPlayerId, CurrentSnapshot, GameActionMessage, PendingSpell, PlayableCards, SnapshotChangedMessage, TargetSelectionState};
 
 // ============================================================================
 // Constants
@@ -240,7 +240,7 @@ pub(crate) fn rebuild_hand(
 /// automatically. Only `Interaction::Pressed` triggers an action.
 pub(crate) fn handle_card_clicks(
     query: Query<(&Interaction, &PlayableCard), Changed<Interaction>>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     mut action_writer: MessageWriter<GameActionMessage>,
 ) {
     for (interaction, playable) in &query {
@@ -262,7 +262,7 @@ pub(crate) fn handle_card_clicks(
 /// Only `Interaction::Pressed` triggers an action.
 pub(crate) fn handle_castable_spell_clicks(
     query: Query<(&Interaction, &CastableSpell), Changed<Interaction>>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     playable_cards: Res<PlayableCards>,
     current_snapshot: Res<CurrentSnapshot>,
     mut target_selection: ResMut<TargetSelectionState>,

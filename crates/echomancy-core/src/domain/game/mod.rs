@@ -24,6 +24,7 @@ mod accessors;
 mod activate_ability;
 mod advance_step;
 pub mod automation;
+pub mod bot;
 mod cast_spell;
 mod declare_attacker;
 mod declare_blocker;

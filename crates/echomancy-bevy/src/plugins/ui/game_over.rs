@@ -17,7 +17,7 @@
 use bevy::prelude::*;
 use echomancy_core::prelude::{GameLifecycleState, GameOutcomeExport};
 
-use crate::plugins::game::{ActivePlayerId, CurrentSnapshot, SnapshotChangedMessage};
+use crate::plugins::game::{HumanPlayerId, CurrentSnapshot, SnapshotChangedMessage};
 
 // ============================================================================
 // Constants
@@ -96,7 +96,7 @@ pub(crate) fn game_over_display(
 /// finished.  De-duplicated: if an overlay already exists, nothing is added.
 pub(crate) fn spawn_game_over_overlay(
     current_snapshot: Res<CurrentSnapshot>,
-    active_player: Res<ActivePlayerId>,
+    active_player: Res<HumanPlayerId>,
     mut snapshot_changed: MessageReader<SnapshotChangedMessage>,
     existing_overlay: Query<(), With<GameOverOverlay>>,
     mut commands: Commands,

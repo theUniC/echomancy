@@ -11,10 +11,27 @@ use echomancy_core::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    ActivePlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, GameState, PlayableCards,
+    HumanPlayerId, CurrentSnapshot, ErrorMessage, GameActionMessage, GameState, PlayableCards,
     PlayerIds, PlayerInfo, SnapshotChangedMessage, TargetSelectionState,
 };
-use super::snapshot::{compute_snapshot, humanize_error, resolve_ui_player_id};
+use super::snapshot::{compute_snapshot, humanize_error};
+
+/// Run the bot stabilization loop: while P2 holds priority, let the bot act
+/// and then run auto-pass.  Repeats up to `max_rounds` times.
+fn run_bot_stabilization(game: &mut Game, p2_id: &str, max_rounds: usize) {
+    for _ in 0..max_rounds {
+        if game.priority_player_id() != Some(p2_id)
+            && game.current_player_id() != p2_id
+        {
+            break;
+        }
+        if game.priority_player_id() != Some(p2_id) {
+            break;
+        }
+        run_bot_turn(game, p2_id);
+        run_auto_pass_loop(game);
+    }
+}
 
 // ============================================================================
 // Startup systems
@@ -57,6 +74,8 @@ pub(crate) fn setup_game(mut commands: Commands) {
 
     // Auto-advance to FirstMain using the same loop the game uses after every action.
     run_auto_pass_loop(&mut game);
+    // If P2 acts first (unusual), let the bot handle it.
+    run_bot_stabilization(&mut game, &p2_id, 10);
 
     let (snapshot, playable_cards) =
         compute_snapshot(&game, &p1_id).expect("initial snapshot");
@@ -73,7 +92,7 @@ pub(crate) fn setup_game(mut commands: Commands) {
         p1: PlayerInfo { id: p1_id.clone(), name: p1_name },
         p2: PlayerInfo { id: p2_id.clone(), name: p2_name },
     });
-    commands.insert_resource(ActivePlayerId {
+    commands.insert_resource(HumanPlayerId {
         player_id: p1_id.clone(),
     });
     commands.insert_resource(GameState { game });
@@ -104,16 +123,13 @@ pub(crate) fn setup_camera(mut commands: Commands) {
 /// Update system: drain `GameActionMessage`s, apply each to the domain game,
 /// recompute the snapshot, and send `SnapshotChangedMessage`.
 ///
-/// After each action, checks whether the active player has changed (e.g.,
-/// after `EndTurn`) and updates `ActivePlayerId` accordingly so the UI always
-/// shows the perspective of the player whose turn it currently is.
+/// The UI perspective is always P1 — P2 is driven by the bot. After each
+/// action, if P2 gains priority the bot stabilization loop runs automatically.
 ///
 /// On success, clears `ErrorMessage`. On failure, stores the error string in
 /// `ErrorMessage` so the HUD can display it.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_game_actions(
     mut game_state: ResMut<GameState>,
-    mut active_player: ResMut<ActivePlayerId>,
     mut action_messages: MessageReader<GameActionMessage>,
     mut snapshot_res: ResMut<CurrentSnapshot>,
     mut playable_res: ResMut<PlayableCards>,
@@ -161,6 +177,35 @@ pub(crate) fn handle_game_actions(
     }
 
     if any_applied {
+        // Log battlefield state before auto-pass for debugging
+        for pid in [&player_ids.p1.id, &player_ids.p2.id] {
+            if let Ok(bf) = game_state.game.battlefield(pid) {
+                let lands: Vec<String> = bf.iter()
+                    .filter(|c| c.definition().is_land())
+                    .map(|c| {
+                        let tapped = game_state.game.permanent_state(c.instance_id())
+                            .is_some_and(|s| s.is_tapped());
+                        format!("{}({})", c.definition().name(), if tapped { "T" } else { "U" })
+                    })
+                    .collect();
+                let hand_instants: Vec<String> = game_state.game.hand(pid)
+                    .map(|h| h.iter()
+                        .filter(|c| c.definition().is_instant())
+                        .map(|c| c.definition().name().to_owned())
+                        .collect())
+                    .unwrap_or_default();
+                let hand_size = game_state.game.hand(pid).map(|h| h.len()).unwrap_or(0);
+                info!(
+                    player = %pid,
+                    ?lands,
+                    hand_size,
+                    ?hand_instants,
+                    mana_pool = ?game_state.game.mana_pool(pid).ok(),
+                    "Pre-autopass state"
+                );
+            }
+        }
+
         // Auto-pass loop
         let auto_count = run_auto_pass_loop(&mut game_state.game);
         info!(
@@ -171,25 +216,19 @@ pub(crate) fn handle_game_actions(
             "After auto-pass loop"
         );
 
-        // Determine which player's perspective the UI should show.
-        // Show whoever has priority — they need to see their hand to act.
-        let new_ui_player = resolve_ui_player_id(
-            game_state.game.priority_player_id(),
-            game_state.game.current_player_id(),
-            game_state.game.current_step(),
-        )
-        .to_owned();
+        // Bot stabilization: if P2 has priority, let the bot act.
+        run_bot_stabilization(&mut game_state.game, &player_ids.p2.id, 10);
+        info!(
+            step = ?game_state.game.current_step(),
+            player = %game_state.game.current_player_id(),
+            priority = ?game_state.game.priority_player_id(),
+            "After bot stabilization"
+        );
 
-        if new_ui_player != active_player.player_id {
-            info!(
-                old = %active_player.player_id,
-                new = %new_ui_player,
-                "UI perspective switched"
-            );
-            active_player.player_id = new_ui_player.clone();
-        }
+        // Perspective is always P1 — P2 is automated.
+        let view_player_id = &player_ids.p1.id;
 
-        match compute_snapshot(&game_state.game, &active_player.player_id) {
+        match compute_snapshot(&game_state.game, view_player_id) {
             Ok((snapshot, playable_cards)) => {
                 *snapshot_res = CurrentSnapshot { snapshot };
                 *playable_res = PlayableCards {
@@ -229,10 +268,9 @@ pub(crate) fn notify_on_target_selection_change(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy::ecs::system::RunSystemOnce;
     use crate::plugins::game::{
         CurrentSnapshot, ErrorMessage, GameState, PlayableCards, PlayerIds,
-        PlayerInfo, TargetSelectionState, ActivePlayerId, GameActionMessage,
+        PlayerInfo, TargetSelectionState, HumanPlayerId, GameActionMessage,
         SnapshotChangedMessage,
     };
     use crate::plugins::game::snapshot::compute_snapshot;
@@ -268,7 +306,7 @@ mod tests {
         app.insert_resource(GameState { game });
         app.insert_resource(CurrentSnapshot { snapshot });
         app.insert_resource(PlayableCards { result: playable });
-        app.insert_resource(ActivePlayerId { player_id: p1.clone() });
+        app.insert_resource(HumanPlayerId { player_id: p1.clone() });
         app.insert_resource(ErrorMessage::default());
         app.insert_resource(TargetSelectionState::default());
         app.insert_resource(PlayerIds {
@@ -282,34 +320,24 @@ mod tests {
     }
 
     /// Helper: apply action directly to the Game resource, run auto-pass,
-    /// update perspective — exactly what handle_game_actions does.
+    /// run bot stabilization, and recompute snapshot from P1's perspective.
     fn send_action_and_update(app: &mut App, action: Action) {
-        // Apply action + run auto-pass (same as handle_game_actions)
+        // Apply action + run auto-pass
         {
             let world = app.world_mut();
+            let p2_id = world.resource::<PlayerIds>().p2.id.clone();
             let mut game_state = world.resource_mut::<GameState>();
             game_state.game.apply(action).expect("action should succeed");
             run_auto_pass_loop(&mut game_state.game);
+            run_bot_stabilization(&mut game_state.game, &p2_id, 10);
         }
 
-        // Update perspective (same as handle_game_actions)
+        // Recompute snapshot from P1's perspective (perspective never changes)
         {
             let world = app.world_mut();
+            let p1_id = world.resource::<PlayerIds>().p1.id.clone();
             let game = &world.resource::<GameState>().game;
-            let new_perspective = resolve_ui_player_id(
-                game.priority_player_id(),
-                game.current_player_id(),
-                game.current_step(),
-            ).to_owned();
-            world.resource_mut::<ActivePlayerId>().player_id = new_perspective;
-        }
-
-        // Recompute snapshot
-        {
-            let world = app.world_mut();
-            let game = &world.resource::<GameState>().game;
-            let active = world.resource::<ActivePlayerId>().player_id.clone();
-            if let Ok((snapshot, playable)) = compute_snapshot(game, &active) {
+            if let Ok((snapshot, playable)) = compute_snapshot(game, &p1_id) {
                 world.resource_mut::<CurrentSnapshot>().snapshot = snapshot;
                 world.resource_mut::<PlayableCards>().result = playable;
             }
@@ -335,7 +363,7 @@ mod tests {
         });
 
         let game = &app.world().resource::<GameState>().game;
-        let active = &app.world().resource::<ActivePlayerId>().player_id;
+        let active = &app.world().resource::<HumanPlayerId>().player_id;
 
         assert_eq!(game.current_step(), Step::FirstMain, "Should still be FirstMain");
         assert_eq!(game.current_player_id(), p1.as_str(), "P1's turn");
@@ -368,7 +396,7 @@ mod tests {
         });
 
         let game = &app.world().resource::<GameState>().game;
-        let active = &app.world().resource::<ActivePlayerId>().player_id;
+        let active = &app.world().resource::<HumanPlayerId>().player_id;
 
         assert!(!game.stack_has_items(), "Stack should be empty");
         assert_eq!(game.current_step(), Step::FirstMain);
@@ -379,18 +407,18 @@ mod tests {
 
     #[test]
     fn end_turn_switches_to_p2() {
-        let (mut app, p1, p2) = make_test_app();
+        let (mut app, p1, _p2) = make_test_app();
 
         send_action_and_update(&mut app, Action::EndTurn {
             player_id: PlayerId::new(&p1),
         });
 
-        let game = &app.world().resource::<GameState>().game;
-        let active = &app.world().resource::<ActivePlayerId>().player_id;
+        let active = &app.world().resource::<HumanPlayerId>().player_id;
 
-        assert_eq!(game.current_player_id(), p2.as_str(), "P2 should be active");
-        assert_eq!(game.current_step(), Step::FirstMain, "P2 at FirstMain");
-        assert_eq!(active, &p2, "Perspective should be P2");
+        // The bot handles P2's entire turn automatically; by the time we check
+        // the domain may already be back on P1's turn (turn 2). Either way, the
+        // UI perspective must always remain P1.
+        assert_eq!(active, &p1, "Perspective always stays P1 — P2 is automated");
     }
 
     #[test]
@@ -425,32 +453,52 @@ mod tests {
         assert_eq!(game.current_step(), Step::FirstMain, "Should be FirstMain");
     }
 
+    /// Verify that the UI perspective (HumanPlayerId) is always P1, even when
+    /// P2 gains priority after a spell — P2's actions are driven by the bot.
     #[test]
-    fn full_turn_cycle() {
-        let (mut app, p1, p2) = make_test_app();
+    fn perspective_always_stays_p1_when_bot_is_p2() {
+        let (mut app, p1, _p2) = make_test_app();
 
-        // P1 ends turn
+        // P1 plays a Forest — after bot stabilization, perspective stays P1
+        let forest_id = {
+            let game = &app.world().resource::<GameState>().game;
+            game.hand(&p1).unwrap().iter()
+                .find(|c| c.definition().id() == "forest")
+                .map(|c| c.instance_id().to_owned())
+                .expect("P1 should have Forest")
+        };
+
+        send_action_and_update(&mut app, Action::PlayLand {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new(&forest_id),
+        });
+
+        let active = &app.world().resource::<HumanPlayerId>().player_id;
+        assert_eq!(active, &p1, "Perspective must stay P1 after PlayLand");
+
+        // P1 ends turn — bot handles P2, perspective still stays P1
         send_action_and_update(&mut app, Action::EndTurn {
             player_id: PlayerId::new(&p1),
         });
 
-        {
-            let game = &app.world().resource::<GameState>().game;
-            assert_eq!(game.current_player_id(), p2.as_str());
-        }
+        let active = &app.world().resource::<HumanPlayerId>().player_id;
+        assert_eq!(active, &p1, "Perspective must stay P1 after EndTurn");
+    }
 
-        // P2 ends turn
+    #[test]
+    fn full_turn_cycle() {
+        let (mut app, p1, _p2) = make_test_app();
+
+        // P1 ends turn — bot stabilization plays P2's entire turn automatically.
+        // Because the bot exhausts all actions and passes priority at every step,
+        // the game may cycle all the way back to P1's turn 2 by the time we check.
         send_action_and_update(&mut app, Action::EndTurn {
-            player_id: PlayerId::new(&p2),
+            player_id: PlayerId::new(&p1),
         });
 
-        let game = &app.world().resource::<GameState>().game;
-        let active = &app.world().resource::<ActivePlayerId>().player_id;
-
-        assert_eq!(game.current_player_id(), p1.as_str(), "Back to P1");
-        assert_eq!(game.current_step(), Step::FirstMain);
-        assert_eq!(active, &p1, "Perspective back to P1");
-        assert_eq!(game.turn_number(), 2);
+        // UI perspective must always remain P1 regardless of whose turn it is.
+        let active = &app.world().resource::<HumanPlayerId>().player_id;
+        assert_eq!(active, &p1, "Perspective always stays P1 — P2 is automated");
     }
 }
 

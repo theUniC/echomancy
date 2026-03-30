@@ -1,5 +1,7 @@
 //! Priority assignment and passing helpers for the `Game` aggregate.
 
+use tracing::debug;
+
 use crate::domain::enums::Step;
 use crate::domain::events::GameEvent;
 use crate::domain::types::PlayerId;
@@ -11,13 +13,23 @@ impl Game {
     pub(crate) fn assign_priority_to(&mut self, player_id: &str) -> Vec<GameEvent> {
         self.priority_player_id = Some(PlayerId::new(player_id));
 
+        let in_auto_pass = self.auto_pass_players.contains(player_id);
+        debug!(
+            player = %player_id,
+            step = ?self.turn_state.current_step(),
+            in_auto_pass,
+            stack = self.stack.len(),
+            auto_pass_players = ?self.auto_pass_players,
+            "assign_priority_to"
+        );
+
         // Auto-pass: if player is in auto-pass mode
-        if self.auto_pass_players.contains(player_id) {
+        if in_auto_pass {
             if self.stack_has_items() {
-                // Auto-pass priority when stack is non-empty
+                debug!(player = %player_id, "assign_priority: internal pass (stack non-empty)");
                 return self.perform_internal_pass(player_id);
             } else if player_id == self.turn_state.current_player_id().as_str() {
-                // Auto-advance steps when stack is empty and they're the active player
+                debug!(player = %player_id, "assign_priority: process_auto_pass (active + empty stack)");
                 return self.process_auto_pass();
             }
         }

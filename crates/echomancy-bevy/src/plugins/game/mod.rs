@@ -54,9 +54,11 @@ pub(crate) struct PlayableCards {
     pub(crate) result: AllowedActionsResult,
 }
 
-/// The player whose perspective drives the UI (updated whenever priority changes).
+/// The human player whose perspective drives the UI.
+///
+/// Set once at startup to P1's ID and never changed — P2 is driven by the bot.
 #[derive(Resource)]
-pub(crate) struct ActivePlayerId {
+pub(crate) struct HumanPlayerId {
     pub(crate) player_id: String,
 }
 

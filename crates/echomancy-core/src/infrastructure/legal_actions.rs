@@ -12,6 +12,8 @@
 //! // allowed.playable_lands, .castable_spells, etc.
 //! ```
 
+use tracing::debug;
+
 use crate::domain::enums::{CardType, StaticAbility, Step};
 use crate::domain::game::Game;
 use crate::domain::services::mana_payment::can_pay_cost;
@@ -354,14 +356,26 @@ pub(crate) fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<S
 /// 5. No creatures are blockable (`compute_blockable_creatures` is empty).
 pub fn compute_auto_pass_eligible(game: &Game, player_id: &str) -> bool {
     if game.priority_player_id() != Some(player_id) {
+        debug!(
+            player = %player_id,
+            priority_holder = ?game.priority_player_id(),
+            "auto_pass_eligible: false (no priority)"
+        );
         return false;
     }
     let actions = compute_legal_actions(game, player_id);
+
+    // Count instants in hand for logging
+    let instants_in_hand = game.hand(player_id)
+        .map(|hand| hand.iter()
+            .filter(|c| c.definition().is_instant() || c.definition().has_static_ability(StaticAbility::Flash))
+            .map(|c| c.definition().name().to_owned())
+            .collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    let hand_size = game.hand(player_id).map(|h| h.len()).unwrap_or(0);
+
     // Potential plays: tappable lands + relevant spells in hand.
-    // Per CR 117.3a, every player who can act MUST get the opportunity.
-    //
-    // During own turn (sorcery timing): tappable lands + any non-land card
-    // During opponent's turn: tappable lands + instant/Flash cards only
     let has_potential_plays = if actions.tappable_lands.is_empty() {
         false
     } else {
@@ -383,11 +397,30 @@ pub fn compute_auto_pass_eligible(game: &Game, player_id: &str) -> bool {
         }
     };
 
-    actions.playable_lands.is_empty()
+    let eligible = actions.playable_lands.is_empty()
         && actions.castable_spells.is_empty()
         && !has_potential_plays
         && actions.attackable_creatures.is_empty()
-        && actions.blockable_creatures.is_empty()
+        && actions.blockable_creatures.is_empty();
+
+    debug!(
+        player = %player_id,
+        step = ?game.current_step(),
+        active_player = %game.current_player_id(),
+        stack_size = game.stack().len(),
+        playable_lands = actions.playable_lands.len(),
+        tappable_lands = actions.tappable_lands.len(),
+        castable_spells = actions.castable_spells.len(),
+        attackable = actions.attackable_creatures.len(),
+        blockable = actions.blockable_creatures.len(),
+        has_potential_plays,
+        hand_size,
+        ?instants_in_hand,
+        eligible,
+        "auto_pass_eligible"
+    );
+
+    eligible
 }
 
 // ============================================================================

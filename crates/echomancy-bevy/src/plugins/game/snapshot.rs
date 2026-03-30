@@ -8,44 +8,6 @@ use echomancy_core::prelude::*;
 use super::{AllowedActionsResult, CatalogRegistry};
 
 // ============================================================================
-// Priority-based perspective helper
-// ============================================================================
-
-/// Determine which player should currently control the UI.
-///
-/// Whenever a player holds priority, they need to see their hand to decide
-/// whether to cast a spell or pass. So we show whoever currently holds
-/// priority — including the non-active player when they have a response window.
-///
-/// Non-interactive steps (Untap, Cleanup) have no priority window. Any stale
-/// priority value from the previous step is ignored and the current active
-/// player drives the UI instead.
-///
-/// Fallback order:
-/// 1. If the step is interactive and there is a priority holder: return the priority holder.
-/// 2. Otherwise: `current_player_id`.
-pub(crate) fn resolve_ui_player_id<'a>(
-    priority_player_id: Option<&'a str>,
-    current_player_id: &'a str,
-    current_step: Step,
-) -> &'a str {
-    // Non-interactive steps (Untap, Cleanup) have no priority window.
-    // Any stale priority value from the previous step is ignored — the current
-    // active player drives the UI instead.
-    let is_non_interactive = matches!(current_step, Step::Untap | Step::Cleanup);
-    if is_non_interactive {
-        return current_player_id;
-    }
-
-    // For all interactive steps: show whoever holds priority so they can see
-    // their hand and decide whether to cast a spell or pass.
-    if let Some(priority_id) = priority_player_id {
-        return priority_id;
-    }
-    current_player_id
-}
-
-// ============================================================================
 // Snapshot computation
 // ============================================================================
 
@@ -163,63 +125,6 @@ mod tests {
         let (_, playable) = compute_snapshot(&game, &p1).unwrap();
         // Game starts in Untap — cannot play lands yet.
         assert!(playable.playable_lands.is_empty());
-    }
-
-    // ---- resolve_ui_player_id ----------------------------------------------
-
-    /// When the priority holder differs from the current player, show the priority holder.
-    /// This covers the response window: p2 holds priority after p1 casts a spell in FirstMain.
-    #[test]
-    fn resolve_ui_player_returns_priority_holder_when_priority_differs_in_first_main() {
-        let result = resolve_ui_player_id(Some("p2"), "p1", Step::FirstMain);
-        assert_eq!(result, "p2");
-    }
-
-    #[test]
-    fn resolve_ui_player_returns_current_when_no_priority() {
-        let result = resolve_ui_player_id(None, "p1", Step::FirstMain);
-        assert_eq!(result, "p1");
-    }
-
-    #[test]
-    fn resolve_ui_player_returns_current_when_priority_matches() {
-        let result = resolve_ui_player_id(Some("p1"), "p1", Step::FirstMain);
-        assert_eq!(result, "p1");
-    }
-
-    /// During DeclareBlockers the defending player (priority holder) drives the UI.
-    #[test]
-    fn resolve_ui_player_returns_priority_holder_during_declare_blockers() {
-        // p1 is current (active attacker), p2 has priority (defending player).
-        let result = resolve_ui_player_id(Some("p2"), "p1", Step::DeclareBlockers);
-        assert_eq!(result, "p2");
-    }
-
-    /// During DeclareAttackers, if the opponent holds priority (e.g. after P1 passes),
-    /// the UI should show the opponent so they can cast instants.
-    #[test]
-    fn resolve_ui_player_returns_priority_holder_during_declare_attackers_when_opponent_has_priority() {
-        let result = resolve_ui_player_id(Some("p2"), "p1", Step::DeclareAttackers);
-        assert_eq!(result, "p2");
-    }
-
-    /// After P1 ends their turn, the resolved UI player should be P2
-    /// (since P2 becomes the current active player).
-    #[test]
-    fn resolve_ui_player_is_p2_after_p1_ends_turn() {
-        let (mut game, p1, p2) = make_started_game();
-        for _ in 0..3 {
-            game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
-        }
-        game.apply(Action::EndTurn { player_id: PlayerId::new(&p1) }).unwrap();
-
-        let ui_player = resolve_ui_player_id(
-            game.priority_player_id(),
-            game.current_player_id(),
-            game.current_step(),
-        );
-        assert_eq!(ui_player, p2.as_str(),
-            "UI should show P2 after P1 ends their turn");
     }
 
     // ---- priority switching (domain-level) ---------------------------------
