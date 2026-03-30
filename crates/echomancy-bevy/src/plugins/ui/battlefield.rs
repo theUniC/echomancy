@@ -256,6 +256,8 @@ pub(crate) fn rebuild_battlefields(
     let result = &playable_cards.result;
 
     // ---- Rebuild player battlefield ----
+    let player_targeting_active = target_selection.pending_spell.is_some();
+
     if let Ok(player_root) = player_battlefield_q.single() {
         // Despawn all existing card children.
         commands.entity(player_root).despawn_children();
@@ -263,13 +265,22 @@ pub(crate) fn rebuild_battlefields(
         // Spawn new cards as children.
         for card in &snapshot.private_player_state.battlefield {
             let is_tapped = card.tapped.unwrap_or(false);
+            let is_creature = card.types.contains(&echomancy_core::prelude::CardType::Creature);
 
-            let override_border = player_card_override_border(
-                &card.instance_id,
-                &result.tappable_lands,
-                &result.attackable_creatures,
-                &result.blockable_creatures,
-            );
+            // During target selection, player's creatures are also valid targets
+            // (e.g. Giant Growth targeting your own creature).
+            let target_highlight = player_targeting_active && is_creature;
+
+            let override_border = if target_highlight {
+                Some(VALID_TARGET_BORDER_COLOR)
+            } else {
+                player_card_override_border(
+                    &card.instance_id,
+                    &result.tappable_lands,
+                    &result.attackable_creatures,
+                    &result.blockable_creatures,
+                )
+            };
 
             let is_attacking = card
                 .combat_state
@@ -298,7 +309,16 @@ pub(crate) fn rebuild_battlefields(
             );
 
             // Insert interactive components based on what this card can do.
-            if tappable {
+            if target_highlight {
+                // Creature is a valid target for the pending spell.
+                card_entity_cmd.insert((
+                    ValidTarget {
+                        target: Target::creature(card.instance_id.clone()),
+                    },
+                    Button,
+                    Interaction::default(),
+                ));
+            } else if tappable {
                 card_entity_cmd.insert((
                     TappableLand { instance_id: card.instance_id.clone() },
                     Button,
