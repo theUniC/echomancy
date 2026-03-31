@@ -86,6 +86,19 @@ pub enum RulesAction {
     },
     /// Exile a permanent (move it from the battlefield to exile).
     Exile { target: String },
+    /// Apply a temporary power/toughness modification to a creature.
+    ModifyPowerToughness {
+        /// Instance ID of the permanent to modify.
+        target: String,
+        /// Power modifier (e.g. `+3` for Giant Growth).
+        power: i32,
+        /// Toughness modifier (e.g. `+3` for Giant Growth).
+        toughness: i32,
+        /// Duration string, e.g. `"until_end_of_turn"`.
+        duration: String,
+        /// Instance ID of the spell or ability that created this effect.
+        source: String,
+    },
 }
 
 // ============================================================================

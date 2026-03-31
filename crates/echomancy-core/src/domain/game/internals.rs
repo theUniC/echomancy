@@ -25,7 +25,7 @@ use crate::domain::services::mana_payment::pay_cost;
 use crate::domain::services::step_machine::advance;
 use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
 use crate::domain::value_objects::mana::ManaPool;
-use crate::domain::value_objects::permanent_state::PermanentState;
+use crate::domain::value_objects::permanent_state::{EffectDuration, PermanentState};
 
 use super::Game;
 
@@ -348,10 +348,11 @@ impl Game {
             events.extend(self.perform_state_based_actions());
         }
 
-        // Clear mana pools and damage at CLEANUP
+        // Clear mana pools and damage at CLEANUP, and expire timed effects.
         if step == Step::Cleanup {
             self.clear_all_mana_pools();
             self.clear_damage_on_all_creatures();
+            self.expire_continuous_effects(EffectDuration::UntilEndOfTurn);
         }
 
         // Emit step started event and evaluate triggers
@@ -682,6 +683,19 @@ impl Game {
 
         for (id, new_state) in ids_to_update {
             self.permanent_states.insert(id, new_state);
+        }
+    }
+
+    /// Remove all continuous effects with the given duration from every permanent.
+    ///
+    /// Called at Cleanup step to expire "until end of turn" effects.
+    pub(crate) fn expire_continuous_effects(&mut self, duration: EffectDuration) {
+        let ids: Vec<String> = self.permanent_states.keys().cloned().collect();
+        for id in ids {
+            if let Some(state) = self.permanent_states.get(&id).cloned() {
+                let new_state = state.without_expired_effects(duration.clone());
+                self.permanent_states.insert(id, new_state);
+            }
         }
     }
 }

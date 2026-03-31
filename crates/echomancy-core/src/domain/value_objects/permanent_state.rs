@@ -6,6 +6,37 @@ use crate::domain::types::CardInstanceId;
 use crate::domain::value_objects::creature_state::CreatureSubState;
 
 // ============================================================================
+// EffectDuration
+// ============================================================================
+
+/// How long a continuous effect lasts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EffectDuration {
+    /// The effect ends at the Cleanup step of the current turn.
+    UntilEndOfTurn,
+}
+
+// ============================================================================
+// ContinuousEffect
+// ============================================================================
+
+/// A temporary modification to a permanent's characteristics.
+///
+/// Created by instants or triggered abilities that say "until end of turn".
+/// Stored on [`PermanentState`] and removed when their duration expires.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContinuousEffect {
+    /// Power modifier (may be negative).
+    pub power_modifier: i32,
+    /// Toughness modifier (may be negative).
+    pub toughness_modifier: i32,
+    /// When this effect expires.
+    pub duration: EffectDuration,
+    /// Instance ID of the spell or ability that created this effect.
+    pub source_id: String,
+}
+
+// ============================================================================
 // PermanentStateError
 // ============================================================================
 
@@ -55,6 +86,7 @@ pub struct PermanentState {
     is_tapped: bool,
     counters: HashMap<String, u32>,
     creature_state: Option<CreatureSubState>,
+    continuous_effects: Vec<ContinuousEffect>,
 }
 
 impl PermanentState {
@@ -68,6 +100,7 @@ impl PermanentState {
             is_tapped: false,
             counters: HashMap::new(),
             creature_state: Some(CreatureSubState::new(base_power, base_toughness)),
+            continuous_effects: Vec::new(),
         }
     }
 
@@ -78,6 +111,7 @@ impl PermanentState {
             is_tapped: false,
             counters: HashMap::new(),
             creature_state: None,
+            continuous_effects: Vec::new(),
         }
     }
 
@@ -87,6 +121,7 @@ impl PermanentState {
             is_tapped: snapshot.is_tapped,
             counters: snapshot.counters,
             creature_state: snapshot.creature_state,
+            continuous_effects: Vec::new(),
         }
     }
 
@@ -105,6 +140,30 @@ impl PermanentState {
     /// Returns the count of counters of the given type (0 if none).
     pub fn get_counters(&self, counter_type: &str) -> u32 {
         self.counters.get(counter_type).copied().unwrap_or(0)
+    }
+
+    // ---- continuous effects accessors ---------------------------------------
+
+    /// Returns the list of active continuous effects on this permanent.
+    pub fn continuous_effects(&self) -> &[ContinuousEffect] {
+        &self.continuous_effects
+    }
+
+    // ---- continuous effects builders ----------------------------------------
+
+    /// Returns a new `PermanentState` with the given continuous effect added.
+    pub fn with_continuous_effect(self, effect: ContinuousEffect) -> Self {
+        let mut next = self;
+        next.continuous_effects.push(effect);
+        next
+    }
+
+    /// Returns a new `PermanentState` with all continuous effects matching
+    /// the given duration removed.
+    pub fn without_expired_effects(self, duration: EffectDuration) -> Self {
+        let mut next = self;
+        next.continuous_effects.retain(|e| e.duration != duration);
+        next
     }
 
     // ---- common builders (all permanents) -----------------------------------
@@ -264,7 +323,8 @@ impl PermanentState {
 
     // ---- derived creature stats --------------------------------------------
 
-    /// Returns the current power, including +1/+1 counter bonuses.
+    /// Returns the current power, including +1/+1 counter bonuses and
+    /// continuous effect modifiers.
     ///
     /// # Errors
     ///
@@ -272,10 +332,12 @@ impl PermanentState {
     pub fn current_power(&self) -> Result<i32, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let plus_counters = self.get_counters("PLUS_ONE_PLUS_ONE") as i32;
-        Ok(cs.base_power() + plus_counters)
+        let effects: i32 = self.continuous_effects.iter().map(|e| e.power_modifier).sum();
+        Ok(cs.base_power() + plus_counters + effects)
     }
 
-    /// Returns the current toughness, including +1/+1 counter bonuses.
+    /// Returns the current toughness, including +1/+1 counter bonuses and
+    /// continuous effect modifiers.
     ///
     /// # Errors
     ///
@@ -283,7 +345,8 @@ impl PermanentState {
     pub fn current_toughness(&self) -> Result<i32, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let plus_counters = self.get_counters("PLUS_ONE_PLUS_ONE") as i32;
-        Ok(cs.base_toughness() + plus_counters)
+        let effects: i32 = self.continuous_effects.iter().map(|e| e.toughness_modifier).sum();
+        Ok(cs.base_toughness() + plus_counters + effects)
     }
 
     /// Returns `true` if the creature has taken lethal damage this turn.
@@ -601,5 +664,81 @@ mod tests {
         let snap = original.to_snapshot();
         let restored = PermanentState::from_snapshot(snap);
         assert_eq!(original, restored);
+    }
+
+    // ---- continuous effects -------------------------------------------------
+
+    #[test]
+    fn continuous_effect_modifies_current_power() {
+        let effect = ContinuousEffect {
+            power_modifier: 3,
+            toughness_modifier: 3,
+            duration: EffectDuration::UntilEndOfTurn,
+            source_id: "giant-growth-1".to_owned(),
+        };
+        let state = PermanentState::for_creature(2, 2).with_continuous_effect(effect);
+        assert_eq!(state.current_power().unwrap(), 5);
+        assert_eq!(state.current_toughness().unwrap(), 5);
+    }
+
+    #[test]
+    fn continuous_effect_stacks_with_plus_counters() {
+        let effect = ContinuousEffect {
+            power_modifier: 3,
+            toughness_modifier: 3,
+            duration: EffectDuration::UntilEndOfTurn,
+            source_id: "giant-growth-1".to_owned(),
+        };
+        // 2/2 base + 1 counter + 3 effect = 6/6
+        let state = PermanentState::for_creature(2, 2)
+            .add_counters("PLUS_ONE_PLUS_ONE", 1)
+            .with_continuous_effect(effect);
+        assert_eq!(state.current_power().unwrap(), 6);
+        assert_eq!(state.current_toughness().unwrap(), 6);
+    }
+
+    #[test]
+    fn continuous_effects_returns_slice() {
+        let effect = ContinuousEffect {
+            power_modifier: 1,
+            toughness_modifier: 2,
+            duration: EffectDuration::UntilEndOfTurn,
+            source_id: "source-1".to_owned(),
+        };
+        let state = PermanentState::for_creature(2, 2).with_continuous_effect(effect.clone());
+        assert_eq!(state.continuous_effects().len(), 1);
+        assert_eq!(state.continuous_effects()[0], effect);
+    }
+
+    #[test]
+    fn without_expired_effects_removes_matching_duration() {
+        let effect = ContinuousEffect {
+            power_modifier: 3,
+            toughness_modifier: 3,
+            duration: EffectDuration::UntilEndOfTurn,
+            source_id: "giant-growth-1".to_owned(),
+        };
+        let state = PermanentState::for_creature(2, 2).with_continuous_effect(effect);
+        assert_eq!(state.current_power().unwrap(), 5);
+
+        let expired = state.without_expired_effects(EffectDuration::UntilEndOfTurn);
+        assert_eq!(expired.continuous_effects().len(), 0);
+        assert_eq!(expired.current_power().unwrap(), 2);
+        assert_eq!(expired.current_toughness().unwrap(), 2);
+    }
+
+    #[test]
+    fn with_continuous_effect_original_unchanged() {
+        let state = PermanentState::for_creature(2, 2);
+        let effect = ContinuousEffect {
+            power_modifier: 3,
+            toughness_modifier: 3,
+            duration: EffectDuration::UntilEndOfTurn,
+            source_id: "source-1".to_owned(),
+        };
+        let _ = state.clone().with_continuous_effect(effect);
+        // Original is unchanged (no continuous effects)
+        assert_eq!(state.continuous_effects().len(), 0);
+        assert_eq!(state.current_power().unwrap(), 2);
     }
 }

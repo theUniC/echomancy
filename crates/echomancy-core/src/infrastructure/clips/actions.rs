@@ -25,6 +25,7 @@
 //! | action-untap | Untap |
 //! | action-add-counter | AddCounter |
 //! | action-create-token | CreateToken |
+//! | action-modify-pt | ModifyPowerToughness |
 
 use crate::domain::rules_engine::{InputRequest, RulesAction, RulesError};
 use crate::infrastructure::clips::{ClipsEngine, SlotValue};
@@ -199,6 +200,36 @@ pub(crate) fn parse_action_facts(engine: &ClipsEngine) -> Result<Vec<RulesAction
         actions.push((
             priority,
             RulesAction::AddCounter { permanent_id, counter_type, amount },
+        ));
+    }
+
+    // action-modify-pt
+    for row in engine.collect_facts_by_template(
+        "action-modify-pt",
+        &["priority", "source", "target", "power", "toughness", "duration"],
+    ) {
+        let priority = extract_integer(&row, "priority").unwrap_or(0);
+        let source = match extract_string(&row, "source") {
+            Some(s) => s,
+            None => continue,
+        };
+        let target = match extract_string(&row, "target") {
+            Some(s) => s,
+            None => continue,
+        };
+        let power = match extract_integer(&row, "power") {
+            Some(n) => n as i32,
+            None => continue,
+        };
+        let toughness = match extract_integer(&row, "toughness") {
+            Some(n) => n as i32,
+            None => continue,
+        };
+        let duration = extract_symbol(&row, "duration")
+            .unwrap_or_else(|| "until-end-of-turn".to_owned());
+        actions.push((
+            priority,
+            RulesAction::ModifyPowerToughness { source, target, power, toughness, duration },
         ));
     }
 
@@ -501,6 +532,30 @@ mod tests {
         assert!(matches!(&actions[1], RulesAction::DrawCards { .. }));
         // Priority 200 (gain-life) last
         assert!(matches!(&actions[2], RulesAction::GainLife { .. }));
+    }
+
+    // ---- parse_action_facts: action-modify-pt ---------------------------------
+
+    #[test]
+    fn parse_action_facts_parses_action_modify_pt() {
+        let mut engine = engine_with_templates();
+        engine
+            .assert_fact(
+                r#"(action-modify-pt (source "gg-1") (target "bear-1") (power 3) (toughness 3) (duration until-end-of-turn))"#,
+            )
+            .unwrap();
+
+        let actions = parse_action_facts(&engine).unwrap();
+        assert_eq!(actions.len(), 1);
+        assert!(
+            matches!(
+                &actions[0],
+                RulesAction::ModifyPowerToughness { source, target, power: 3, toughness: 3, duration }
+                    if source == "gg-1" && target == "bear-1" && duration == "until-end-of-turn"
+            ),
+            "unexpected action: {:?}",
+            actions[0]
+        );
     }
 
     // ---- parse_awaiting_input -----------------------------------------------

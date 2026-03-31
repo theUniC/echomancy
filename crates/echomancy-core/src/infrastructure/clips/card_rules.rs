@@ -32,6 +32,9 @@ const LIGHTNING_STRIKE_RULES: &str =
 const DIVINATION_RULES: &str =
     include_str!("../../../../../rules/cards/d/divination.clp");
 
+const GIANT_GROWTH_RULES: &str =
+    include_str!("../../../../../rules/cards/g/giant-growth.clp");
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -59,12 +62,14 @@ pub(crate) fn load_core_templates(engine: &mut ClipsEngine) -> Result<(), RulesE
 /// |---------|--------|
 /// | `"lightning-strike"` | Deal 3 damage to opponent |
 /// | `"divination"` | Controller draws 2 cards |
+/// | `"giant-growth"` | Target creature gets +3/+3 until end of turn |
 /// | anything else | No rules — silently succeeds |
 #[allow(dead_code)]
 pub(crate) fn load_card_rules(engine: &mut ClipsEngine, card_id: &str) -> Result<(), RulesError> {
     match card_id {
         "lightning-strike" => engine.load_rules(LIGHTNING_STRIKE_RULES),
         "divination" => engine.load_rules(DIVINATION_RULES),
+        "giant-growth" => engine.load_rules(GIANT_GROWTH_RULES),
         // Vanilla/keyword-only cards have no .clp — this is expected and fine.
         _ => Ok(()),
     }
@@ -297,6 +302,211 @@ mod tests {
         assert!(
             result.actions.is_empty(),
             "divination rule should not fire for lightning-strike"
+        );
+    }
+
+    // =========================================================================
+    // CLIPS rule correctness: Giant Growth
+    // =========================================================================
+
+    /// Giant Growth CLIPS rule loads without error.
+    #[test]
+    fn load_card_rules_for_giant_growth_succeeds() {
+        let mut engine = ClipsEngine::new().expect("engine");
+        load_core_templates(&mut engine).expect("core templates");
+        load_card_rules(&mut engine, "giant-growth").expect("giant-growth rules should load");
+    }
+
+    /// Giant Growth rule fires and produces an action-modify-pt fact for the target.
+    #[test]
+    fn giant_growth_rule_produces_modify_pt_action() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::rules_engine::RulesAction;
+        use crate::domain::targets::Target;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+
+        let mut engine = engine_for(&["giant-growth"]);
+        let (game, p1, _p2) = make_game_in_first_main();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("gg-1"),
+                definition_id: CardDefinitionId::new("giant-growth"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+            targets: vec![Target::creature("creature-1")],
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert_eq!(result.actions.len(), 1, "should produce exactly one action-modify-pt");
+        assert!(
+            matches!(
+                &result.actions[0],
+                RulesAction::ModifyPowerToughness { source, target, power: 3, toughness: 3, .. }
+                    if source == "gg-1" && target == "creature-1"
+            ),
+            "should produce +3/+3 for the target, got: {:?}",
+            result.actions[0]
+        );
+    }
+
+    /// Giant Growth rule does not fire when no target is provided.
+    #[test]
+    fn giant_growth_rule_does_not_fire_without_target() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+        use crate::domain::game::test_helpers::make_started_game;
+
+        let mut engine = engine_for(&["giant-growth"]);
+        let (game, p1, _p2) = make_started_game();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("gg-1"),
+                definition_id: CardDefinitionId::new("giant-growth"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+            targets: vec![], // no target
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert!(
+            result.actions.is_empty(),
+            "giant-growth rule should not fire without a target"
+        );
+    }
+
+    /// Full pipeline: Giant Growth cast on p1's creature gives +3/+3 until end of turn.
+    #[test]
+    fn e2e_giant_growth_boosts_creature_power_and_toughness() {
+        use crate::domain::game::test_helpers::add_permanent_to_battlefield;
+        use crate::domain::targets::Target;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        // Wire CLIPS
+        let engine = engine_for(&["giant-growth"]);
+        game.set_rules_engine(Box::new(engine));
+
+        // Put a 2/2 creature on p1's battlefield
+        let creature_def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let creature = CardInstance::new("bear-1", creature_def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+
+        // Verify base P/T
+        let ps = game.permanent_state("bear-1").cloned().unwrap();
+        assert_eq!(ps.current_power().unwrap(), 2);
+        assert_eq!(ps.current_toughness().unwrap(), 2);
+
+        // Put a Giant Growth in p1's hand (free, with target requirement)
+        let gg_def = CardDefinition::new("giant-growth", "Giant Growth", vec![CardType::Instant])
+            .with_target_requirement(crate::domain::targets::TargetRequirement::Creature);
+        let gg = CardInstance::new("gg-1", gg_def, &p1);
+        add_card_to_hand(&mut game, &p1, gg);
+
+        // Cast Giant Growth targeting bear-1
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("gg-1"),
+            targets: vec![Target::creature("bear-1")],
+        })
+        .expect("cast should succeed");
+
+        // Both players pass priority — stack resolves
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+
+        assert_eq!(game.stack().len(), 0, "stack should be empty after resolution");
+
+        // Creature should now be 5/5
+        let ps = game.permanent_state("bear-1").cloned().unwrap();
+        assert_eq!(
+            ps.current_power().unwrap(),
+            5,
+            "Giant Growth should boost power to 5"
+        );
+        assert_eq!(
+            ps.current_toughness().unwrap(),
+            5,
+            "Giant Growth should boost toughness to 5"
+        );
+        assert_eq!(
+            ps.continuous_effects().len(),
+            1,
+            "should have one active continuous effect"
+        );
+    }
+
+    /// After advancing to Cleanup, Giant Growth's +3/+3 effect expires.
+    #[test]
+    fn e2e_giant_growth_expires_at_cleanup() {
+        use crate::domain::enums::Step;
+        use crate::domain::game::test_helpers::add_permanent_to_battlefield;
+        use crate::domain::targets::Target;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        let engine = engine_for(&["giant-growth"]);
+        game.set_rules_engine(Box::new(engine));
+
+        // Put a 2/2 creature on p1's battlefield
+        let creature_def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let creature = CardInstance::new("bear-1", creature_def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+
+        // Cast Giant Growth targeting bear-1
+        let gg_def = CardDefinition::new("giant-growth", "Giant Growth", vec![CardType::Instant])
+            .with_target_requirement(crate::domain::targets::TargetRequirement::Creature);
+        let gg = CardInstance::new("gg-1", gg_def, &p1);
+        add_card_to_hand(&mut game, &p1, gg);
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("gg-1"),
+            targets: vec![Target::creature("bear-1")],
+        })
+        .expect("cast should succeed");
+
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+
+        // Verify boost is active
+        let ps = game.permanent_state("bear-1").cloned().unwrap();
+        assert_eq!(ps.current_power().unwrap(), 5, "should be boosted before cleanup");
+
+        // Advance to Cleanup step
+        // We need to pass through: SecondMain → EndStep → Cleanup
+        // Advance past FirstMain
+        while game.current_step() != Step::Cleanup {
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&p1),
+            })
+            .expect("advance step should succeed");
+        }
+
+        // After reaching cleanup, effects expire
+        // Note: on_enter_step(Cleanup) calls expire_continuous_effects
+        let ps = game.permanent_state("bear-1").cloned().unwrap();
+        assert_eq!(
+            ps.continuous_effects().len(),
+            0,
+            "continuous effects should have expired at cleanup"
+        );
+        assert_eq!(
+            ps.current_power().unwrap(),
+            2,
+            "power should return to base 2 after cleanup"
+        );
+        assert_eq!(
+            ps.current_toughness().unwrap(),
+            2,
+            "toughness should return to base 2 after cleanup"
         );
     }
 

@@ -146,6 +146,15 @@
   (multislot types)
   (multislot keywords))
 
+(deftemplate action-modify-pt
+  "Apply a temporary power/toughness modification to a creature (until end of turn)."
+  (slot priority (type INTEGER) (default 0))
+  (slot source (type STRING))
+  (slot target (type STRING))
+  (slot power (type INTEGER))
+  (slot toughness (type INTEGER))
+  (slot duration (type SYMBOL) (default until-end-of-turn)))
+
 ;;; ============================================================================
 ;;; Signal facts: CLIPS requesting player input
 ;;; ============================================================================

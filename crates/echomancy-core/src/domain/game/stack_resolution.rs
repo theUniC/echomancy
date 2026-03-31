@@ -7,6 +7,7 @@ use crate::domain::rules_engine::RulesAction;
 use crate::domain::services::trigger_evaluation::{PermanentOnBattlefield, TriggeredAbilityInfo};
 use crate::domain::triggers::TriggerEventType;
 use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+use crate::domain::value_objects::permanent_state::{ContinuousEffect, EffectDuration};
 
 use super::Game;
 
@@ -206,6 +207,19 @@ impl Game {
                 // Ignore if the permanent no longer exists.
                 let _ = self.move_permanent_to_exile(target);
             }
+            RulesAction::ModifyPowerToughness { target, power, toughness, duration, source } => {
+                if let Some(state) = self.permanent_states.get(target).cloned() {
+                    let effect_duration = parse_effect_duration(duration);
+                    let effect = ContinuousEffect {
+                        power_modifier: *power,
+                        toughness_modifier: *toughness,
+                        duration: effect_duration,
+                        source_id: source.clone(),
+                    };
+                    let new_state = state.with_continuous_effect(effect);
+                    self.permanent_states.insert(target.clone(), new_state);
+                }
+            }
             // Stubs for M3: log but don't crash
             RulesAction::MoveZone { .. }
             | RulesAction::AddCounter { .. }
@@ -239,6 +253,16 @@ fn trigger_type_string(event_type: &TriggerEventType) -> String {
         TriggerEventType::StepStarted => "STEP_START".to_owned(),
         TriggerEventType::CreatureDeclaredAttacker => "ATTACK".to_owned(),
         TriggerEventType::CombatEnded => "COMBAT_ENDED".to_owned(),
+    }
+}
+
+/// Parse a duration string (as produced by CLIPS action facts) into `EffectDuration`.
+///
+/// Defaults to `UntilEndOfTurn` for unknown strings.
+fn parse_effect_duration(duration: &str) -> EffectDuration {
+    match duration.to_ascii_lowercase().as_str() {
+        "until_end_of_turn" | "until-end-of-turn" | "eot" => EffectDuration::UntilEndOfTurn,
+        _ => EffectDuration::UntilEndOfTurn,
     }
 }
 
