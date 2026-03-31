@@ -71,10 +71,10 @@ See `docs/architecture-clips-integration.md` for full design spec.
 
 | # | Description | Status | Dependency | Notes |
 |---|-------------|--------|------------|-------|
-| U1 | Stack display (show pending spells/abilities) | TODO | M3 | |
-| U2 | Graveyard viewer | TODO | - | |
-| U3 | Exile zone | TODO | - | |
-| U4 | Card detail view (hover/click for full text) | TODO | - | |
+| U1 | Stack display (show pending spells/abilities) | DONE | M3 | Centered overlay, auto-hides when empty |
+| U2 | Graveyard viewer | DONE | - | Clickable HUD labels toggle overlay |
+| U3 | Exile zone (domain + viewer) | DONE | - | Full zone in domain + RulesAction::Exile + UI viewer |
+| U4 | Card detail view (hover for full text) | DONE | - | Hover panel with name, type, cost, oracle text, P/T |
 | U5 | Animations (card movement, damage, phase transitions) | TODO | - | |
 | U6 | ~~Hotseat transition screen~~ | N/A | - | Superseded by G1 (bot replaces hotseat) |
 
