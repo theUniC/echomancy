@@ -53,7 +53,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 | P1 | Target selection system (creature/player targeting) | DONE | M3 | Required for damage spells, removal |
 | P2 | Instant-speed casting (during combat, opponent's turn) | DONE | M3 | Full MTG priority per CR 117 |
 | P3 | More card types: Enchantments, Artifacts | TODO | M4 | Static abilities, continuous effects |
-| P4 | Continuous effects / 7-layer system in CLIPS | TODO | P3 | Lords, enchantments, buff/debuff |
+| P4 | Continuous effects (temporary P/T modification) | DONE | - | Giant Growth +3/+3, expires at Cleanup |
 | P5 | Combat keywords (First Strike, Trample, Deathtouch, Lifelink) | DONE | M3 | Domain model, no CLIPS needed |
 
 ### Phase 3: Game Experience
@@ -145,7 +145,7 @@ Full migration from TypeScript/Next.js to Rust/Bevy.
 
 | Limitation | Reason | Resolved by |
 |------------|--------|-------------|
-| No continuous effects / layers | Not implemented | P4 |
+| No full 7-layer system (only temporary P/T mods) | P4 covers basics | Future (lords, static enchantments) |
 | 1 blocker per attacker | MVP simplification | Future |
 | Bot doesn't block | MVP simplification | Future |
 | Bot targets opponent only | No creature targeting | Future |
