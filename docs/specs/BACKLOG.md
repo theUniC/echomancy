@@ -52,7 +52,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 |---|-------------|--------|------------|-------|
 | P1 | Target selection system (creature/player targeting) | DONE | M3 | Required for damage spells, removal |
 | P2 | Instant-speed casting (during combat, opponent's turn) | DONE | M3 | Full MTG priority per CR 117 |
-| P3 | More card types: Enchantments, Artifacts | TODO | M4 | Static abilities, continuous effects |
+| P3 | More card types: Enchantments, Artifacts | DONE | M4 | Sol Ring (artifact mana), Arcane Sanctum (enchantment ETB) |
 | P4 | Continuous effects (temporary P/T modification) | DONE | - | Giant Growth +3/+3, expires at Cleanup |
 | P5 | Combat keywords (First Strike, Trample, Deathtouch, Lifelink) | DONE | M3 | Domain model, no CLIPS needed |
 
