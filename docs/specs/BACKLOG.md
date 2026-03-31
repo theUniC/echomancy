@@ -79,7 +79,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 | U6 | ~~Hotseat transition screen~~ | N/A | - | Superseded by G1 (bot replaces hotseat) |
 | U7 | Battlefield overflow — scroll or wrap when too many cards | TODO | - | Cards clip off-screen left/right |
 | U8 | Multiple blocker assignment (N blockers → 1 attacker) | TODO | - | Currently only 1 blocker per attacker |
-| U9 | Sol Ring / non-land artifacts tappable for mana | TODO | - | ActivateAbility works but UI doesn't show tap affordance |
+| U9 | Sol Ring / non-land artifacts tappable for mana | DONE | - | compute_tappable_lands now includes any permanent with mana ability |
 
 ### Phase 5: Bugs
 

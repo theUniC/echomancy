@@ -143,12 +143,12 @@ pub(crate) fn compute_tappable_lands(game: &Game, player_id: &str) -> Vec<String
     battlefield
         .iter()
         .filter(|card| {
-            let is_land = card.definition().types().contains(&CardType::Land);
+            // Any permanent with a mana ability (lands, Sol Ring, mana rocks, etc.)
             let has_mana_ability = card
                 .definition()
                 .activated_ability()
                 .is_some_and(|ab| ab.effect.is_mana_ability());
-            if !is_land || !has_mana_ability {
+            if !has_mana_ability {
                 return false;
             }
             let is_tapped = game
