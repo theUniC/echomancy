@@ -22,6 +22,7 @@ use bevy::prelude::*;
 use echomancy_core::prelude::{Action, CardInstanceId, PlayerId, Target};
 
 use super::card::{CardSpawnData, CARD_GAP, spawn_card_with_tappable};
+use super::card_detail::CardHoverable;
 use super::hand::HandRoot;
 use crate::plugins::game::{HumanPlayerId, CurrentSnapshot, GameActionMessage, PlayableCards, SnapshotChangedMessage, TargetSelectionState};
 
@@ -308,34 +309,25 @@ pub(crate) fn rebuild_battlefields(
                 override_border,
             );
 
-            // Insert interactive components based on what this card can do.
+            // Every battlefield card is hoverable for the detail panel.
+            card_entity_cmd.insert((
+                CardHoverable { instance_id: card.instance_id.clone() },
+                Button,
+                Interaction::default(),
+            ));
+
+            // Insert action-specific interactive components.
             if target_highlight {
                 // Creature is a valid target for the pending spell.
-                card_entity_cmd.insert((
-                    ValidTarget {
-                        target: Target::creature(card.instance_id.clone()),
-                    },
-                    Button,
-                    Interaction::default(),
-                ));
+                card_entity_cmd.insert(ValidTarget {
+                    target: Target::creature(card.instance_id.clone()),
+                });
             } else if tappable {
-                card_entity_cmd.insert((
-                    TappableLand { instance_id: card.instance_id.clone() },
-                    Button,
-                    Interaction::default(),
-                ));
+                card_entity_cmd.insert(TappableLand { instance_id: card.instance_id.clone() });
             } else if attackable {
-                card_entity_cmd.insert((
-                    AttackableCreature { instance_id: card.instance_id.clone() },
-                    Button,
-                    Interaction::default(),
-                ));
+                card_entity_cmd.insert(AttackableCreature { instance_id: card.instance_id.clone() });
             } else if blockable {
-                card_entity_cmd.insert((
-                    BlockableCreature { instance_id: card.instance_id.clone() },
-                    Button,
-                    Interaction::default(),
-                ));
+                card_entity_cmd.insert(BlockableCreature { instance_id: card.instance_id.clone() });
             }
 
             let card_entity = card_entity_cmd.id();
@@ -402,14 +394,17 @@ pub(crate) fn rebuild_battlefields(
                     border_override,
                 );
 
+                // Every opponent battlefield card is hoverable for the detail panel.
+                card_entity_cmd.insert((
+                    CardHoverable { instance_id: card.instance_id.clone() },
+                    Button,
+                    Interaction::default(),
+                ));
+
                 if target_highlight {
-                    card_entity_cmd.insert((
-                        ValidTarget {
-                            target: Target::creature(card.instance_id.clone()),
-                        },
-                        Button,
-                        Interaction::default(),
-                    ));
+                    card_entity_cmd.insert(ValidTarget {
+                        target: Target::creature(card.instance_id.clone()),
+                    });
                 }
 
                 let card_entity = card_entity_cmd.id();

@@ -17,6 +17,7 @@ use bevy::prelude::*;
 use echomancy_core::prelude::{Action, CardInstanceId, PlayerId};
 
 use super::card::{CARD_BORDER, CARD_HEIGHT, CARD_WIDTH, CardNode, card_background_color, card_border_color, card_pt_text, card_type_line};
+use super::card_detail::CardHoverable;
 use crate::plugins::game::{HumanPlayerId, CurrentSnapshot, GameActionMessage, PendingSpell, PlayableCards, SnapshotChangedMessage, TargetSelectionState};
 
 // ============================================================================
@@ -160,23 +161,19 @@ pub(crate) fn rebuild_hand(
             },
             BorderColor::all(border_color),
             BackgroundColor(bg_color),
+            // Every hand card is hoverable so the detail panel can display it.
+            CardHoverable { instance_id: instance_id.clone() },
+            Button,
+            Interaction::default(),
         ));
 
         // During target selection, hand cards are non-interactive regardless of
         // their play/cast state. The player must first click a valid target or cancel.
         if !targeting_active {
             if playable {
-                entity_cmd.insert((
-                    PlayableCard { instance_id },
-                    Button,
-                    Interaction::default(),
-                ));
+                entity_cmd.insert(PlayableCard { instance_id });
             } else if castable {
-                entity_cmd.insert((
-                    CastableSpell { instance_id },
-                    Button,
-                    Interaction::default(),
-                ));
+                entity_cmd.insert(CastableSpell { instance_id });
             }
         }
 

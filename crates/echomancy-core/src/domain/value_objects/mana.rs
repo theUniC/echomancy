@@ -308,6 +308,45 @@ impl ManaCost {
     pub fn total(&self) -> u32 {
         self.generic + self.white + self.blue + self.black + self.red + self.green + self.colorless
     }
+
+    /// Format the mana cost as a human-readable string using MTG brace notation.
+    ///
+    /// Generic mana comes first (e.g. `{2}`), then colored pips in WUBRG order,
+    /// then colorless (`{C}`). Zero-value components are omitted entirely.
+    ///
+    /// Examples:
+    /// - `ManaCost::parse("1G")` → `"{1}{G}"`
+    /// - `ManaCost::parse("2UU")` → `"{2}{U}{U}"`
+    /// - `ManaCost::parse("W")` → `"{W}"`
+    /// - `ManaCost::zero()` → `""` (free spell / land)
+    pub fn to_text(&self) -> String {
+        if self.total() == 0 {
+            return String::new();
+        }
+        let mut s = String::new();
+        if self.generic > 0 {
+            s.push_str(&format!("{{{}}}", self.generic));
+        }
+        for _ in 0..self.white {
+            s.push_str("{W}");
+        }
+        for _ in 0..self.blue {
+            s.push_str("{U}");
+        }
+        for _ in 0..self.black {
+            s.push_str("{B}");
+        }
+        for _ in 0..self.red {
+            s.push_str("{R}");
+        }
+        for _ in 0..self.green {
+            s.push_str("{G}");
+        }
+        for _ in 0..self.colorless {
+            s.push_str("{C}");
+        }
+        s
+    }
 }
 
 // ============================================================================
@@ -585,5 +624,63 @@ mod tests {
     fn spend_zero_amount_returns_err() {
         let pool = ManaPool::empty().add(ManaColor::Red, 1).unwrap();
         assert!(pool.spend(ManaColor::Red, 0).is_err());
+    }
+
+    // ---- ManaCost::to_text -------------------------------------------------
+
+    #[test]
+    fn to_text_zero_cost_is_empty() {
+        assert_eq!(ManaCost::zero().to_text(), "");
+    }
+
+    #[test]
+    fn to_text_single_green() {
+        let cost = ManaCost::parse("G").unwrap();
+        assert_eq!(cost.to_text(), "{G}");
+    }
+
+    #[test]
+    fn to_text_generic_plus_green() {
+        let cost = ManaCost::parse("1G").unwrap();
+        assert_eq!(cost.to_text(), "{1}{G}");
+    }
+
+    #[test]
+    fn to_text_two_generic() {
+        let cost = ManaCost::parse("2").unwrap();
+        assert_eq!(cost.to_text(), "{2}");
+    }
+
+    #[test]
+    fn to_text_white() {
+        let cost = ManaCost::parse("W").unwrap();
+        assert_eq!(cost.to_text(), "{W}");
+    }
+
+    #[test]
+    fn to_text_one_red() {
+        let cost = ManaCost::parse("1R").unwrap();
+        assert_eq!(cost.to_text(), "{1}{R}");
+    }
+
+    #[test]
+    fn to_text_two_blue_pips() {
+        let cost = ManaCost::parse("2UU").unwrap();
+        assert_eq!(cost.to_text(), "{2}{U}{U}");
+    }
+
+    #[test]
+    fn to_text_wubrg_order() {
+        // Build a cost with all colors to verify WUBRG ordering.
+        let cost = ManaCost {
+            generic: 1,
+            white: 1,
+            blue: 1,
+            black: 1,
+            red: 1,
+            green: 1,
+            colorless: 0,
+        };
+        assert_eq!(cost.to_text(), "{1}{W}{U}{B}{R}{G}");
     }
 }

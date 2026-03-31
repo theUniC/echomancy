@@ -46,6 +46,11 @@ pub struct CardDefinition {
     /// What kind of target this spell requires at cast time.
     #[serde(skip)]
     target_requirement: TargetRequirement,
+    /// Human-readable rules text shown on the card (oracle text).
+    ///
+    /// `None` for basic lands and other cards without printed text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    oracle_text: Option<String>,
 }
 
 impl CardDefinition {
@@ -66,6 +71,7 @@ impl CardDefinition {
             activated_ability: None,
             triggers: Vec::new(),
             target_requirement: TargetRequirement::None,
+            oracle_text: None,
         }
     }
 
@@ -121,6 +127,11 @@ impl CardDefinition {
     /// What kind of target this spell requires at cast time.
     pub fn target_requirement(&self) -> TargetRequirement {
         self.target_requirement
+    }
+
+    /// Human-readable rules text (oracle text), if any.
+    pub fn oracle_text(&self) -> Option<&str> {
+        self.oracle_text.as_deref()
     }
 
     // -------------------------------------------------------------------------
@@ -187,6 +198,12 @@ impl CardDefinition {
         self.target_requirement = req;
         self
     }
+
+    /// Set the oracle text (printed rules text) for this card.
+    pub fn with_oracle_text(mut self, text: impl Into<String>) -> Self {
+        self.oracle_text = Some(text.into());
+        self
+    }
 }
 
 #[cfg(test)]
@@ -250,5 +267,23 @@ mod tests {
     #[test]
     fn no_triggers_by_default() {
         assert!(bear().triggers().is_empty());
+    }
+
+    #[test]
+    fn oracle_text_is_none_by_default() {
+        assert!(forest().oracle_text().is_none());
+    }
+
+    #[test]
+    fn with_oracle_text_sets_text() {
+        let card = bear().with_oracle_text("Some rules text.");
+        assert_eq!(card.oracle_text(), Some("Some rules text."));
+    }
+
+    #[test]
+    fn oracle_text_accessor_returns_str() {
+        let card = CardDefinition::new("x", "X", vec![CardType::Creature])
+            .with_oracle_text("Flying");
+        assert_eq!(card.oracle_text(), Some("Flying"));
     }
 }

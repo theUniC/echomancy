@@ -46,6 +46,10 @@ pub struct AbilityOnStack {
 ///
 /// Mirrors the TypeScript `StackItem` union from `StackTypes.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
+// SpellOnStack carries a CardInstance (which owns the CardDefinition) making the
+// Spell variant significantly larger than the Ability variant. Boxing would
+// break the existing clone-heavy domain model, so we suppress the lint here.
+#[allow(clippy::large_enum_variant)]
 pub enum StackItem {
     /// A spell (card being cast).
     Spell(SpellOnStack),

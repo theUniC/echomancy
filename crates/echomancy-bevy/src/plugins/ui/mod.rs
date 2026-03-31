@@ -9,9 +9,11 @@
 //! - `StackPlugin` — center overlay showing the game stack (U1)
 //! - `GraveyardPlugin` — toggle overlay showing graveyard contents (U2)
 //! - `ExilePlugin` — toggle overlay showing exile zone contents (U3)
+//! - `CardDetailPlugin` — hover/click popup showing full card details (U4)
 
 pub(crate) mod battlefield;
 pub(crate) mod card;
+pub(crate) mod card_detail;
 pub(crate) mod exile;
 pub(crate) mod game_over;
 pub(crate) mod graveyard;
@@ -22,6 +24,7 @@ pub(crate) mod stack;
 
 use bevy::prelude::*;
 use battlefield::BattlefieldPlugin;
+use card_detail::CardDetailPlugin;
 use exile::ExilePlugin;
 use game_over::GameOverPlugin;
 use graveyard::GraveyardPlugin;
@@ -44,6 +47,7 @@ impl Plugin for UiPlugin {
             StackPlugin,
             GraveyardPlugin,
             ExilePlugin,
+            CardDetailPlugin,
         ));
     }
 }

@@ -92,6 +92,11 @@ pub struct CardSnapshot {
 
     /// `None` for non-creatures.
     pub combat_state: Option<CombatStateSnapshot>,
+
+    /// Mana cost formatted as brace notation (e.g. `"{1}{G}"`). `None` for lands.
+    pub mana_cost_text: Option<String>,
+    /// Oracle (rules) text from the card definition. `None` if the card has no text.
+    pub oracle_text: Option<String>,
 }
 
 /// Public game state visible to all players.
@@ -213,11 +218,28 @@ pub struct GameSnapshot {
 // Card registry
 // ============================================================================
 
-/// Resolves a `card_definition_id` to a human-readable card name.
+/// Resolves card definition data for snapshot creation.
 ///
-/// Callers must provide an implementation (e.g. a static lookup table).
+/// Callers must provide an implementation (e.g. a static catalog lookup).
 pub trait CardRegistry {
+    /// Human-readable display name for the card.
     fn card_name(&self, definition_id: &str) -> String;
+
+    /// Mana cost formatted as brace notation (e.g. `"{1}{G}"`).
+    ///
+    /// Returns `None` if the card has no mana cost (e.g. basic lands).
+    fn mana_cost_text(&self, definition_id: &str) -> Option<String> {
+        let _ = definition_id;
+        None
+    }
+
+    /// Oracle (rules) text for the card.
+    ///
+    /// Returns `None` if the card has no printed text.
+    fn oracle_text(&self, definition_id: &str) -> Option<String> {
+        let _ = definition_id;
+        None
+    }
 }
 
 // ============================================================================
@@ -364,6 +386,9 @@ fn make_card_snapshot(
             (card.is_tapped, None, None, None, None, None)
         };
 
+    let mana_cost_text = registry.mana_cost_text(&card.card_definition_id);
+    let oracle_text = registry.oracle_text(&card.card_definition_id);
+
     CardSnapshot {
         instance_id: card.instance_id.clone(),
         definition_id: card.card_definition_id.clone(),
@@ -378,6 +403,8 @@ fn make_card_snapshot(
         power,
         toughness,
         combat_state,
+        mana_cost_text,
+        oracle_text,
     }
 }
 

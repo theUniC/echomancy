@@ -26,6 +26,7 @@ pub fn forest() -> CardDefinition {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::Green, amount: 1 },
         })
+        .with_oracle_text("{T}: Add {G}.")
 }
 
 /// Return the `Mountain` basic land definition.
@@ -37,6 +38,7 @@ pub fn mountain() -> CardDefinition {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::Red, amount: 1 },
         })
+        .with_oracle_text("{T}: Add {R}.")
 }
 
 /// Return the `Plains` basic land definition.
@@ -48,6 +50,7 @@ pub fn plains() -> CardDefinition {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::White, amount: 1 },
         })
+        .with_oracle_text("{T}: Add {W}.")
 }
 
 /// Return the `Island` basic land definition.
@@ -59,6 +62,7 @@ pub fn island() -> CardDefinition {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::Blue, amount: 1 },
         })
+        .with_oracle_text("{T}: Add {U}.")
 }
 
 /// Return the `Swamp` basic land definition.
@@ -70,6 +74,7 @@ pub fn swamp() -> CardDefinition {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::Black, amount: 1 },
         })
+        .with_oracle_text("{T}: Add {B}.")
 }
 
 // ============================================================================
@@ -85,6 +90,7 @@ pub fn bear() -> CardDefinition {
     CardDefinition::new("bear", "Bear", vec![CardType::Creature])
         .with_power_toughness(2, 2)
         .with_mana_cost(cost)
+    // Bears have no rules text.
 }
 
 /// Return the `Elite Vanguard` (2/1 creature) definition.
@@ -105,6 +111,7 @@ pub fn goblin() -> CardDefinition {
     CardDefinition::new("goblin", "Goblin", vec![CardType::Creature])
         .with_power_toughness(1, 1)
         .with_mana_cost(cost)
+    // Goblins have no rules text.
 }
 
 // ============================================================================
@@ -119,6 +126,7 @@ pub fn giant_growth() -> CardDefinition {
     CardDefinition::new("giant-growth", "Giant Growth", vec![CardType::Instant])
         .with_mana_cost(cost)
         .with_target_requirement(TargetRequirement::Creature)
+        .with_oracle_text("Target creature gets +3/+3 until end of turn.")
 }
 
 /// Return the `Lightning Strike` instant definition.
@@ -130,6 +138,7 @@ pub fn lightning_strike() -> CardDefinition {
     CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant])
         .with_mana_cost(cost)
         .with_target_requirement(TargetRequirement::AnyTarget)
+        .with_oracle_text("Lightning Strike deals 3 damage to any target.")
 }
 
 /// Return the `Divination` sorcery definition.
@@ -139,6 +148,7 @@ pub fn divination() -> CardDefinition {
     let cost = ManaCost::parse("2U").expect("divination mana cost is valid");
     CardDefinition::new("divination", "Divination", vec![CardType::Sorcery])
         .with_mana_cost(cost)
+        .with_oracle_text("Draw two cards.")
 }
 
 #[cfg(test)]

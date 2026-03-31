@@ -164,11 +164,37 @@ pub(crate) struct SnapshotChangedMessage;
 /// catalog's naming convention: the definition ID is the canonical name source.
 pub(crate) struct CatalogRegistry;
 
+impl CatalogRegistry {
+    /// Look up a `CardDefinition` from the built-in catalog by its definition ID.
+    ///
+    /// Returns `None` for unknown IDs.
+    fn lookup_definition(definition_id: &str) -> Option<echomancy_core::prelude::CardDefinition> {
+        use echomancy_core::prelude::catalog;
+        match definition_id {
+            "forest" => Some(catalog::forest()),
+            "mountain" => Some(catalog::mountain()),
+            "plains" => Some(catalog::plains()),
+            "island" => Some(catalog::island()),
+            "swamp" => Some(catalog::swamp()),
+            "bear" => Some(catalog::bear()),
+            "elite-vanguard" => Some(catalog::elite_vanguard()),
+            "goblin" => Some(catalog::goblin()),
+            "giant-growth" => Some(catalog::giant_growth()),
+            "lightning-strike" => Some(catalog::lightning_strike()),
+            "divination" => Some(catalog::divination()),
+            _ => None,
+        }
+    }
+}
+
 impl CardRegistry for CatalogRegistry {
     fn card_name(&self, definition_id: &str) -> String {
-        // Convert kebab-case definition ID to Title Case display name.
+        // Use the catalog definition name if available.
+        if let Some(def) = Self::lookup_definition(definition_id) {
+            return def.name().to_owned();
+        }
+        // Fallback: convert kebab-case definition ID to Title Case display name.
         // e.g. "lightning-strike" → "Lightning Strike", "forest" → "Forest".
-        // This derives the name from the ID rather than duplicating it here.
         definition_id
             .split('-')
             .map(|word| {
@@ -180,6 +206,16 @@ impl CardRegistry for CatalogRegistry {
             })
             .collect::<Vec<_>>()
             .join(" ")
+    }
+
+    fn mana_cost_text(&self, definition_id: &str) -> Option<String> {
+        let def = Self::lookup_definition(definition_id)?;
+        def.mana_cost().map(|c| c.to_text())
+    }
+
+    fn oracle_text(&self, definition_id: &str) -> Option<String> {
+        let def = Self::lookup_definition(definition_id)?;
+        def.oracle_text().map(str::to_owned)
     }
 }
 
@@ -237,5 +273,51 @@ mod tests {
     fn catalog_registry_formats_unknown_ids_as_title_case() {
         let registry = CatalogRegistry;
         assert_eq!(registry.card_name("some-unknown-card"), "Some Unknown Card");
+    }
+
+    #[test]
+    fn catalog_registry_mana_cost_text_forest_is_none() {
+        let registry = CatalogRegistry;
+        // Forest is a land — no mana cost.
+        assert_eq!(registry.mana_cost_text("forest"), None);
+    }
+
+    #[test]
+    fn catalog_registry_mana_cost_text_bear() {
+        let registry = CatalogRegistry;
+        assert_eq!(registry.mana_cost_text("bear"), Some("{1}{G}".to_owned()));
+    }
+
+    #[test]
+    fn catalog_registry_mana_cost_text_giant_growth() {
+        let registry = CatalogRegistry;
+        assert_eq!(registry.mana_cost_text("giant-growth"), Some("{G}".to_owned()));
+    }
+
+    #[test]
+    fn catalog_registry_mana_cost_text_lightning_strike() {
+        let registry = CatalogRegistry;
+        assert_eq!(registry.mana_cost_text("lightning-strike"), Some("{1}{R}".to_owned()));
+    }
+
+    #[test]
+    fn catalog_registry_oracle_text_forest() {
+        let registry = CatalogRegistry;
+        assert_eq!(registry.oracle_text("forest"), Some("{T}: Add {G}.".to_owned()));
+    }
+
+    #[test]
+    fn catalog_registry_oracle_text_giant_growth() {
+        let registry = CatalogRegistry;
+        assert_eq!(
+            registry.oracle_text("giant-growth"),
+            Some("Target creature gets +3/+3 until end of turn.".to_owned())
+        );
+    }
+
+    #[test]
+    fn catalog_registry_oracle_text_unknown_card_is_none() {
+        let registry = CatalogRegistry;
+        assert_eq!(registry.oracle_text("nonexistent-card"), None);
     }
 }
