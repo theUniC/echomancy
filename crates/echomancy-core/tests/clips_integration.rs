@@ -50,7 +50,7 @@ fn make_test_game() -> (Game, String, String) {
         "mountain",
         "giant-growth",
         "sol-ring",
-        "arcane-sanctum",
+        "wild-bounty",
     ])
     .expect("CLIPS engine should initialise");
     game.set_rules_engine(engine);
@@ -479,12 +479,12 @@ fn sol_ring_taps_for_2_colorless_mana() {
 // ============================================================================
 
 #[test]
-fn arcane_sanctum_resolves_to_battlefield() {
+fn wild_bounty_resolves_to_battlefield() {
     let (mut game, p1, _p2) = make_test_game();
 
-    // Give P1 enough mana to cast Arcane Sanctum ({1}{U}).
+    // Give P1 enough mana to cast Wild Bounty ({1}{G}).
     game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
-    game.add_mana(&p1, ManaColor::Blue, 1).unwrap();
+    game.add_mana(&p1, ManaColor::Green, 1).unwrap();
 
     // Add extra cards to P1's library so draw on ETB doesn't fail.
     let extra_lib_1 = CardInstance::new("extra-lib-1", catalog::forest(), &p1);
@@ -493,7 +493,7 @@ fn arcane_sanctum_resolves_to_battlefield() {
     game.add_card_to_library_top(&p1, extra_lib_2).unwrap();
 
     // Add Arcane Sanctum to P1's hand.
-    let enchantment = CardInstance::new("arcane-sanctum-1", catalog::arcane_sanctum(), &p1);
+    let enchantment = CardInstance::new("wild-bounty-1", catalog::wild_bounty(), &p1);
     game.add_card_to_hand(&p1, enchantment).unwrap();
 
     let p1_battlefield_before = game.battlefield(&p1).unwrap().len();
@@ -501,7 +501,7 @@ fn arcane_sanctum_resolves_to_battlefield() {
     // Cast Arcane Sanctum (enchantment, no target).
     game.apply(Action::CastSpell {
         player_id: PlayerId::new(&p1),
-        card_id: CardInstanceId::new("arcane-sanctum-1"),
+        card_id: CardInstanceId::new("wild-bounty-1"),
         targets: vec![],
     })
     .expect("P1 should be able to cast Arcane Sanctum");
@@ -524,7 +524,7 @@ fn arcane_sanctum_resolves_to_battlefield() {
         .battlefield(&p1)
         .unwrap()
         .iter()
-        .find(|c| c.instance_id() == "arcane-sanctum-1");
+        .find(|c| c.instance_id() == "wild-bounty-1");
     assert!(
         enchantment_on_field.is_some(),
         "Arcane Sanctum should be on P1's battlefield"
@@ -536,12 +536,12 @@ fn arcane_sanctum_resolves_to_battlefield() {
 // ============================================================================
 
 #[test]
-fn arcane_sanctum_draws_a_card_on_etb() {
+fn wild_bounty_draws_a_card_on_etb() {
     let (mut game, p1, _p2) = make_test_game();
 
-    // Give P1 enough mana to cast Arcane Sanctum ({1}{U}).
+    // Give P1 enough mana to cast Wild Bounty ({1}{G}).
     game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
-    game.add_mana(&p1, ManaColor::Blue, 1).unwrap();
+    game.add_mana(&p1, ManaColor::Green, 1).unwrap();
 
     // Add extra cards to P1's library so draw doesn't fail silently.
     let extra_lib_1 = CardInstance::new("extra-lib-e1", catalog::forest(), &p1);
@@ -550,7 +550,7 @@ fn arcane_sanctum_draws_a_card_on_etb() {
     game.add_card_to_library_top(&p1, extra_lib_2).unwrap();
 
     // Add Arcane Sanctum to P1's hand.
-    let enchantment = CardInstance::new("arcane-sanctum-2", catalog::arcane_sanctum(), &p1);
+    let enchantment = CardInstance::new("wild-bounty-2", catalog::wild_bounty(), &p1);
     game.add_card_to_hand(&p1, enchantment).unwrap();
 
     let p1_hand_before = game.hand(&p1).unwrap().len(); // includes the enchantment
@@ -558,7 +558,7 @@ fn arcane_sanctum_draws_a_card_on_etb() {
     // Cast Arcane Sanctum.
     game.apply(Action::CastSpell {
         player_id: PlayerId::new(&p1),
-        card_id: CardInstanceId::new("arcane-sanctum-2"),
+        card_id: CardInstanceId::new("wild-bounty-2"),
         targets: vec![],
     })
     .expect("P1 should be able to cast Arcane Sanctum");

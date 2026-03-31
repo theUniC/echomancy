@@ -55,7 +55,7 @@ pub fn green_deck(owner_id: &str) -> Vec<CardInstance> {
     for _ in 0..2 {
         deck.push(CardInstance::new(
             Uuid::new_v4().to_string(),
-            catalog::arcane_sanctum(),
+            catalog::wild_bounty(),
             owner_id,
         ));
     }
@@ -109,7 +109,7 @@ pub fn red_deck(owner_id: &str) -> Vec<CardInstance> {
     for _ in 0..2 {
         deck.push(CardInstance::new(
             Uuid::new_v4().to_string(),
-            catalog::arcane_sanctum(),
+            catalog::wild_bounty(),
             owner_id,
         ));
     }
@@ -156,9 +156,9 @@ mod tests {
         assert_eq!(growths, 14);
 
         let sol_rings = deck.iter().filter(|c| c.definition().id() == "sol-ring").count();
-        let sanctums = deck.iter().filter(|c| c.definition().id() == "arcane-sanctum").count();
+        let bounties = deck.iter().filter(|c| c.definition().id() == "wild-bounty").count();
         assert_eq!(sol_rings, 4);
-        assert_eq!(sanctums, 2);
+        assert_eq!(bounties, 2);
     }
 
     #[test]
@@ -183,9 +183,9 @@ mod tests {
         assert_eq!(strikes, 14);
 
         let sol_rings = deck.iter().filter(|c| c.definition().id() == "sol-ring").count();
-        let sanctums = deck.iter().filter(|c| c.definition().id() == "arcane-sanctum").count();
+        let bounties = deck.iter().filter(|c| c.definition().id() == "wild-bounty").count();
         assert_eq!(sol_rings, 4);
-        assert_eq!(sanctums, 2);
+        assert_eq!(bounties, 2);
     }
 
     #[test]

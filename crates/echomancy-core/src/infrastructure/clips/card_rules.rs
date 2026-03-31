@@ -35,8 +35,8 @@ const DIVINATION_RULES: &str =
 const GIANT_GROWTH_RULES: &str =
     include_str!("../../../../../rules/cards/g/giant-growth.clp");
 
-const ARCANE_SANCTUM_RULES: &str =
-    include_str!("../../../../../rules/cards/a/arcane-sanctum.clp");
+const WILD_BOUNTY_RULES: &str =
+    include_str!("../../../../../rules/cards/w/wild-bounty.clp");
 
 // ============================================================================
 // Public API
@@ -66,7 +66,7 @@ pub(crate) fn load_core_templates(engine: &mut ClipsEngine) -> Result<(), RulesE
 /// | `"lightning-strike"` | Deal 3 damage to opponent |
 /// | `"divination"` | Controller draws 2 cards |
 /// | `"giant-growth"` | Target creature gets +3/+3 until end of turn |
-/// | `"arcane-sanctum"` | Controller draws 1 card on ETB |
+/// | `"wild-bounty"` | Controller draws 1 card on ETB |
 /// | anything else | No rules — silently succeeds |
 #[allow(dead_code)]
 pub(crate) fn load_card_rules(engine: &mut ClipsEngine, card_id: &str) -> Result<(), RulesError> {
@@ -74,7 +74,7 @@ pub(crate) fn load_card_rules(engine: &mut ClipsEngine, card_id: &str) -> Result
         "lightning-strike" => engine.load_rules(LIGHTNING_STRIKE_RULES),
         "divination" => engine.load_rules(DIVINATION_RULES),
         "giant-growth" => engine.load_rules(GIANT_GROWTH_RULES),
-        "arcane-sanctum" => engine.load_rules(ARCANE_SANCTUM_RULES),
+        "wild-bounty" => engine.load_rules(WILD_BOUNTY_RULES),
         // Sol Ring uses no CLIPS rule — its mana ability is handled entirely by
         // the Rust domain (CR 605 mana abilities bypass the stack).
         // Vanilla/keyword-only cards have no .clp — this is expected and fine.

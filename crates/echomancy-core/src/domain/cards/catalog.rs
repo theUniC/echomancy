@@ -167,19 +167,19 @@ pub fn sol_ring() -> CardDefinition {
 // Enchantments
 // ============================================================================
 
-/// Return the `Arcane Sanctum` enchantment definition (simplified for MVP).
+/// Return the `Wild Bounty` enchantment definition.
 ///
-/// Mana cost: {1}{U} (1 generic + 1 blue).
-/// Effect: When Arcane Sanctum enters the battlefield, draw a card.
+/// Mana cost: {1}{G} (1 generic + 1 green).
+/// Effect: When Wild Bounty enters the battlefield, draw a card.
 ///
 /// This is a non-aura enchantment. It resolves to the battlefield and stays
 /// there (unlike instants/sorceries which go to the graveyard). The ETB draw
-/// is handled by the CLIPS rule `arcane-sanctum-etb-draw`.
-pub fn arcane_sanctum() -> CardDefinition {
-    let cost = ManaCost::parse("1U").expect("arcane sanctum mana cost is valid");
-    CardDefinition::new("arcane-sanctum", "Arcane Sanctum", vec![CardType::Enchantment])
+/// is handled by the CLIPS rule `wild-bounty-etb-draw`.
+pub fn wild_bounty() -> CardDefinition {
+    let cost = ManaCost::parse("1G").expect("wild bounty mana cost is valid");
+    CardDefinition::new("wild-bounty", "Wild Bounty", vec![CardType::Enchantment])
         .with_mana_cost(cost)
-        .with_oracle_text("When Arcane Sanctum enters the battlefield, draw a card.")
+        .with_oracle_text("When Wild Bounty enters the battlefield, draw a card.")
 }
 
 /// Return the `Divination` sorcery definition.
@@ -301,7 +301,7 @@ mod tests {
             "lightning-strike",
             "divination",
             "sol-ring",
-            "arcane-sanctum",
+            "wild-bounty",
         ];
         let mut seen = std::collections::HashSet::new();
         for id in &ids {
@@ -360,31 +360,31 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn arcane_sanctum_is_enchantment() {
-        let ae = arcane_sanctum();
+    fn wild_bounty_is_enchantment() {
+        let ae = wild_bounty();
         assert!(ae.is_enchantment(), "Arcane Sanctum should be an enchantment");
         assert!(!ae.is_creature(), "Arcane Sanctum should not be a creature");
         assert!(!ae.is_land(), "Arcane Sanctum should not be a land");
     }
 
     #[test]
-    fn arcane_sanctum_has_id_and_name() {
-        let ae = arcane_sanctum();
-        assert_eq!(ae.id(), "arcane-sanctum");
-        assert_eq!(ae.name(), "Arcane Sanctum");
+    fn wild_bounty_has_id_and_name() {
+        let ae = wild_bounty();
+        assert_eq!(ae.id(), "wild-bounty");
+        assert_eq!(ae.name(), "Wild Bounty");
     }
 
     #[test]
-    fn arcane_sanctum_has_cost_1u() {
-        let ae = arcane_sanctum();
-        let cost = ae.mana_cost().expect("Arcane Sanctum must have a mana cost");
-        let expected = ManaCost::parse("1U").unwrap();
-        assert_eq!(*cost, expected, "Arcane Sanctum mana cost should be {{1}}{{U}}");
+    fn wild_bounty_has_cost_1g() {
+        let wb = wild_bounty();
+        let cost = wb.mana_cost().expect("Wild Bounty must have a mana cost");
+        let expected = ManaCost::parse("1G").unwrap();
+        assert_eq!(*cost, expected, "Wild Bounty mana cost should be {{1}}{{G}}");
     }
 
     #[test]
-    fn arcane_sanctum_has_oracle_text() {
-        let ae = arcane_sanctum();
-        assert!(ae.oracle_text().is_some(), "Arcane Sanctum should have oracle text");
+    fn wild_bounty_has_oracle_text() {
+        let ae = wild_bounty();
+        assert!(ae.oracle_text().is_some(), "Wild Bounty should have oracle text");
     }
 }
