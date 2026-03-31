@@ -85,7 +85,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 
 | # | Description | Status | Dependency | Notes |
 |---|-------------|--------|------------|-------|
-| B1 | Error "game is not in mulligan phase" after Keep | TODO | - | Mulligan actions sent after phase ends |
+| B1 | Error "game is not in mulligan phase" after Keep | DONE | - | Stale mulligan messages filtered in handle_game_actions |
 
 ---
 

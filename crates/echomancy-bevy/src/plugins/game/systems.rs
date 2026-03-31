@@ -142,6 +142,17 @@ pub(crate) fn handle_game_actions(
     let mut pending_error: Option<String> = None;
 
     for message in action_messages.read() {
+        // Skip mulligan actions that leak into InGame (stale messages from
+        // the frame where the mulligan phase ended).
+        if matches!(
+            &message.0,
+            Action::MulliganKeep { .. }
+                | Action::MulliganRedraw { .. }
+                | Action::PutCardOnBottom { .. }
+        ) {
+            continue;
+        }
+
         info!(action = ?message.0, "Received GameActionMessage");
         match game_state.game.apply(message.0.clone()) {
             Ok(events) => {
