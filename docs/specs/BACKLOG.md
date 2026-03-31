@@ -77,6 +77,15 @@ See `docs/architecture-clips-integration.md` for full design spec.
 | U4 | Card detail view (hover for full text) | DONE | - | Hover panel with name, type, cost, oracle text, P/T |
 | U5 | Animations (card movement, damage, phase transitions) | TODO | - | |
 | U6 | ~~Hotseat transition screen~~ | N/A | - | Superseded by G1 (bot replaces hotseat) |
+| U7 | Battlefield overflow — scroll or wrap when too many cards | TODO | - | Cards clip off-screen left/right |
+| U8 | Multiple blocker assignment (N blockers → 1 attacker) | TODO | - | Currently only 1 blocker per attacker |
+| U9 | Sol Ring / non-land artifacts tappable for mana | TODO | - | ActivateAbility works but UI doesn't show tap affordance |
+
+### Phase 5: Bugs
+
+| # | Description | Status | Dependency | Notes |
+|---|-------------|--------|------------|-------|
+| B1 | Error "game is not in mulligan phase" after Keep | TODO | - | Mulligan actions sent after phase ends |
 
 ---
 
