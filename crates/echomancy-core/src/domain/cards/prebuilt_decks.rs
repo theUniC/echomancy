@@ -12,13 +12,15 @@ use crate::domain::cards::catalog;
 /// Creates the green starter deck (60 cards) for the given player.
 ///
 /// Composition:
-/// - 24x Forest
-/// - 20x Bear (2/2)
-/// - 16x Giant Growth (instant)
+/// - 22x Forest
+/// - 18x Bear (2/2)
+/// - 14x Giant Growth (instant)
+/// - 4x Sol Ring (artifact)
+/// - 2x Arcane Sanctum (enchantment)
 pub fn green_deck(owner_id: &str) -> Vec<CardInstance> {
     let mut deck = Vec::with_capacity(60);
 
-    for _ in 0..24 {
+    for _ in 0..22 {
         deck.push(CardInstance::new(
             Uuid::new_v4().to_string(),
             catalog::forest(),
@@ -26,7 +28,7 @@ pub fn green_deck(owner_id: &str) -> Vec<CardInstance> {
         ));
     }
 
-    for _ in 0..20 {
+    for _ in 0..18 {
         deck.push(CardInstance::new(
             Uuid::new_v4().to_string(),
             catalog::bear(),
@@ -34,10 +36,26 @@ pub fn green_deck(owner_id: &str) -> Vec<CardInstance> {
         ));
     }
 
-    for _ in 0..16 {
+    for _ in 0..14 {
         deck.push(CardInstance::new(
             Uuid::new_v4().to_string(),
             catalog::giant_growth(),
+            owner_id,
+        ));
+    }
+
+    for _ in 0..4 {
+        deck.push(CardInstance::new(
+            Uuid::new_v4().to_string(),
+            catalog::sol_ring(),
+            owner_id,
+        ));
+    }
+
+    for _ in 0..2 {
+        deck.push(CardInstance::new(
+            Uuid::new_v4().to_string(),
+            catalog::arcane_sanctum(),
             owner_id,
         ));
     }
@@ -48,13 +66,15 @@ pub fn green_deck(owner_id: &str) -> Vec<CardInstance> {
 /// Creates the red starter deck (60 cards) for the given player.
 ///
 /// Composition:
-/// - 24x Mountain
-/// - 20x Goblin (1/1)
-/// - 16x Lightning Strike (instant)
+/// - 22x Mountain
+/// - 18x Goblin (1/1)
+/// - 14x Lightning Strike (instant)
+/// - 4x Sol Ring (artifact)
+/// - 2x Arcane Sanctum (enchantment)
 pub fn red_deck(owner_id: &str) -> Vec<CardInstance> {
     let mut deck = Vec::with_capacity(60);
 
-    for _ in 0..24 {
+    for _ in 0..22 {
         deck.push(CardInstance::new(
             Uuid::new_v4().to_string(),
             catalog::mountain(),
@@ -62,7 +82,7 @@ pub fn red_deck(owner_id: &str) -> Vec<CardInstance> {
         ));
     }
 
-    for _ in 0..20 {
+    for _ in 0..18 {
         deck.push(CardInstance::new(
             Uuid::new_v4().to_string(),
             catalog::goblin(),
@@ -70,10 +90,26 @@ pub fn red_deck(owner_id: &str) -> Vec<CardInstance> {
         ));
     }
 
-    for _ in 0..16 {
+    for _ in 0..14 {
         deck.push(CardInstance::new(
             Uuid::new_v4().to_string(),
             catalog::lightning_strike(),
+            owner_id,
+        ));
+    }
+
+    for _ in 0..4 {
+        deck.push(CardInstance::new(
+            Uuid::new_v4().to_string(),
+            catalog::sol_ring(),
+            owner_id,
+        ));
+    }
+
+    for _ in 0..2 {
+        deck.push(CardInstance::new(
+            Uuid::new_v4().to_string(),
+            catalog::arcane_sanctum(),
             owner_id,
         ));
     }
@@ -115,9 +151,14 @@ mod tests {
             .filter(|c| c.definition().id() == "giant-growth")
             .count();
 
-        assert_eq!(forests, 24);
-        assert_eq!(bears, 20);
-        assert_eq!(growths, 16);
+        assert_eq!(forests, 22);
+        assert_eq!(bears, 18);
+        assert_eq!(growths, 14);
+
+        let sol_rings = deck.iter().filter(|c| c.definition().id() == "sol-ring").count();
+        let sanctums = deck.iter().filter(|c| c.definition().id() == "arcane-sanctum").count();
+        assert_eq!(sol_rings, 4);
+        assert_eq!(sanctums, 2);
     }
 
     #[test]
@@ -137,9 +178,14 @@ mod tests {
             .filter(|c| c.definition().id() == "lightning-strike")
             .count();
 
-        assert_eq!(mountains, 24);
-        assert_eq!(goblins, 20);
-        assert_eq!(strikes, 16);
+        assert_eq!(mountains, 22);
+        assert_eq!(goblins, 18);
+        assert_eq!(strikes, 14);
+
+        let sol_rings = deck.iter().filter(|c| c.definition().id() == "sol-ring").count();
+        let sanctums = deck.iter().filter(|c| c.definition().id() == "arcane-sanctum").count();
+        assert_eq!(sol_rings, 4);
+        assert_eq!(sanctums, 2);
     }
 
     #[test]

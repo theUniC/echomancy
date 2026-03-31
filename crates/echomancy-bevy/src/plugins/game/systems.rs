@@ -62,7 +62,8 @@ pub(crate) fn setup_game(mut commands: Commands) {
     // Wire up the CLIPS rules engine so spells have real effects.
     // Load rules for all card types that appear in either deck.
     let card_ids = ["lightning-strike", "giant-growth", "divination",
-                    "bear", "goblin", "forest", "mountain"];
+                    "bear", "goblin", "forest", "mountain",
+                    "sol-ring", "arcane-sanctum"];
     match create_rules_engine(&card_ids) {
         Ok(engine) => {
             game.set_rules_engine(engine);
