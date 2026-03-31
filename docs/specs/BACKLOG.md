@@ -77,7 +77,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 | U4 | Card detail view (hover for full text) | DONE | - | Hover panel with name, type, cost, oracle text, P/T |
 | U5 | Animations (card movement, damage, phase transitions) | TODO | - | |
 | U6 | ~~Hotseat transition screen~~ | N/A | - | Superseded by G1 (bot replaces hotseat) |
-| U7 | Battlefield overflow — scroll or wrap when too many cards | TODO | - | Cards clip off-screen left/right |
+| U7 | Battlefield overflow — wrap when too many cards | DONE | - | flex_wrap on battlefield + hand zones |
 | U8 | Multiple blocker assignment (N blockers → 1 attacker) | TODO | - | Currently only 1 blocker per attacker |
 | U9 | Sol Ring / non-land artifacts tappable for mana | DONE | - | compute_tappable_lands now includes any permanent with mana ability |
 
