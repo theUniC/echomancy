@@ -182,6 +182,8 @@ impl CatalogRegistry {
             "giant-growth" => Some(catalog::giant_growth()),
             "lightning-strike" => Some(catalog::lightning_strike()),
             "divination" => Some(catalog::divination()),
+            "sol-ring" => Some(catalog::sol_ring()),
+            "wild-bounty" => Some(catalog::wild_bounty()),
             _ => None,
         }
     }
