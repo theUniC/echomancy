@@ -141,6 +141,47 @@ pub fn lightning_strike() -> CardDefinition {
         .with_oracle_text("Lightning Strike deals 3 damage to any target.")
 }
 
+// ============================================================================
+// Artifacts
+// ============================================================================
+
+/// Return the `Sol Ring` artifact definition.
+///
+/// Mana cost: {1} (1 generic).
+/// Activated ability: {T} → Add {C}{C}.
+///
+/// Sol Ring is a mana ability (CR 605) — it resolves immediately without
+/// using the stack, and the activating player retains priority.
+pub fn sol_ring() -> CardDefinition {
+    let cost = ManaCost::parse("1").expect("sol ring mana cost is valid");
+    CardDefinition::new("sol-ring", "Sol Ring", vec![CardType::Artifact])
+        .with_mana_cost(cost)
+        .with_activated_ability(ActivatedAbility {
+            cost: ActivationCost::Tap,
+            effect: Effect::AddMana { color: ManaColor::Colorless, amount: 2 },
+        })
+        .with_oracle_text("{T}: Add {C}{C}.")
+}
+
+// ============================================================================
+// Enchantments
+// ============================================================================
+
+/// Return the `Arcane Sanctum` enchantment definition (simplified for MVP).
+///
+/// Mana cost: {1}{U} (1 generic + 1 blue).
+/// Effect: When Arcane Sanctum enters the battlefield, draw a card.
+///
+/// This is a non-aura enchantment. It resolves to the battlefield and stays
+/// there (unlike instants/sorceries which go to the graveyard). The ETB draw
+/// is handled by the CLIPS rule `arcane-sanctum-etb-draw`.
+pub fn arcane_sanctum() -> CardDefinition {
+    let cost = ManaCost::parse("1U").expect("arcane sanctum mana cost is valid");
+    CardDefinition::new("arcane-sanctum", "Arcane Sanctum", vec![CardType::Enchantment])
+        .with_mana_cost(cost)
+        .with_oracle_text("When Arcane Sanctum enters the battlefield, draw a card.")
+}
+
 /// Return the `Divination` sorcery definition.
 ///
 /// Mana cost: {2}{U} (2 generic + 1 blue).
@@ -259,10 +300,91 @@ mod tests {
             "giant-growth",
             "lightning-strike",
             "divination",
+            "sol-ring",
+            "arcane-sanctum",
         ];
         let mut seen = std::collections::HashSet::new();
         for id in &ids {
             assert!(seen.insert(*id), "Duplicate catalog ID: {id}");
         }
+    }
+
+    // =========================================================================
+    // Sol Ring (Artifact) — P3
+    // =========================================================================
+
+    #[test]
+    fn sol_ring_is_artifact() {
+        let sr = sol_ring();
+        assert!(sr.is_artifact(), "Sol Ring should be an artifact");
+        assert!(!sr.is_creature(), "Sol Ring should not be a creature");
+        assert!(!sr.is_land(), "Sol Ring should not be a land");
+    }
+
+    #[test]
+    fn sol_ring_has_id_and_name() {
+        let sr = sol_ring();
+        assert_eq!(sr.id(), "sol-ring");
+        assert_eq!(sr.name(), "Sol Ring");
+    }
+
+    #[test]
+    fn sol_ring_has_cost_1() {
+        let sr = sol_ring();
+        let cost = sr.mana_cost().expect("Sol Ring must have a mana cost");
+        let expected = ManaCost::parse("1").unwrap();
+        assert_eq!(*cost, expected, "Sol Ring mana cost should be {{1}}");
+    }
+
+    #[test]
+    fn sol_ring_has_tap_for_2_colorless_ability() {
+        let sr = sol_ring();
+        let ability = sr
+            .activated_ability()
+            .expect("Sol Ring should have a tap mana ability");
+        assert_eq!(
+            ability.effect,
+            Effect::AddMana { color: ManaColor::Colorless, amount: 2 },
+            "Sol Ring should add 2 colorless mana"
+        );
+    }
+
+    #[test]
+    fn sol_ring_has_oracle_text() {
+        let sr = sol_ring();
+        assert_eq!(sr.oracle_text(), Some("{T}: Add {C}{C}."));
+    }
+
+    // =========================================================================
+    // Arcane Sanctum (Enchantment) — P3
+    // =========================================================================
+
+    #[test]
+    fn arcane_sanctum_is_enchantment() {
+        let ae = arcane_sanctum();
+        assert!(ae.is_enchantment(), "Arcane Sanctum should be an enchantment");
+        assert!(!ae.is_creature(), "Arcane Sanctum should not be a creature");
+        assert!(!ae.is_land(), "Arcane Sanctum should not be a land");
+    }
+
+    #[test]
+    fn arcane_sanctum_has_id_and_name() {
+        let ae = arcane_sanctum();
+        assert_eq!(ae.id(), "arcane-sanctum");
+        assert_eq!(ae.name(), "Arcane Sanctum");
+    }
+
+    #[test]
+    fn arcane_sanctum_has_cost_1u() {
+        let ae = arcane_sanctum();
+        let cost = ae.mana_cost().expect("Arcane Sanctum must have a mana cost");
+        let expected = ManaCost::parse("1U").unwrap();
+        assert_eq!(*cost, expected, "Arcane Sanctum mana cost should be {{1}}{{U}}");
+    }
+
+    #[test]
+    fn arcane_sanctum_has_oracle_text() {
+        let ae = arcane_sanctum();
+        assert!(ae.oracle_text().is_some(), "Arcane Sanctum should have oracle text");
     }
 }

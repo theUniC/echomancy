@@ -49,6 +49,8 @@ fn make_test_game() -> (Game, String, String) {
         "forest",
         "mountain",
         "giant-growth",
+        "sol-ring",
+        "arcane-sanctum",
     ])
     .expect("CLIPS engine should initialise");
     game.set_rules_engine(engine);
@@ -382,5 +384,193 @@ fn spell_without_clips_rule_is_noop() {
         game.battlefield(&p2).unwrap().len(),
         p2_battlefield_before,
         "P2 battlefield should be unchanged"
+    );
+}
+
+// ============================================================================
+// Test 6: Sol Ring (Artifact) resolves to battlefield
+// ============================================================================
+
+#[test]
+fn sol_ring_resolves_to_battlefield() {
+    let (mut game, p1, _p2) = make_test_game();
+
+    // Give P1 enough mana to cast Sol Ring ({1}).
+    game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+
+    // Add Sol Ring to P1's hand.
+    let sol_ring = CardInstance::new("sol-ring-1", catalog::sol_ring(), &p1);
+    game.add_card_to_hand(&p1, sol_ring).unwrap();
+
+    let p1_battlefield_before = game.battlefield(&p1).unwrap().len();
+
+    // Cast Sol Ring (artifact, no target).
+    game.apply(Action::CastSpell {
+        player_id: PlayerId::new(&p1),
+        card_id: CardInstanceId::new("sol-ring-1"),
+        targets: vec![],
+    })
+    .expect("P1 should be able to cast Sol Ring");
+
+    assert_eq!(game.stack().len(), 1, "Sol Ring should be on stack");
+
+    auto_resolve_stack(&mut game);
+
+    assert_eq!(game.stack().len(), 0, "stack should be empty after resolution");
+
+    // Sol Ring should be on the battlefield (not in graveyard).
+    let p1_battlefield_after = game.battlefield(&p1).unwrap().len();
+    assert_eq!(
+        p1_battlefield_after,
+        p1_battlefield_before + 1,
+        "Sol Ring should have entered the battlefield"
+    );
+
+    let sol_ring_on_field = game
+        .battlefield(&p1)
+        .unwrap()
+        .iter()
+        .find(|c| c.instance_id() == "sol-ring-1");
+    assert!(sol_ring_on_field.is_some(), "Sol Ring should be on P1's battlefield");
+}
+
+// ============================================================================
+// Test 7: Sol Ring taps for 2 colorless mana (mana ability, no stack)
+// ============================================================================
+
+#[test]
+fn sol_ring_taps_for_2_colorless_mana() {
+    let (mut game, p1, _p2) = make_test_game();
+
+    // Place Sol Ring directly on the battlefield.
+    let sol_ring = CardInstance::new("sol-ring-1", catalog::sol_ring(), &p1);
+    game.add_permanent_to_battlefield(&p1, sol_ring).unwrap();
+
+    // Advance summoning sickness — Sol Ring is an artifact, so no summoning
+    // sickness applies (only creatures have summoning sickness for {T} abilities).
+    // But we need priority to activate. P1 has priority in FirstMain already.
+
+    let p1_colorless_before = game.mana_pool(&p1).unwrap().get(ManaColor::Colorless);
+
+    // Activate Sol Ring's tap ability.
+    game.apply(Action::ActivateAbility {
+        player_id: PlayerId::new(&p1),
+        permanent_id: CardInstanceId::new("sol-ring-1"),
+    })
+    .expect("P1 should be able to tap Sol Ring for mana");
+
+    // Mana ability: stack should be empty (bypasses the stack per CR 605).
+    assert!(
+        game.stack().is_empty(),
+        "Mana abilities should not use the stack"
+    );
+
+    // P1 should have 2 more colorless mana.
+    let p1_colorless_after = game.mana_pool(&p1).unwrap().get(ManaColor::Colorless);
+    assert_eq!(
+        p1_colorless_after,
+        p1_colorless_before + 2,
+        "Sol Ring should add 2 colorless mana"
+    );
+}
+
+// ============================================================================
+// Test 8: Arcane Sanctum (Enchantment) resolves to battlefield
+// ============================================================================
+
+#[test]
+fn arcane_sanctum_resolves_to_battlefield() {
+    let (mut game, p1, _p2) = make_test_game();
+
+    // Give P1 enough mana to cast Arcane Sanctum ({1}{U}).
+    game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+    game.add_mana(&p1, ManaColor::Blue, 1).unwrap();
+
+    // Add extra cards to P1's library so draw on ETB doesn't fail.
+    let extra_lib_1 = CardInstance::new("extra-lib-1", catalog::forest(), &p1);
+    let extra_lib_2 = CardInstance::new("extra-lib-2", catalog::forest(), &p1);
+    game.add_card_to_library_top(&p1, extra_lib_1).unwrap();
+    game.add_card_to_library_top(&p1, extra_lib_2).unwrap();
+
+    // Add Arcane Sanctum to P1's hand.
+    let enchantment = CardInstance::new("arcane-sanctum-1", catalog::arcane_sanctum(), &p1);
+    game.add_card_to_hand(&p1, enchantment).unwrap();
+
+    let p1_battlefield_before = game.battlefield(&p1).unwrap().len();
+
+    // Cast Arcane Sanctum (enchantment, no target).
+    game.apply(Action::CastSpell {
+        player_id: PlayerId::new(&p1),
+        card_id: CardInstanceId::new("arcane-sanctum-1"),
+        targets: vec![],
+    })
+    .expect("P1 should be able to cast Arcane Sanctum");
+
+    assert_eq!(game.stack().len(), 1, "Arcane Sanctum should be on stack");
+
+    auto_resolve_stack(&mut game);
+
+    assert_eq!(game.stack().len(), 0, "stack should be empty after resolution");
+
+    // Arcane Sanctum should be on the battlefield (not in graveyard).
+    let p1_battlefield_after = game.battlefield(&p1).unwrap().len();
+    assert_eq!(
+        p1_battlefield_after,
+        p1_battlefield_before + 1,
+        "Arcane Sanctum should have entered the battlefield"
+    );
+
+    let enchantment_on_field = game
+        .battlefield(&p1)
+        .unwrap()
+        .iter()
+        .find(|c| c.instance_id() == "arcane-sanctum-1");
+    assert!(
+        enchantment_on_field.is_some(),
+        "Arcane Sanctum should be on P1's battlefield"
+    );
+}
+
+// ============================================================================
+// Test 9: Arcane Sanctum (ETB) draws a card when it enters the battlefield
+// ============================================================================
+
+#[test]
+fn arcane_sanctum_draws_a_card_on_etb() {
+    let (mut game, p1, _p2) = make_test_game();
+
+    // Give P1 enough mana to cast Arcane Sanctum ({1}{U}).
+    game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+    game.add_mana(&p1, ManaColor::Blue, 1).unwrap();
+
+    // Add extra cards to P1's library so draw doesn't fail silently.
+    let extra_lib_1 = CardInstance::new("extra-lib-e1", catalog::forest(), &p1);
+    let extra_lib_2 = CardInstance::new("extra-lib-e2", catalog::forest(), &p1);
+    game.add_card_to_library_top(&p1, extra_lib_1).unwrap();
+    game.add_card_to_library_top(&p1, extra_lib_2).unwrap();
+
+    // Add Arcane Sanctum to P1's hand.
+    let enchantment = CardInstance::new("arcane-sanctum-2", catalog::arcane_sanctum(), &p1);
+    game.add_card_to_hand(&p1, enchantment).unwrap();
+
+    let p1_hand_before = game.hand(&p1).unwrap().len(); // includes the enchantment
+
+    // Cast Arcane Sanctum.
+    game.apply(Action::CastSpell {
+        player_id: PlayerId::new(&p1),
+        card_id: CardInstanceId::new("arcane-sanctum-2"),
+        targets: vec![],
+    })
+    .expect("P1 should be able to cast Arcane Sanctum");
+
+    auto_resolve_stack(&mut game);
+
+    // Net hand change: -1 (cast) + 1 (ETB draw) = 0.
+    let p1_hand_after = game.hand(&p1).unwrap().len();
+    assert_eq!(
+        p1_hand_after,
+        p1_hand_before - 1 + 1,
+        "Arcane Sanctum ETB should draw 1 card: before={p1_hand_before}, expected {}, got {p1_hand_after}",
+        p1_hand_before - 1 + 1
     );
 }

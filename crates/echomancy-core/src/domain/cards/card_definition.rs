@@ -153,6 +153,16 @@ impl CardDefinition {
         self.types.contains(&CardType::Instant)
     }
 
+    /// Returns `true` if this card is an artifact.
+    pub fn is_artifact(&self) -> bool {
+        self.types.contains(&CardType::Artifact)
+    }
+
+    /// Returns `true` if this card is an enchantment.
+    pub fn is_enchantment(&self) -> bool {
+        self.types.contains(&CardType::Enchantment)
+    }
+
     /// Returns `true` if this card has the given static ability.
     pub fn has_static_ability(&self, ability: StaticAbility) -> bool {
         self.static_abilities.contains(&ability)
@@ -285,5 +295,33 @@ mod tests {
         let card = CardDefinition::new("x", "X", vec![CardType::Creature])
             .with_oracle_text("Flying");
         assert_eq!(card.oracle_text(), Some("Flying"));
+    }
+
+    #[test]
+    fn is_artifact_returns_true_for_artifact() {
+        let art = CardDefinition::new("sol-ring", "Sol Ring", vec![CardType::Artifact]);
+        assert!(art.is_artifact());
+        assert!(!art.is_creature());
+        assert!(!art.is_enchantment());
+    }
+
+    #[test]
+    fn is_enchantment_returns_true_for_enchantment() {
+        let enc = CardDefinition::new("test-enc", "Test Enc", vec![CardType::Enchantment]);
+        assert!(enc.is_enchantment());
+        assert!(!enc.is_creature());
+        assert!(!enc.is_artifact());
+    }
+
+    #[test]
+    fn is_artifact_false_for_non_artifact() {
+        let land = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
+        assert!(!land.is_artifact());
+    }
+
+    #[test]
+    fn is_enchantment_false_for_non_enchantment() {
+        let land = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
+        assert!(!land.is_enchantment());
     }
 }
