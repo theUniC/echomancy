@@ -91,6 +91,8 @@ pub enum RulesAction {
     /// Scry N — look at top N cards, put any on top (in order) and rest on bottom.
     /// For MVP, auto-scry keeps the cards in their current order (top stays top).
     Scry { player: String, amount: u32 },
+    /// Mill N — move top N cards from library to graveyard (CR 701.13).
+    Mill { player: String, amount: u32 },
     /// Apply a temporary power/toughness modification to a creature.
     ModifyPowerToughness {
         /// Instance ID of the permanent to modify.

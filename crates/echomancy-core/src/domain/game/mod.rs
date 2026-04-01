@@ -621,6 +621,21 @@ impl Game {
             player.library.push(card);
         }
     }
+
+    /// Mill N — move the top N cards of a player's library to their graveyard.
+    ///
+    /// Per CR 701.13. If the library has fewer than N cards, mills all remaining.
+    pub(crate) fn mill(&mut self, player_id: &str, amount: usize) {
+        let Ok(player) = self.player_state_mut(player_id) else {
+            return;
+        };
+
+        let n = amount.min(player.library.len());
+        for _ in 0..n {
+            let card = player.library.remove(0);
+            player.graveyard.push(card);
+        }
+    }
 }
 
 // ============================================================================
@@ -1091,5 +1106,57 @@ mod tests {
         game.scry(&p1, 5); // Only 1 card, scry 5
 
         assert_eq!(game.library_count(&p1).unwrap(), 1);
+    }
+
+    // ---- Mill (CR 701.13) -----------------------------------------------
+
+    #[test]
+    fn mill_moves_top_cards_to_graveyard() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        for i in 0..4 {
+            let card = CardInstance::new(
+                format!("card-{i}"),
+                CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+                &p1,
+            );
+            game.add_card_to_library_top(&p1, card).unwrap();
+        }
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 0);
+
+        game.mill(&p1, 2);
+
+        assert_eq!(game.library_count(&p1).unwrap(), 2);
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn mill_more_than_library_mills_all() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        let card = CardInstance::new(
+            "only-card",
+            CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+            &p1,
+        );
+        game.add_card_to_library_top(&p1, card).unwrap();
+
+        game.mill(&p1, 5);
+
+        assert_eq!(game.library_count(&p1).unwrap(), 0);
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn mill_zero_is_noop() {
+        let (mut game, p1, _p2) = make_started_game();
+        game.mill(&p1, 0);
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 0);
     }
 }
