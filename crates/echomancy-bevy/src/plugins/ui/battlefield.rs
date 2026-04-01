@@ -442,6 +442,7 @@ pub(crate) fn handle_battlefield_land_click(
             action_writer.write(GameActionMessage(Action::ActivateAbility {
                 player_id: PlayerId::new(&active_player.player_id),
                 permanent_id: CardInstanceId::new(&tappable.instance_id),
+            ability_index: 0,
             }));
         }
     }

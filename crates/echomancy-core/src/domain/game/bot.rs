@@ -75,6 +75,7 @@ pub fn run_bot_turn(game: &mut Game, bot_player_id: &str) -> u32 {
                 if let Err(err) = game.apply(Action::ActivateAbility {
                     player_id: PlayerId::new(bot_player_id),
                     permanent_id: CardInstanceId::new(land_id),
+            ability_index: 0,
                 }) {
                     warn!(iteration, %err, "bot: ActivateAbility (tap land) failed");
                 } else {

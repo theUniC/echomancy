@@ -968,6 +968,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("forest-1"),
+            ability_index: 0,
         })
         .unwrap();
 

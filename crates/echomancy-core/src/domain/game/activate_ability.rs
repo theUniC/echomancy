@@ -34,6 +34,7 @@ pub(crate) fn handle(
     game: &mut Game,
     player_id: &str,
     permanent_id: &str,
+    ability_index: usize,
 ) -> Result<Vec<GameEvent>, GameError> {
     // 1. Player must have priority
     if !game.has_priority(player_id) {
@@ -55,10 +56,10 @@ pub(crate) fn handle(
                 permanent_id: CardInstanceId::new(permanent_id),
             })?;
 
-        // 3. Must have an activated ability
+        // 3. Must have an activated ability at the requested index
         let ability = card
             .definition()
-            .activated_ability()
+            .activated_ability_at(ability_index)
             .cloned()
             .ok_or_else(|| GameError::PermanentHasNoActivatedAbility {
                 permanent_id: CardInstanceId::new(permanent_id),
@@ -246,6 +247,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("land-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -262,6 +264,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("land-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -280,6 +283,7 @@ mod tests {
             .apply(Action::ActivateAbility {
                 player_id: PlayerId::new(&p1),
                 permanent_id: CardInstanceId::new("land-1"),
+            ability_index: 0,
             })
             .unwrap_err();
         assert!(matches!(err, GameError::PermanentAlreadyTapped { .. }));
@@ -296,6 +300,7 @@ mod tests {
             .apply(Action::ActivateAbility {
                 player_id: PlayerId::new(&p1),
                 permanent_id: CardInstanceId::new("tapper-1"),
+            ability_index: 0,
             })
             .unwrap_err();
         assert!(matches!(err, GameError::CreatureHasSummoningSickness { .. }));
@@ -311,6 +316,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("tapper-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -326,6 +332,7 @@ mod tests {
             .apply(Action::ActivateAbility {
                 player_id: PlayerId::new(&p1),
                 permanent_id: CardInstanceId::new("nonexistent"),
+            ability_index: 0,
             })
             .unwrap_err();
         assert!(matches!(err, GameError::PermanentNotFound { .. }));
@@ -345,6 +352,7 @@ mod tests {
             .apply(Action::ActivateAbility {
                 player_id: PlayerId::new(&p1),
                 permanent_id: CardInstanceId::new("land-1"),
+            ability_index: 0,
             })
             .unwrap_err();
         assert!(matches!(err, GameError::PermanentHasNoActivatedAbility { .. }));
@@ -360,6 +368,7 @@ mod tests {
             .apply(Action::ActivateAbility {
                 player_id: PlayerId::new(&p2),
                 permanent_id: CardInstanceId::new("land-1"),
+            ability_index: 0,
             })
             .unwrap_err();
         assert!(matches!(err, GameError::InvalidPlayerAction { .. }));
@@ -376,6 +385,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("forest-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -391,6 +401,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("forest-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -409,6 +420,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("forest-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -428,6 +440,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("forest-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -444,6 +457,7 @@ mod tests {
         let events = game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("forest-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -462,6 +476,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("mountain-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -510,6 +525,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("artifact-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -529,6 +545,7 @@ mod tests {
             .apply(Action::ActivateAbility {
                 player_id: PlayerId::new(&p1),
                 permanent_id: CardInstanceId::new("artifact-1"),
+            ability_index: 0,
             })
             .unwrap_err();
 
@@ -549,6 +566,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("artifact-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -566,6 +584,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("artifact-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -585,6 +604,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("equipment-1"),
+            ability_index: 0,
         })
         .unwrap();
 
@@ -609,6 +629,7 @@ mod tests {
             .apply(Action::ActivateAbility {
                 player_id: PlayerId::new(&p1),
                 permanent_id: CardInstanceId::new("equipment-1"),
+            ability_index: 0,
             })
             .unwrap_err();
 
@@ -627,9 +648,84 @@ mod tests {
             .apply(Action::ActivateAbility {
                 player_id: PlayerId::new(&p1),
                 permanent_id: CardInstanceId::new("equipment-1"),
+            ability_index: 0,
             })
             .unwrap_err();
 
         assert!(matches!(err, GameError::InsufficientManaForSpell { .. }));
+    }
+
+    // ---- Multiple activated abilities (R15 / CR 602) -------------------------
+
+    fn make_dual_ability_card(instance_id: &str, owner_id: &str) -> CardInstance {
+        // Ability 0: {T}: Add {G}  (mana ability, resolves immediately)
+        // Ability 1: {T}: Put ability on stack (non-mana ability, goes on stack)
+        let def = CardDefinition::new("dual", "Dual Ability Land", vec![CardType::Land])
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Tap,
+                effect: Effect::AddMana { color: ManaColor::Green, amount: 1 },
+            })
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Tap,
+                effect: Effect::NoOp,
+            });
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    #[test]
+    fn activating_ability_0_on_multi_ability_card_adds_mana() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let card = make_dual_ability_card("dual-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("dual-1"),
+            ability_index: 0,
+        })
+        .unwrap();
+
+        // Ability 0 is a mana ability — adds mana immediately, no stack.
+        assert_eq!(game.mana_pool(&p1).unwrap().get(ManaColor::Green), 1);
+        assert!(game.stack().is_empty(), "Mana ability should bypass the stack");
+    }
+
+    #[test]
+    fn activating_ability_1_on_multi_ability_card_puts_it_on_stack() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let card = make_dual_ability_card("dual-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("dual-1"),
+            ability_index: 1,
+        })
+        .unwrap();
+
+        // Ability 1 is a non-mana ability — goes on the stack.
+        assert_eq!(game.stack().len(), 1);
+        assert_eq!(game.mana_pool(&p1).unwrap().total(), 0);
+    }
+
+    #[test]
+    fn activating_out_of_range_ability_index_returns_error() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        // Card has only 1 ability (index 0 is valid, index 1 is not).
+        let land = make_mana_land("forest-1", &p1, ManaColor::Green);
+        add_permanent_to_battlefield(&mut game, &p1, land);
+
+        let err = game
+            .apply(Action::ActivateAbility {
+                player_id: PlayerId::new(&p1),
+                permanent_id: CardInstanceId::new("forest-1"),
+                ability_index: 1,
+            })
+            .unwrap_err();
+
+        assert!(
+            matches!(err, GameError::PermanentHasNoActivatedAbility { .. }),
+            "Out-of-range index should produce PermanentHasNoActivatedAbility, got: {err:?}"
+        );
     }
 }

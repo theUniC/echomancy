@@ -138,6 +138,7 @@ fn tap_land_with_castable_spell_keeps_priority() {
         Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new(&forest_id),
+            ability_index: 0,
         },
     )
     .unwrap();

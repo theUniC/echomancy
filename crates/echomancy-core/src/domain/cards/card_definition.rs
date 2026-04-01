@@ -44,9 +44,12 @@ pub struct CardDefinition {
     /// Static keyword abilities (Flying, Reach, Vigilance, etc.).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     static_abilities: Vec<StaticAbility>,
-    /// A single activated ability on this card, if any.
+    /// All activated abilities on this card (CR 602).
+    ///
+    /// Most cards have zero or one activated ability, but some cards (e.g.
+    /// multi-ability permanents) can have more than one.
     #[serde(skip)]
-    activated_ability: Option<ActivatedAbility>,
+    activated_abilities: Vec<ActivatedAbility>,
     /// Triggered abilities on this card.
     #[serde(skip)]
     triggers: Vec<Trigger>,
@@ -77,7 +80,7 @@ impl CardDefinition {
             power: None,
             toughness: None,
             static_abilities: Vec::new(),
-            activated_ability: None,
+            activated_abilities: Vec::new(),
             triggers: Vec::new(),
             target_requirement: TargetRequirement::None,
             oracle_text: None,
@@ -138,9 +141,28 @@ impl CardDefinition {
         &self.static_abilities
     }
 
-    /// The single activated ability on this card, if any.
-    pub fn activated_ability(&self) -> Option<&ActivatedAbility> {
-        self.activated_ability.as_ref()
+    /// All activated abilities on this card (CR 602).
+    ///
+    /// Returns a slice — most cards have zero or one ability, but some have more.
+    pub fn activated_abilities(&self) -> &[ActivatedAbility] {
+        &self.activated_abilities
+    }
+
+    /// Returns the first activated ability on this card, if any.
+    ///
+    /// Convenience method for the common single-ability case (lands, Sol Ring,
+    /// etc.). Use `activated_abilities()` when you need all abilities or need
+    /// to index by position.
+    pub fn first_activated_ability(&self) -> Option<&ActivatedAbility> {
+        self.activated_abilities.first()
+    }
+
+    /// Returns the activated ability at the given index, or `None` if out of bounds.
+    ///
+    /// Used by the `ActivateAbility` action handler to dispatch to the correct
+    /// ability when a permanent has more than one (CR 602.1).
+    pub fn activated_ability_at(&self, index: usize) -> Option<&ActivatedAbility> {
+        self.activated_abilities.get(index)
     }
 
     /// Triggered abilities on this card.
@@ -250,9 +272,13 @@ impl CardDefinition {
         self
     }
 
-    /// Set the activated ability.
+    /// Add an activated ability to this card.
+    ///
+    /// Multiple calls append to the list, allowing cards with more than one
+    /// activated ability (CR 602). The first call behaves like the old
+    /// `with_activated_ability()` — all existing callers are unaffected.
     pub fn with_activated_ability(mut self, ability: ActivatedAbility) -> Self {
-        self.activated_ability = Some(ability);
+        self.activated_abilities.push(ability);
         self
     }
 
@@ -330,7 +356,79 @@ mod tests {
 
     #[test]
     fn no_activated_ability_by_default() {
-        assert!(forest().activated_ability().is_none());
+        assert!(forest().activated_abilities().is_empty());
+    }
+
+    // ---- Multiple activated abilities (R15) ---------------------------------
+
+    #[test]
+    fn card_can_have_multiple_activated_abilities() {
+        use crate::domain::abilities::{ActivatedAbility, ActivationCost};
+        use crate::domain::effects::Effect;
+        use crate::domain::enums::ManaColor;
+        use crate::domain::value_objects::mana::ManaCost;
+
+        let card = CardDefinition::new("dual-ability", "Dual Ability", vec![CardType::Land])
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Tap,
+                effect: Effect::AddMana { color: ManaColor::Green, amount: 1 },
+            })
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Mana(ManaCost::parse("1").unwrap()),
+                effect: Effect::DrawCards { amount: 1 },
+            });
+
+        assert_eq!(card.activated_abilities().len(), 2);
+    }
+
+    #[test]
+    fn first_activated_ability_returns_first_in_vec() {
+        use crate::domain::abilities::{ActivatedAbility, ActivationCost};
+        use crate::domain::effects::Effect;
+        use crate::domain::enums::ManaColor;
+
+        let card = CardDefinition::new("tapper", "Tapper", vec![CardType::Land])
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Tap,
+                effect: Effect::AddMana { color: ManaColor::Green, amount: 1 },
+            });
+
+        assert!(card.first_activated_ability().is_some());
+        assert_eq!(
+            card.first_activated_ability().unwrap().effect,
+            Effect::AddMana { color: ManaColor::Green, amount: 1 }
+        );
+    }
+
+    #[test]
+    fn first_activated_ability_returns_none_when_no_abilities() {
+        assert!(forest().first_activated_ability().is_none());
+    }
+
+    #[test]
+    fn activated_ability_at_index_returns_correct_ability() {
+        use crate::domain::abilities::{ActivatedAbility, ActivationCost};
+        use crate::domain::effects::Effect;
+        use crate::domain::enums::ManaColor;
+        use crate::domain::value_objects::mana::ManaCost;
+
+        let card = CardDefinition::new("multi", "Multi", vec![CardType::Land])
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Tap,
+                effect: Effect::AddMana { color: ManaColor::Green, amount: 1 },
+            })
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Mana(ManaCost::parse("2").unwrap()),
+                effect: Effect::DrawCards { amount: 1 },
+            });
+
+        assert!(card.activated_ability_at(0).is_some());
+        assert!(card.activated_ability_at(1).is_some());
+        assert!(card.activated_ability_at(2).is_none());
+        assert_eq!(
+            card.activated_ability_at(1).unwrap().effect,
+            Effect::DrawCards { amount: 1 }
+        );
     }
 
     #[test]

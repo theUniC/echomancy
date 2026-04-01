@@ -144,10 +144,13 @@ pub(crate) fn compute_tappable_lands(game: &Game, player_id: &str) -> Vec<String
         .iter()
         .filter(|card| {
             // Any permanent with a mana ability (lands, Sol Ring, mana rocks, etc.)
+            // A permanent has a mana ability if any of its activated abilities is a
+            // mana ability (CR 605.1).
             let has_mana_ability = card
                 .definition()
-                .activated_ability()
-                .is_some_and(|ab| ab.effect.is_mana_ability());
+                .activated_abilities()
+                .iter()
+                .any(|ab| ab.effect.is_mana_ability());
             if !has_mana_ability {
                 return false;
             }
@@ -1104,6 +1107,7 @@ mod tests {
         game.apply(Action::ActivateAbility {
             player_id: PlayerId::new(&p1),
             permanent_id: CardInstanceId::new("mtn-1"),
+            ability_index: 0,
         }).unwrap();
 
         // After tapping: R in pool, Goblin ({R}) in hand → castable!

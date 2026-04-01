@@ -509,6 +509,7 @@ fn play_land_tap_land_then_can_cast_creature_stays_in_first_main() {
     game.apply(Action::ActivateAbility {
         player_id: PlayerId::new(&p1),
         permanent_id: CardInstanceId::new("forest-bf-1"),
+            ability_index: 0,
     })
     .expect("P1 taps forest-bf-1 for {G}");
 

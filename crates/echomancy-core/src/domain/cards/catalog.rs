@@ -230,35 +230,35 @@ mod tests {
     #[test]
     fn forest_has_green_mana_ability() {
         let f = forest();
-        let ability = f.activated_ability().expect("Forest should have an activated ability");
+        let ability = f.first_activated_ability().expect("Forest should have an activated ability");
         assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Green, amount: 1 });
     }
 
     #[test]
     fn mountain_has_red_mana_ability() {
         let m = mountain();
-        let ability = m.activated_ability().expect("Mountain should have an activated ability");
+        let ability = m.first_activated_ability().expect("Mountain should have an activated ability");
         assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Red, amount: 1 });
     }
 
     #[test]
     fn plains_has_white_mana_ability() {
         let p = plains();
-        let ability = p.activated_ability().expect("Plains should have an activated ability");
+        let ability = p.first_activated_ability().expect("Plains should have an activated ability");
         assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::White, amount: 1 });
     }
 
     #[test]
     fn island_has_blue_mana_ability() {
         let i = island();
-        let ability = i.activated_ability().expect("Island should have an activated ability");
+        let ability = i.first_activated_ability().expect("Island should have an activated ability");
         assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Blue, amount: 1 });
     }
 
     #[test]
     fn swamp_has_black_mana_ability() {
         let s = swamp();
-        let ability = s.activated_ability().expect("Swamp should have an activated ability");
+        let ability = s.first_activated_ability().expect("Swamp should have an activated ability");
         assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Black, amount: 1 });
     }
 
@@ -362,7 +362,7 @@ mod tests {
     fn sol_ring_has_tap_for_2_colorless_ability() {
         let sr = sol_ring();
         let ability = sr
-            .activated_ability()
+            .first_activated_ability()
             .expect("Sol Ring should have a tap mana ability");
         assert_eq!(
             ability.effect,

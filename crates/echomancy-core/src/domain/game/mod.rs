@@ -407,8 +407,8 @@ impl Game {
                     attacker_id.as_str(),
                 )?
             }
-            Action::ActivateAbility { player_id, permanent_id } => {
-                activate_ability::handle(self, player_id.as_str(), permanent_id.as_str())?
+            Action::ActivateAbility { player_id, permanent_id, ability_index } => {
+                activate_ability::handle(self, player_id.as_str(), permanent_id.as_str(), ability_index)?
             }
             Action::Sacrifice { player_id, permanent_id } => {
                 sacrifice::handle(self, player_id.as_str(), permanent_id.as_str())?

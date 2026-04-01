@@ -9,7 +9,7 @@
 //! Mirrors the TypeScript `CanActivateAbility` class from
 //! `game/specifications/CanActivateAbility.ts`.
 
-use crate::domain::abilities::ActivationCost;
+use crate::domain::abilities::{ActivatedAbility, ActivationCost};
 use crate::domain::cards::card_instance::CardInstance;
 use crate::domain::enums::StaticAbility;
 use crate::domain::errors::GameError;
@@ -78,6 +78,36 @@ fn can_pay_tap_cost<C: ActivateAbilityContext>(
         .any(|c| c.instance_id() == instance_id)
 }
 
+/// Returns `true` if the given ability's cost can be paid right now for the
+/// given permanent.
+fn can_pay_ability_cost<C: ActivateAbilityContext>(
+    player_id: &str,
+    instance_id: &str,
+    ability: &ActivatedAbility,
+    game_ctx: &C,
+) -> bool {
+    match &ability.cost {
+        ActivationCost::Tap => {
+            can_pay_tap_cost(player_id, instance_id, game_ctx)
+        }
+        ActivationCost::TapAndMana(mana_cost) => {
+            if !can_pay_tap_cost(player_id, instance_id, game_ctx) {
+                return false;
+            }
+            match game_ctx.mana_pool(player_id) {
+                Some(pool) => can_pay_cost(pool, mana_cost),
+                None => false,
+            }
+        }
+        ActivationCost::Mana(mana_cost) => {
+            match game_ctx.mana_pool(player_id) {
+                Some(pool) => can_pay_cost(pool, mana_cost),
+                None => false,
+            }
+        }
+    }
+}
+
 /// Returns `Ok(())` if the player has at least one permanent with an
 /// activated ability that can currently be paid.
 ///
@@ -93,34 +123,11 @@ pub(crate) fn is_satisfied<C: ActivateAbilityContext>(
     let battlefield = game_ctx.battlefield_cards(ctx.player_id);
 
     let has_activatable = battlefield.iter().any(|card| {
-        // Card must have an activated ability.
-        let ability = match card.definition().activated_ability() {
-            Some(a) => a,
-            None => return false,
-        };
-
-        // Check cost payability.
-        match &ability.cost {
-            ActivationCost::Tap => {
-                can_pay_tap_cost(ctx.player_id, card.instance_id(), game_ctx)
-            }
-            ActivationCost::TapAndMana(mana_cost) => {
-                if !can_pay_tap_cost(ctx.player_id, card.instance_id(), game_ctx) {
-                    return false;
-                }
-                // Also check mana pool can pay the cost.
-                match game_ctx.mana_pool(ctx.player_id) {
-                    Some(pool) => can_pay_cost(pool, mana_cost),
-                    None => false,
-                }
-            }
-            ActivationCost::Mana(mana_cost) => {
-                match game_ctx.mana_pool(ctx.player_id) {
-                    Some(pool) => can_pay_cost(pool, mana_cost),
-                    None => false,
-                }
-            }
-        }
+        // Card must have at least one activatable ability.
+        card.definition()
+            .activated_abilities()
+            .iter()
+            .any(|ability| can_pay_ability_cost(ctx.player_id, card.instance_id(), ability, game_ctx))
     });
 
     if has_activatable {

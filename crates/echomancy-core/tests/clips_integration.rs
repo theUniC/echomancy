@@ -456,6 +456,7 @@ fn sol_ring_taps_for_2_colorless_mana() {
     game.apply(Action::ActivateAbility {
         player_id: PlayerId::new(&p1),
         permanent_id: CardInstanceId::new("sol-ring-1"),
+            ability_index: 0,
     })
     .expect("P1 should be able to tap Sol Ring for mana");
 

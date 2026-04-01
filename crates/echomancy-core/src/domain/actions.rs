@@ -71,11 +71,18 @@ pub enum Action {
     },
 
     /// Activate a permanent's activated ability.
+    ///
+    /// `ability_index` selects which ability to activate when the permanent
+    /// has more than one (CR 602.1). Defaults to `0` for backward compatibility
+    /// with serialized actions that pre-date this field.
     ActivateAbility {
         #[serde(rename = "playerId")]
         player_id: PlayerId,
         #[serde(rename = "permanentId")]
         permanent_id: CardInstanceId,
+        /// Zero-based index into the permanent's `activated_abilities` list.
+        #[serde(default, rename = "abilityIndex")]
+        ability_index: usize,
     },
 
     /// Draw one or more cards from a player's library.
@@ -222,5 +229,35 @@ mod tests {
         };
         let json = serde_json::to_string(&action).unwrap();
         assert!(json.contains("\"type\":\"END_TURN\""));
+    }
+
+    // ---- ActivateAbility serde (R15 / CR 602) --------------------------------
+
+    #[test]
+    fn activate_ability_serde_roundtrip_with_index() {
+        let action = Action::ActivateAbility {
+            player_id: PlayerId::new("player-1"),
+            permanent_id: CardInstanceId::new("land-1"),
+            ability_index: 1,
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        let decoded: Action = serde_json::from_str(&json).unwrap();
+        assert_eq!(action, decoded);
+    }
+
+    #[test]
+    fn activate_ability_old_json_without_index_deserializes_to_index_0() {
+        // Backward compatibility: JSON produced before ability_index was added
+        // should still deserialize correctly (serde default = 0).
+        let old_json = r#"{"type":"ACTIVATE_ABILITY","playerId":"p1","permanentId":"land-1"}"#;
+        let decoded: Action = serde_json::from_str(old_json).unwrap();
+        assert_eq!(
+            decoded,
+            Action::ActivateAbility {
+                player_id: PlayerId::new("p1"),
+                permanent_id: CardInstanceId::new("land-1"),
+                ability_index: 0,
+            }
+        );
     }
 }
