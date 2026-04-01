@@ -255,10 +255,18 @@ impl Game {
             RulesAction::Discard { player, amount } => {
                 self.discard_random(player, *amount as usize);
             }
+            RulesAction::CreateToken {
+                controller,
+                name,
+                power,
+                toughness,
+                types,
+                keywords,
+            } => {
+                self.create_token(controller, name, *power, *toughness, types, keywords);
+            }
             // Stubs for M3: log but don't crash
-            RulesAction::MoveZone { .. }
-            | RulesAction::AddCounter { .. }
-            | RulesAction::CreateToken { .. } => {
+            RulesAction::MoveZone { .. } | RulesAction::AddCounter { .. } => {
                 // TODO(M4): implement these actions
             }
         }

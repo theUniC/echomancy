@@ -111,7 +111,7 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 | R6 | Equipment (attach to creature, equip cost) | BLOCKED | 301.5 | Very High | R4, R5 | Depends on attachment + mana activation |
 | R7 | Sacrifice mechanic | DONE | 701.17 | Medium | - | Action::Sacrifice moves permanent to graveyard |
 | R8 | Planeswalker mechanics (loyalty, abilities, attackable) | TODO | 306 | Very High | R5 | Loyalty counters, +N/-N abilities |
-| R9 | Token creation | TODO | 111 | High | - | RulesAction::CreateToken exists but not implemented |
+| R9 | Token creation | DONE | 111 | High | - | Game::create_token() + RulesAction::CreateToken wired |
 | R10 | Triggered abilities should use the stack | TODO | 603.3 | High | - | Currently execute immediately, can't be responded to |
 | R11 | Replacement effects ("instead" effects) | TODO | 614-615 | Very High | - | Fundamental to many cards |
 | R12 | Prevention effects (prevent damage) | TODO | 615 | High | R11 | Often implemented together |
