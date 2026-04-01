@@ -510,9 +510,20 @@ impl Game {
                 .iter()
                 .any(|card| {
                     card.instance_id() == instance_id
-                        && card
-                            .definition()
-                            .has_static_ability(StaticAbility::FirstStrike)
+                        && (card.definition().has_static_ability(StaticAbility::FirstStrike)
+                            || card.definition().has_static_ability(StaticAbility::DoubleStrike))
+                })
+        })
+    }
+
+    fn creature_has_double_strike(&self, instance_id: &str) -> bool {
+        self.players.iter().any(|player| {
+            player
+                .battlefield
+                .iter()
+                .any(|card| {
+                    card.instance_id() == instance_id
+                        && card.definition().has_static_ability(StaticAbility::DoubleStrike)
                 })
         })
     }
@@ -632,14 +643,20 @@ impl Game {
 
         let all_combat = self.collect_combat_creatures();
 
-        // Filter out creatures that already dealt first strike damage.
+        // Filter out creatures that already dealt first strike damage,
+        // UNLESS they have Double Strike (CR 702.4: deal damage in both steps).
         let regular_combat: Vec<(String, String, PermanentState, bool, bool, bool)> = all_combat
             .into_iter()
-            .filter(|(_, _, state, _, _, _)| {
-                state
+            .filter(|(id, _, state, _, _, _)| {
+                let dealt_fs = state
                     .creature_state()
-                    .map(|cs| !cs.dealt_first_strike_damage())
-                    .unwrap_or(true)
+                    .map(|cs| cs.dealt_first_strike_damage())
+                    .unwrap_or(false);
+                if !dealt_fs {
+                    return true; // Didn't deal first strike damage → participates
+                }
+                // Dealt first strike damage but has Double Strike → still participates
+                self.creature_has_double_strike(id)
             })
             .collect();
 
@@ -1209,6 +1226,53 @@ mod tests {
         })
         .unwrap();
         assert_eq!(game.current_step(), Step::CombatDamage);
+    }
+
+    // =========================================================================
+    // Double Strike tests (CR 702.4)
+    // =========================================================================
+
+    #[test]
+    fn double_strike_unblocked_deals_damage_twice_to_defending_player() {
+        use crate::domain::enums::StaticAbility;
+        use crate::domain::game::test_helpers::make_creature_with_ability;
+
+        let (mut game, p1, p2) = make_started_game();
+
+        // Advance to DeclareAttackers
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep { player_id: PlayerId::new(&current) }).unwrap();
+        }
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+
+        // 3/3 Double Strike attacker
+        let attacker = make_creature_with_ability("ds-attacker", &p1, 3, 3, StaticAbility::DoubleStrike);
+        add_permanent_to_battlefield(&mut game, &p1, attacker);
+        clear_summoning_sickness(&mut game, "ds-attacker");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("ds-attacker"),
+        }).unwrap();
+
+        let life_before = game.player_life_total(&p2).unwrap();
+
+        // Advance through DeclareBlockers → FirstStrikeDamage
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        assert_eq!(game.current_step(), Step::DeclareBlockers);
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        assert_eq!(game.current_step(), Step::FirstStrikeDamage);
+        // FirstStrikeDamage resolves — 3 damage to defender
+        let life_after_fs = game.player_life_total(&p2).unwrap();
+        assert_eq!(life_after_fs, life_before - 3, "First strike damage should deal 3");
+
+        // CombatDamage step — Double Strike deals damage again
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+        let life_after_cd = game.player_life_total(&p2).unwrap();
+        assert_eq!(life_after_cd, life_before - 6,
+            "Double Strike should deal damage in BOTH steps (3+3=6)");
     }
 
     // =========================================================================

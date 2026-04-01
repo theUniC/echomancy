@@ -89,7 +89,7 @@ that affect correctness of every game.
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
 | C1 | Mana pools must empty at each step, not just Cleanup | DONE | 106.4 | Low | - | Cleared in perform_step_advance |
-| C2 | Double Strike keyword | TODO | 702.4 | Medium | - | Creatures deal damage in both first-strike and normal steps |
+| C2 | Double Strike keyword | DONE | 702.4 | Medium | - | Deals damage in both first-strike and normal combat damage steps |
 | C3 | Counterspells / target spells on the stack | BLOCKED | 114.1 | High | R1 | Blue's core mechanic — requires stack targeting |
 | C4 | Verify target legality at resolution ("fizzle") | DONE | 608.2b | Medium | - | Spell goes to GY without effect if all targets illegal |
 | C5 | SBA loop must repeat until no more actions taken | DONE | 704.3 | Low | - | Loops up to 20 iterations |
@@ -124,7 +124,7 @@ Static abilities and keywords not yet implemented.
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| K1 | Double Strike | TODO | 702.4 | Medium | - | Same as C2 |
+| K1 | Double Strike | DONE | 702.4 | Medium | - | Implemented in C2 |
 | K2 | Menace (must be blocked by 2+) | BLOCKED | 702.110 | Medium | C6 | Needs multiple blockers |
 | K3 | Indestructible | TODO | 702.12 | Medium | - | Skip destroy in SBA |
 | K4 | Hexproof | TODO | 702.11 | Medium | - | Can't be targeted by opponents |
