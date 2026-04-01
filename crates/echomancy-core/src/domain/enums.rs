@@ -93,6 +93,10 @@ pub enum StaticAbility {
     Trample,
     Deathtouch,
     Lifelink,
+    /// CR 302.6 — this permanent does not untap during its controller's untap step.
+    DoesNotUntap,
+    /// This permanent enters the battlefield tapped.
+    EntersTapped,
 }
 
 impl fmt::Display for StaticAbility {
@@ -108,6 +112,8 @@ impl fmt::Display for StaticAbility {
             StaticAbility::Trample => "TRAMPLE",
             StaticAbility::Deathtouch => "DEATHTOUCH",
             StaticAbility::Lifelink => "LIFELINK",
+            StaticAbility::DoesNotUntap => "DOES_NOT_UNTAP",
+            StaticAbility::EntersTapped => "ENTERS_TAPPED",
         };
         write!(f, "{s}")
     }

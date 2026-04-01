@@ -32,17 +32,25 @@ impl Game {
         };
 
         // Initialize permanent state
+        let enters_tapped = permanent
+            .definition()
+            .has_static_ability(crate::domain::enums::StaticAbility::EntersTapped);
+
         if permanent.definition().is_creature() {
             let power = permanent.definition().power().unwrap_or(0) as i32;
             let toughness = permanent.definition().toughness().unwrap_or(0) as i32;
+            let state = PermanentState::for_creature(power, toughness);
+            let state = if enters_tapped { state.with_tapped(true) } else { state };
             self.permanent_states.insert(
                 permanent.instance_id().to_owned(),
-                PermanentState::for_creature(power, toughness),
+                state,
             );
         } else if self.is_permanent_type(&permanent) {
+            let state = PermanentState::for_non_creature();
+            let state = if enters_tapped { state.with_tapped(true) } else { state };
             self.permanent_states.insert(
                 permanent.instance_id().to_owned(),
-                PermanentState::for_non_creature(),
+                state,
             );
         }
 
@@ -328,5 +336,38 @@ mod tests {
         let (mut game, _p1, _p2) = make_game_in_first_main();
         let result = game.move_permanent_to_exile("nonexistent-999");
         assert!(result.is_err(), "should fail for unknown permanent id");
+    }
+
+    #[test]
+    fn enters_tapped_permanent_starts_tapped() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::{CardType, StaticAbility, ZoneName};
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let def = CardDefinition::new("tapland", "Tapland", vec![CardType::Land])
+            .with_static_ability(StaticAbility::EntersTapped);
+        let card = CardInstance::new("tapland-1", def, &p1);
+        game.enter_battlefield(card, &p1, ZoneName::Hand);
+
+        let state = game.permanent_state("tapland-1").expect("should exist");
+        assert!(state.is_tapped(), "EntersTapped permanent should start tapped");
+    }
+
+    #[test]
+    fn normal_permanent_starts_untapped() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::{CardType, ZoneName};
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let def = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
+        let card = CardInstance::new("forest-1", def, &p1);
+        game.enter_battlefield(card, &p1, ZoneName::Hand);
+
+        let state = game.permanent_state("forest-1").expect("should exist");
+        assert!(!state.is_tapped(), "normal permanent should start untapped");
     }
 }

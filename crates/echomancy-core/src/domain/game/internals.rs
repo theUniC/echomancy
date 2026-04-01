@@ -375,21 +375,41 @@ impl Game {
     }
 
     fn auto_untap_for_current_player(&mut self) {
+        use crate::domain::enums::StaticAbility;
+
         let current_player = self.turn_state.current_player_id().as_str().to_owned();
 
-        let card_instances: Vec<(String, bool)> = self
+        let card_instances: Vec<(String, bool, bool)> = self
             .players
             .iter()
             .find(|p| p.player_id.as_str() == current_player)
             .map(|p| {
                 p.battlefield
                     .iter()
-                    .map(|c| (c.instance_id().to_owned(), c.definition().is_creature()))
+                    .map(|c| (
+                        c.instance_id().to_owned(),
+                        c.definition().is_creature(),
+                        c.definition().has_static_ability(StaticAbility::DoesNotUntap),
+                    ))
                     .collect()
             })
             .unwrap_or_default();
 
-        for (instance_id, is_creature) in card_instances {
+        for (instance_id, is_creature, does_not_untap) in card_instances {
+            // CR 302.6: permanents with "does not untap" skip the untap step.
+            if does_not_untap {
+                // Still clear summoning sickness for creatures.
+                if is_creature {
+                    if let Some(state) = self.permanent_states.get(&instance_id) {
+                        let new_state = state
+                            .with_summoning_sickness(false)
+                            .unwrap_or_else(|_| state.clone());
+                        self.permanent_states.insert(instance_id, new_state);
+                    }
+                }
+                continue;
+            }
+
             if let Some(state) = self.permanent_states.get(&instance_id) {
                 let new_state = if is_creature {
                     // Creatures: untap and clear summoning sickness
@@ -1684,6 +1704,66 @@ mod tests {
             game.player_life_total(&p1).unwrap(),
             23,
             "First Strike + Lifelink: life should be gained in the first strike step"
+        );
+    }
+
+    #[test]
+    fn does_not_untap_creature_stays_tapped_on_untap_step() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::{CardType, StaticAbility};
+        use crate::domain::game::test_helpers::make_game_in_first_main;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        // Add cards to library so draw step doesn't kill the game
+        for i in 0..5 {
+            let filler = CardInstance::new(
+                format!("filler-p1-{i}"),
+                CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+                &p1,
+            );
+            game.add_card_to_library_top(&p1, filler).unwrap();
+            let filler2 = CardInstance::new(
+                format!("filler-p2-{i}"),
+                CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+                &p2,
+            );
+            game.add_card_to_library_top(&p2, filler2).unwrap();
+        }
+
+        // Add a creature with DoesNotUntap, tap it
+        let def = CardDefinition::new("frozen", "Frozen Creature", vec![CardType::Creature])
+            .with_power_toughness(3, 3)
+            .with_static_ability(StaticAbility::DoesNotUntap);
+        let card = CardInstance::new("frozen-1", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+        game.tap_permanent("frozen-1").unwrap();
+
+        // Also add a normal creature, tapped
+        let normal = make_creature_card("normal-1", &p1, 2, 2);
+        add_permanent_to_battlefield(&mut game, &p1, normal);
+        game.tap_permanent("normal-1").unwrap();
+
+        // End P1's turn, then P2's turn → back to P1's Untap
+        game.apply(Action::EndTurn {
+            player_id: PlayerId::new(&p1),
+        })
+        .unwrap();
+        game.apply(Action::EndTurn {
+            player_id: PlayerId::new(&p2),
+        })
+        .unwrap();
+
+        // DoesNotUntap creature stays tapped
+        assert!(
+            game.permanent_state("frozen-1").unwrap().is_tapped(),
+            "DoesNotUntap creature should remain tapped"
+        );
+        // Normal creature is untapped
+        assert!(
+            !game.permanent_state("normal-1").unwrap().is_tapped(),
+            "normal creature should be untapped"
         );
     }
 }

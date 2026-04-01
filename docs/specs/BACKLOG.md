@@ -131,8 +131,8 @@ Static abilities and keywords not yet implemented.
 | K4 | Hexproof | TODO | 702.11 | Medium | - | Can't be targeted by opponents |
 | K5 | Shroud | TODO | 702.18 | Medium | K4 | Can't be targeted at all |
 | K6 | Protection from X | TODO | 702.16 | Very High | C6, R1 | DEBT: Damage, Enchanting, Blocking, Targeting |
-| K7 | "Does not untap" ability | TODO | 302.6 | Low | - | Some permanents skip untap |
-| K8 | "Enters tapped" ability | TODO | - | Low | - | Taplands, some creatures |
+| K7 | "Does not untap" ability | DONE | 302.6 | Low | - | StaticAbility::DoesNotUntap skips auto-untap |
+| K8 | "Enters tapped" ability | DONE | - | Low | - | StaticAbility::EntersTapped, applied at enter_battlefield |
 | K9 | "Cannot attack/block" effects | TODO | 508.1d | Medium | - | Pacifism-style effects |
 | K10 | "Must attack" effects | TODO | 508.1d | Medium | - | Forced attack |
 
@@ -154,7 +154,7 @@ Static abilities and keywords not yet implemented.
 | MM2 | Mill mechanic | TODO | 701.13 | Low | - | |
 | MM3 | Discard mechanic (forced discard) | TODO | - | Low | - | |
 | MM4 | Control change (Act of Treason) | TODO | 701.10 | High | - | Owner ≠ controller |
-| MM5 | "Enters tapped" for lands | TODO | - | Low | K8 | Taplands |
+| MM5 | "Enters tapped" for lands | DONE | - | Low | K8 | Covered by K8 (EntersTapped static ability) |
 
 ### Bugs
 
