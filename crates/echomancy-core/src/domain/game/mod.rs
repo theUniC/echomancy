@@ -644,14 +644,16 @@ impl Game {
     /// For MVP, discards the last N cards (no random selection).
     /// Used by effects like "discard 2 cards".
     pub(crate) fn discard_random(&mut self, player_id: &str, amount: usize) {
-        let Ok(player) = self.player_state_mut(player_id) else {
-            return;
-        };
-        let n = amount.min(player.hand.len());
-        for _ in 0..n {
-            if let Some(card) = player.hand.pop() {
-                player.graveyard.push(card);
-            }
+        // Collect IDs of the last N cards (MVP: no random, just last cards)
+        let ids: Vec<String> = self
+            .player_state(player_id)
+            .map(|p| {
+                let n = amount.min(p.hand.len());
+                p.hand.iter().rev().take(n).map(|c| c.instance_id().to_owned()).collect()
+            })
+            .unwrap_or_default();
+        for id in ids {
+            self.discard(player_id, &id);
         }
     }
 
