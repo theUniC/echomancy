@@ -68,7 +68,7 @@ pub(crate) fn handle(
     };
 
     // 4. Pay the activation cost
-    pay_activation_cost(game, permanent_id, &permanent_card, &ability.cost)?;
+    pay_activation_cost(game, player_id, permanent_id, &permanent_card, &ability.cost)?;
 
     // Per MTG CR 605, mana abilities resolve immediately without using the stack.
     // The activating player retains priority after a mana ability resolves.
@@ -113,48 +113,86 @@ fn resolve_mana_ability_immediately(
     }])
 }
 
-/// Pay the activation cost for an activated ability.
+/// Pay the activation cost for an activated ability (CR 602.2).
 ///
-/// MVP: Only `{T}` (tap) cost is supported.
+/// Handles all three cost variants:
+/// - `Tap`: tap the permanent (checks summoning sickness for creatures).
+/// - `TapAndMana`: tap the permanent and deduct mana from the player's pool.
+/// - `Mana`: deduct mana from the player's pool (no tap).
 fn pay_activation_cost(
     game: &mut Game,
+    player_id: &str,
     permanent_id: &str,
     permanent_card: &crate::domain::cards::card_instance::CardInstance,
     cost: &ActivationCost,
 ) -> Result<(), GameError> {
     match cost {
         ActivationCost::Tap => {
-            // Check state
-            let state = game
-                .permanent_state(permanent_id)
-                .ok_or_else(|| GameError::PermanentNotFound {
-                    permanent_id: CardInstanceId::new(permanent_id),
-                })?
-                .clone();
-
-            if state.is_tapped() {
-                return Err(GameError::PermanentAlreadyTapped {
-                    permanent_id: CardInstanceId::new(permanent_id),
-                });
-            }
-
-            // Check summoning sickness for creatures
-            if let Some(cs) = state.creature_state() {
-                if cs.has_summoning_sickness()
-                    && !permanent_card
-                        .definition()
-                        .has_static_ability(crate::domain::enums::StaticAbility::Haste)
-                {
-                    return Err(GameError::CreatureHasSummoningSickness {
-                        creature_id: CardInstanceId::new(permanent_id),
-                    });
-                }
-            }
-
-            game.tap_permanent(permanent_id)?;
-            Ok(())
+            pay_tap_cost(game, permanent_id, permanent_card)?;
+        }
+        ActivationCost::TapAndMana(mana_cost) => {
+            // Tap first, then pay mana. If either fails, the whole activation fails.
+            pay_tap_cost(game, permanent_id, permanent_card)?;
+            pay_mana_activation_cost(game, player_id, mana_cost)?;
+        }
+        ActivationCost::Mana(mana_cost) => {
+            pay_mana_activation_cost(game, player_id, mana_cost)?;
         }
     }
+    Ok(())
+}
+
+/// Pay the tap portion of an activation cost.
+fn pay_tap_cost(
+    game: &mut Game,
+    permanent_id: &str,
+    permanent_card: &crate::domain::cards::card_instance::CardInstance,
+) -> Result<(), GameError> {
+    let state = game
+        .permanent_state(permanent_id)
+        .ok_or_else(|| GameError::PermanentNotFound {
+            permanent_id: CardInstanceId::new(permanent_id),
+        })?
+        .clone();
+
+    if state.is_tapped() {
+        return Err(GameError::PermanentAlreadyTapped {
+            permanent_id: CardInstanceId::new(permanent_id),
+        });
+    }
+
+    // Check summoning sickness for creatures (CR 302.6).
+    if let Some(cs) = state.creature_state() {
+        if cs.has_summoning_sickness()
+            && !permanent_card
+                .definition()
+                .has_static_ability(crate::domain::enums::StaticAbility::Haste)
+        {
+            return Err(GameError::CreatureHasSummoningSickness {
+                creature_id: CardInstanceId::new(permanent_id),
+            });
+        }
+    }
+
+    game.tap_permanent(permanent_id)?;
+    Ok(())
+}
+
+/// Pay the mana portion of an activation cost using the auto-pay algorithm.
+fn pay_mana_activation_cost(
+    game: &mut Game,
+    player_id: &str,
+    mana_cost: &crate::domain::value_objects::mana::ManaCost,
+) -> Result<(), GameError> {
+    use crate::domain::services::mana_payment::pay_cost;
+
+    let player = game.player_state_mut(player_id)?;
+    let new_pool = pay_cost(player.mana_pool.clone(), mana_cost)
+        .map_err(|e| GameError::InsufficientManaForSpell {
+            message: e.to_string(),
+        })?;
+    player.mana_pool = new_pool;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -428,5 +466,170 @@ mod tests {
         .unwrap();
 
         assert_eq!(game.mana_pool(&p1).unwrap().get(ManaColor::Red), 1);
+    }
+
+    // ---- Mana-only cost tests -----------------------------------------------
+
+    fn make_mana_cost_ability(
+        instance_id: &str,
+        owner_id: &str,
+        cost_str: &str,
+    ) -> CardInstance {
+        use crate::domain::value_objects::mana::ManaCost;
+        let def = CardDefinition::new("pump-artifact", "Pump Artifact", vec![CardType::Artifact])
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Mana(ManaCost::parse(cost_str).unwrap()),
+                effect: Effect::NoOp,
+            });
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    fn make_tap_and_mana_ability(
+        instance_id: &str,
+        owner_id: &str,
+        cost_str: &str,
+    ) -> CardInstance {
+        use crate::domain::value_objects::mana::ManaCost;
+        let def =
+            CardDefinition::new("equipment", "Equipment", vec![CardType::Artifact])
+                .with_activated_ability(ActivatedAbility {
+                    cost: ActivationCost::TapAndMana(ManaCost::parse(cost_str).unwrap()),
+                    effect: Effect::NoOp,
+                });
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    #[test]
+    fn activate_mana_cost_ability_succeeds_when_pool_has_enough() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        // Give player 2 generic mana.
+        game.add_mana_to_pool(&p1, ManaColor::Colorless, 2).unwrap();
+        let artifact = make_mana_cost_ability("artifact-1", &p1, "2");
+        add_permanent_to_battlefield(&mut game, &p1, artifact);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("artifact-1"),
+        })
+        .unwrap();
+
+        // Mana was deducted.
+        assert_eq!(game.mana_pool(&p1).unwrap().total(), 0);
+    }
+
+    #[test]
+    fn activate_mana_cost_ability_fails_when_not_enough_mana() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        // Only 1 mana in pool but cost is 2.
+        game.add_mana_to_pool(&p1, ManaColor::Colorless, 1).unwrap();
+        let artifact = make_mana_cost_ability("artifact-1", &p1, "2");
+        add_permanent_to_battlefield(&mut game, &p1, artifact);
+
+        let err = game
+            .apply(Action::ActivateAbility {
+                player_id: PlayerId::new(&p1),
+                permanent_id: CardInstanceId::new("artifact-1"),
+            })
+            .unwrap_err();
+
+        assert!(
+            matches!(err, GameError::InsufficientManaForSpell { .. }),
+            "expected InsufficientManaForSpell, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn mana_is_deducted_from_pool_after_mana_cost_activation() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        // Give 3 mana, cost is 2.
+        game.add_mana_to_pool(&p1, ManaColor::Green, 3).unwrap();
+        let artifact = make_mana_cost_ability("artifact-1", &p1, "2");
+        add_permanent_to_battlefield(&mut game, &p1, artifact);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("artifact-1"),
+        })
+        .unwrap();
+
+        // 3 - 2 = 1 remaining.
+        assert_eq!(game.mana_pool(&p1).unwrap().total(), 1);
+    }
+
+    #[test]
+    fn mana_cost_ability_does_not_tap_the_permanent() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        game.add_mana_to_pool(&p1, ManaColor::Colorless, 2).unwrap();
+        let artifact = make_mana_cost_ability("artifact-1", &p1, "2");
+        add_permanent_to_battlefield(&mut game, &p1, artifact);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("artifact-1"),
+        })
+        .unwrap();
+
+        let state = game.permanent_state("artifact-1").unwrap();
+        assert!(!state.is_tapped(), "Mana-only cost should not tap the permanent");
+    }
+
+    // ---- TapAndMana cost tests ----------------------------------------------
+
+    #[test]
+    fn activate_tap_and_mana_ability_taps_permanent_and_deducts_mana() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        game.add_mana_to_pool(&p1, ManaColor::Colorless, 2).unwrap();
+        let equipment = make_tap_and_mana_ability("equipment-1", &p1, "2");
+        add_permanent_to_battlefield(&mut game, &p1, equipment);
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("equipment-1"),
+        })
+        .unwrap();
+
+        let state = game.permanent_state("equipment-1").unwrap();
+        assert!(state.is_tapped(), "TapAndMana cost should tap the permanent");
+        assert_eq!(
+            game.mana_pool(&p1).unwrap().total(),
+            0,
+            "Mana should be deducted"
+        );
+    }
+
+    #[test]
+    fn tap_and_mana_ability_fails_when_already_tapped() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        game.add_mana_to_pool(&p1, ManaColor::Colorless, 2).unwrap();
+        let equipment = make_tap_and_mana_ability("equipment-1", &p1, "2");
+        add_permanent_to_battlefield(&mut game, &p1, equipment);
+        game.tap_permanent("equipment-1").unwrap();
+
+        let err = game
+            .apply(Action::ActivateAbility {
+                player_id: PlayerId::new(&p1),
+                permanent_id: CardInstanceId::new("equipment-1"),
+            })
+            .unwrap_err();
+
+        assert!(matches!(err, GameError::PermanentAlreadyTapped { .. }));
+    }
+
+    #[test]
+    fn tap_and_mana_ability_fails_when_not_enough_mana() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        // Only 1 mana but cost is 2.
+        game.add_mana_to_pool(&p1, ManaColor::Colorless, 1).unwrap();
+        let equipment = make_tap_and_mana_ability("equipment-1", &p1, "2");
+        add_permanent_to_battlefield(&mut game, &p1, equipment);
+
+        let err = game
+            .apply(Action::ActivateAbility {
+                player_id: PlayerId::new(&p1),
+                permanent_id: CardInstanceId::new("equipment-1"),
+            })
+            .unwrap_err();
+
+        assert!(matches!(err, GameError::InsufficientManaForSpell { .. }));
     }
 }

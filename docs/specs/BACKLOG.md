@@ -107,10 +107,10 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 | R2 | Card subtypes (creature types, land types, etc.) | DONE | 205.3 | Medium | - | String-based subtypes, has_subtype(), UI type line |
 | R3 | Legendary rule (legend rule) | DONE | 704.5j | Medium | R2 | is_legendary flag, SBA keeps oldest, per-player |
 | R4 | Aura enchantments (attach to permanent, fall off) | BLOCKED | 303.4 | Very High | R1 | Pacifism, enchant creature, etc. |
-| R5 | Activated abilities with mana costs ({2}: Pump) | TODO | 602.1 | High | - | Currently only {T} cost supported |
+| R5 | Activated abilities with mana costs ({2}: Pump) | DONE | 602.1 | High | - | ActivationCost::Mana + TapAndMana added |
 | R6 | Equipment (attach to creature, equip cost) | BLOCKED | 301.5 | Very High | R4, R5 | Depends on attachment + mana activation |
 | R7 | Sacrifice mechanic | DONE | 701.17 | Medium | - | Action::Sacrifice moves permanent to graveyard |
-| R8 | Planeswalker mechanics (loyalty, abilities, attackable) | TODO | 306 | Very High | R5 | Loyalty counters, +N/-N abilities |
+| R8 | Planeswalker mechanics (loyalty, abilities, attackable) | TODO | 306 | Very High | - | Loyalty counters, +N/-N abilities |
 | R9 | Token creation | DONE | 111 | High | - | Game::create_token() + RulesAction::CreateToken wired |
 | R10 | Triggered abilities should use the stack | TODO | 603.3 | High | - | Currently execute immediately, can't be responded to |
 | R11 | Replacement effects ("instead" effects) | TODO | 614-615 | Very High | - | Fundamental to many cards |

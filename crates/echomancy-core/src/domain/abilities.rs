@@ -10,15 +10,20 @@
 
 use crate::domain::effects::Effect;
 use crate::domain::triggers::Trigger;
+use crate::domain::value_objects::mana::ManaCost;
 
-/// The cost to activate an ability.
-///
-/// MVP: only TAP cost is supported.
-/// Mirrors the TypeScript `ActivationCost = { type: "TAP" }`.
+/// The cost to activate an ability (CR 602.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActivationCost {
     /// The permanent must be tapped to activate the ability.
+    /// Used for mana abilities on lands, Sol Ring, etc.
     Tap,
+    /// The player must pay a mana cost and tap the permanent.
+    /// Used for equipment equip costs and similar abilities.
+    TapAndMana(ManaCost),
+    /// The player must pay a mana cost (no tap required).
+    /// Used for pump abilities, etc. e.g. `{2}: +1/+1 until end of turn`.
+    Mana(ManaCost),
 }
 
 /// An ability that a player can activate by paying a cost.
@@ -37,6 +42,22 @@ impl ActivatedAbility {
     pub fn tap_ability(effect: Effect) -> Self {
         ActivatedAbility {
             cost: ActivationCost::Tap,
+            effect,
+        }
+    }
+
+    /// Create a new activated ability with a mana-only cost.
+    pub fn mana_ability(cost: ManaCost, effect: Effect) -> Self {
+        ActivatedAbility {
+            cost: ActivationCost::Mana(cost),
+            effect,
+        }
+    }
+
+    /// Create a new activated ability with a tap-plus-mana cost.
+    pub fn tap_and_mana_ability(cost: ManaCost, effect: Effect) -> Self {
+        ActivatedAbility {
+            cost: ActivationCost::TapAndMana(cost),
             effect,
         }
     }

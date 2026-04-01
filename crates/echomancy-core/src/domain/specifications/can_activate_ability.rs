@@ -1,11 +1,10 @@
 //! CanActivateAbility specification — checks if a player has at least one
 //! permanent whose activated ability can currently be activated.
 //!
-//! MVP: only `ActivationCost::Tap` is supported. The permanent must:
-//! 1. Have an activated ability.
-//! 2. Have an `ActivationCost::Tap` cost.
-//! 3. Not currently be tapped.
-//! 4. Not have summoning sickness (unless the card has Haste) — CR 302.6.
+//! Supports all three cost variants (CR 602.1):
+//! - `Tap`: permanent must be untapped, and no summoning sickness for creatures.
+//! - `TapAndMana`: same tap checks plus the mana pool must be able to pay the cost.
+//! - `Mana`: mana pool must be able to pay the cost (no tap required).
 //!
 //! Mirrors the TypeScript `CanActivateAbility` class from
 //! `game/specifications/CanActivateAbility.ts`.
@@ -14,7 +13,9 @@ use crate::domain::abilities::ActivationCost;
 use crate::domain::cards::card_instance::CardInstance;
 use crate::domain::enums::StaticAbility;
 use crate::domain::errors::GameError;
+use crate::domain::services::mana_payment::can_pay_cost;
 use crate::domain::types::PlayerId;
+use crate::domain::value_objects::mana::ManaPool;
 use crate::domain::value_objects::permanent_state::PermanentState;
 
 /// Read-only context interface for ability-activation validation.
@@ -36,6 +37,9 @@ pub(crate) trait ActivateAbilityContext {
     /// Returns `true` if the permanent with the given instance ID has the given
     /// static ability on its card definition.
     fn has_static_ability(&self, instance_id: &str, ability: StaticAbility) -> bool;
+
+    /// Returns the mana pool for the given player, if they exist.
+    fn mana_pool(&self, player_id: &str) -> Option<&ManaPool>;
 }
 
 /// Context required to evaluate the `CanActivateAbility` specification.
@@ -43,6 +47,35 @@ pub(crate) trait ActivateAbilityContext {
 pub(crate) struct CanActivateAbilityCtx<'a> {
     /// The player whose permanents are being checked.
     pub(crate) player_id: &'a str,
+}
+
+/// Returns `true` if the tap portion of an activation cost can be paid for the
+/// given permanent: it must be untapped and not have summoning sickness (unless
+/// it has Haste).
+fn can_pay_tap_cost<C: ActivateAbilityContext>(
+    player_id: &str,
+    instance_id: &str,
+    game_ctx: &C,
+) -> bool {
+    let not_tapped = match game_ctx.permanent_state(instance_id) {
+        Some(state) => !state.is_tapped(),
+        None => return false,
+    };
+    if !not_tapped {
+        return false;
+    }
+
+    let has_sickness = game_ctx.has_summoning_sickness(instance_id);
+    let has_haste = game_ctx.has_static_ability(instance_id, StaticAbility::Haste);
+    if has_sickness && !has_haste {
+        return false;
+    }
+
+    // Also verify the permanent belongs to the player (belt-and-suspenders check).
+    game_ctx
+        .battlefield_cards(player_id)
+        .iter()
+        .any(|c| c.instance_id() == instance_id)
 }
 
 /// Returns `Ok(())` if the player has at least one permanent with an
@@ -67,28 +100,25 @@ pub(crate) fn is_satisfied<C: ActivateAbilityContext>(
         };
 
         // Check cost payability.
-        match ability.cost {
+        match &ability.cost {
             ActivationCost::Tap => {
-                // The permanent must not be tapped to pay tap cost.
-                let not_tapped = match game_ctx.permanent_state(card.instance_id()) {
-                    Some(state) => !state.is_tapped(),
-                    None => return false, // no state => treat as not activatable
-                };
-                if !not_tapped {
+                can_pay_tap_cost(ctx.player_id, card.instance_id(), game_ctx)
+            }
+            ActivationCost::TapAndMana(mana_cost) => {
+                if !can_pay_tap_cost(ctx.player_id, card.instance_id(), game_ctx) {
                     return false;
                 }
-
-                // CR 302.6: A creature with summoning sickness cannot use tap
-                // abilities unless it has Haste.
-                let has_sickness = game_ctx.has_summoning_sickness(card.instance_id());
-                let has_haste =
-                    game_ctx.has_static_ability(card.instance_id(), StaticAbility::Haste);
-
-                if has_sickness && !has_haste {
-                    return false;
+                // Also check mana pool can pay the cost.
+                match game_ctx.mana_pool(ctx.player_id) {
+                    Some(pool) => can_pay_cost(pool, mana_cost),
+                    None => false,
                 }
-
-                true
+            }
+            ActivationCost::Mana(mana_cost) => {
+                match game_ctx.mana_pool(ctx.player_id) {
+                    Some(pool) => can_pay_cost(pool, mana_cost),
+                    None => false,
+                }
             }
         }
     });
@@ -110,6 +140,7 @@ mod tests {
     use crate::domain::cards::card_instance::CardInstance;
     use crate::domain::effects::Effect;
     use crate::domain::enums::CardType;
+    use crate::domain::value_objects::mana::ManaPool;
     use crate::domain::value_objects::permanent_state::PermanentState;
     use std::collections::HashMap;
 
@@ -122,6 +153,8 @@ mod tests {
         summoning_sickness: HashMap<String, bool>,
         /// instance_id → list of static abilities
         static_abilities: HashMap<String, Vec<StaticAbility>>,
+        /// player_id → mana pool
+        mana_pools: HashMap<String, ManaPool>,
     }
 
     impl TestCtx {
@@ -131,7 +164,13 @@ mod tests {
                 states: HashMap::new(),
                 summoning_sickness: HashMap::new(),
                 static_abilities: HashMap::new(),
+                mana_pools: HashMap::new(),
             }
+        }
+
+        fn with_mana_pool(mut self, player_id: &str, pool: ManaPool) -> Self {
+            self.mana_pools.insert(player_id.to_owned(), pool);
+            self
         }
 
         fn add_permanent(mut self, player: &str, card: CardInstance, state: PermanentState) -> Self {
@@ -195,6 +234,10 @@ mod tests {
                 .map(|c| c.definition().has_static_ability(ability))
                 .unwrap_or(false);
             in_map || in_def
+        }
+
+        fn mana_pool(&self, player_id: &str) -> Option<&ManaPool> {
+            self.mana_pools.get(player_id)
         }
     }
 
