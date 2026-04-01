@@ -103,6 +103,10 @@ pub enum StaticAbility {
     DoesNotUntap,
     /// This permanent enters the battlefield tapped.
     EntersTapped,
+    /// CR 508.1d — this creature can't attack.
+    CannotAttack,
+    /// CR 508.1d — this creature can't block.
+    CannotBlock,
 }
 
 impl fmt::Display for StaticAbility {
@@ -123,6 +127,8 @@ impl fmt::Display for StaticAbility {
             StaticAbility::Indestructible => "INDESTRUCTIBLE",
             StaticAbility::DoesNotUntap => "DOES_NOT_UNTAP",
             StaticAbility::EntersTapped => "ENTERS_TAPPED",
+            StaticAbility::CannotAttack => "CANNOT_ATTACK",
+            StaticAbility::CannotBlock => "CANNOT_BLOCK",
         };
         write!(f, "{s}")
     }

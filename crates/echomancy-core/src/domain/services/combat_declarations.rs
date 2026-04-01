@@ -128,7 +128,15 @@ pub(crate) fn validate_declare_attacker(
         permanent_id: CardInstanceId::new(creature_id),
     })?;
 
-    // 6. Summoning sickness check (Haste bypasses it).
+    // 6a. CannotAttack check (CR 508.1d).
+    if ctx.has_static_ability(creature, StaticAbility::CannotAttack) {
+        return Err(GameError::InvalidPlayerAction {
+            player_id: player_id.into(),
+            action: "DECLARE_ATTACKER: creature can't attack".to_owned(),
+        });
+    }
+
+    // 6b. Summoning sickness check (Haste bypasses it).
     if cs.has_summoning_sickness() && !ctx.has_static_ability(creature, StaticAbility::Haste) {
         return Err(GameError::CreatureHasSummoningSickness {
             creature_id: CardInstanceId::new(creature_id),
@@ -237,7 +245,15 @@ pub(crate) fn validate_declare_blocker(
             permanent_id: CardInstanceId::new(blocker_id),
         })?;
 
-    // 4. Blocker must not be tapped.
+    // 4a. CannotBlock check (CR 508.1d).
+    if ctx.has_static_ability(blocker, StaticAbility::CannotBlock) {
+        return Err(GameError::InvalidPlayerAction {
+            player_id: player_id.into(),
+            action: "DECLARE_BLOCKER: creature can't block".to_owned(),
+        });
+    }
+
+    // 4b. Blocker must not be tapped.
     if blocker_state.is_tapped() {
         return Err(GameError::TappedCreatureCannotBlock {
             creature_id: CardInstanceId::new(blocker_id),
@@ -690,5 +706,38 @@ mod tests {
 
         let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
         assert!(result.is_ok());
+    }
+
+    // ---- CannotAttack / CannotBlock (CR 508.1d) ----------------------------
+
+    #[test]
+    fn cannot_attack_creature_is_rejected() {
+        let creature = make_creature_with("c1", "p1", StaticAbility::CannotAttack);
+        let state = ready_creature_state();
+        let ctx = TestCtx::new(Step::DeclareAttackers, "p1")
+            .add_permanent("p1", creature, state);
+
+        let result = validate_declare_attacker(&ctx, "p1", "c1");
+        assert!(result.is_err(), "CannotAttack creature should not be able to attack");
+    }
+
+    #[test]
+    fn cannot_block_creature_is_rejected() {
+        let attacker = make_creature("a1", "p1");
+        let attacker_state = ready_creature_state()
+            .with_attacking(true)
+            .unwrap()
+            .with_has_attacked_this_turn(true)
+            .unwrap();
+
+        let blocker = make_creature_with("b1", "p2", StaticAbility::CannotBlock);
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_err(), "CannotBlock creature should not be able to block");
     }
 }

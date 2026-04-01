@@ -133,7 +133,7 @@ Static abilities and keywords not yet implemented.
 | K6 | Protection from X | TODO | 702.16 | Very High | C6, R1 | DEBT: Damage, Enchanting, Blocking, Targeting |
 | K7 | "Does not untap" ability | DONE | 302.6 | Low | - | StaticAbility::DoesNotUntap skips auto-untap |
 | K8 | "Enters tapped" ability | DONE | - | Low | - | StaticAbility::EntersTapped, applied at enter_battlefield |
-| K9 | "Cannot attack/block" effects | TODO | 508.1d | Medium | - | Pacifism-style effects |
+| K9 | "Cannot attack/block" effects | DONE | 508.1d | Medium | - | CannotAttack + CannotBlock static abilities |
 | K10 | "Must attack" effects | TODO | 508.1d | Medium | - | Forced attack |
 
 ### Phase 8: Mana System Expansion
