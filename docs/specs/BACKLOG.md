@@ -94,10 +94,10 @@ that affect correctness of every game.
 | C3 | Counterspells / target spells on the stack | DONE | 114.1 | High | R1 ✅ | Cancel card + RulesAction::CounterSpell + CLIPS rule |
 | C4 | Verify target legality at resolution ("fizzle") | DONE | 608.2b | Medium | - | Spell goes to GY without effect if all targets illegal |
 | C5 | SBA loop must repeat until no more actions taken | DONE | 704.3 | Low | - | Loops up to 20 iterations |
-| C5b | SBA infinite loop should declare draw (CR 104.4b) | TODO | 104.4b | Low | C5 | Currently stops silently at cap=20 instead of declaring draw |
+| C5b | SBA infinite loop should declare draw (CR 104.4b) | DONE | 104.4b | Low | C5 | Declares Draw with InfiniteLoop reason at cap=20 |
 | C6 | Multiple blockers per attacker + damage ordering | DONE | 509.1a | High | - | Auto-assign damage (smallest first), UI pending (U8/U10) |
 
-### Phase 6: Major Missing Mechanics
+### Phase 6: Major Missing Mechanics Crea fichajes para todos los días, de 08:30 a 17:30
 
 Core MTG systems not yet implemented, ordered by dependency chain.
 

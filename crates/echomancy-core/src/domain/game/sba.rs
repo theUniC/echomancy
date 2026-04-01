@@ -25,7 +25,9 @@ impl Game {
         let mut events = Vec::new();
 
         // CR 704.3: loop until no state-based actions are performed.
+        // CR 104.4b: if the loop never stabilizes, the game is a draw.
         const MAX_SBA_ITERATIONS: usize = 20;
+        let mut stabilized = false;
         for _ in 0..MAX_SBA_ITERATIONS {
             let mut any_action = false;
 
@@ -56,8 +58,18 @@ impl Game {
             }
 
             if !any_action {
+                stabilized = true;
                 break;
             }
+        }
+
+        // CR 104.4b: SBA loop never stabilized — declare draw.
+        if !stabilized {
+            self.outcome = Some(GameOutcome::Draw {
+                reason: GameEndReason::InfiniteLoop,
+            });
+            self.lifecycle = crate::domain::enums::GameLifecycleState::Finished;
+            return events;
         }
 
         // 2. Check player loss conditions (outside the loop — game-ending)

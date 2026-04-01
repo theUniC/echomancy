@@ -66,6 +66,8 @@ pub enum GameEndReason {
     LifeTotal,
     EmptyLibrary,
     SimultaneousLoss,
+    /// CR 104.4b — infinite SBA loop (e.g. indestructible + lethal damage cycling).
+    InfiniteLoop,
 }
 
 /// The winner/draw result when a game finishes.
