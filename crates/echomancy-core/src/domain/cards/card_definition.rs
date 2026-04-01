@@ -25,6 +25,10 @@ pub struct CardDefinition {
     name: String,
     /// One or more card types (most cards have exactly one).
     types: Vec<CardType>,
+    /// Subtypes (creature types, land types, etc.) per CR 205.3.
+    /// Examples: "Human", "Warrior", "Forest", "Plains", "Equipment".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    subtypes: Vec<String>,
     /// Mana cost, if any. Lands have no mana cost.
     #[serde(skip_serializing_if = "Option::is_none")]
     mana_cost: Option<ManaCost>,
@@ -64,6 +68,7 @@ impl CardDefinition {
             id: id.into(),
             name: name.into(),
             types,
+            subtypes: Vec::new(),
             mana_cost: None,
             power: None,
             toughness: None,
@@ -92,6 +97,16 @@ impl CardDefinition {
     /// The card's types.
     pub fn types(&self) -> &[CardType] {
         &self.types
+    }
+
+    /// The card's subtypes (creature types, land types, etc.).
+    pub fn subtypes(&self) -> &[String] {
+        &self.subtypes
+    }
+
+    /// Returns `true` if this card has the given subtype (case-insensitive).
+    pub fn has_subtype(&self, subtype: &str) -> bool {
+        self.subtypes.iter().any(|s| s.eq_ignore_ascii_case(subtype))
     }
 
     /// The mana cost, if any.
@@ -198,6 +213,12 @@ impl CardDefinition {
     /// Attach a mana cost.
     pub fn with_mana_cost(mut self, cost: ManaCost) -> Self {
         self.mana_cost = Some(cost);
+        self
+    }
+
+    /// Add a subtype (creature type, land type, etc.).
+    pub fn with_subtype(mut self, subtype: impl Into<String>) -> Self {
+        self.subtypes.push(subtype.into());
         self
     }
 
@@ -387,5 +408,39 @@ mod tests {
     fn land_is_colorless() {
         let land = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
         assert!(land.is_colorless());
+    }
+
+    // ---- Subtypes (CR 205.3) --------------------------------------------
+
+    #[test]
+    fn no_subtypes_by_default() {
+        assert!(bear().subtypes().is_empty());
+    }
+
+    #[test]
+    fn with_subtype_adds_subtype() {
+        let card = CardDefinition::new("elf", "Elf", vec![CardType::Creature])
+            .with_subtype("Elf");
+        assert_eq!(card.subtypes(), &["Elf"]);
+        assert!(card.has_subtype("Elf"));
+    }
+
+    #[test]
+    fn has_subtype_is_case_insensitive() {
+        let card = CardDefinition::new("elf", "Elf", vec![CardType::Creature])
+            .with_subtype("Elf");
+        assert!(card.has_subtype("elf"));
+        assert!(card.has_subtype("ELF"));
+    }
+
+    #[test]
+    fn multiple_subtypes() {
+        let card = CardDefinition::new("ev", "Elite Vanguard", vec![CardType::Creature])
+            .with_subtype("Human")
+            .with_subtype("Soldier");
+        assert_eq!(card.subtypes().len(), 2);
+        assert!(card.has_subtype("Human"));
+        assert!(card.has_subtype("Soldier"));
+        assert!(!card.has_subtype("Elf"));
     }
 }

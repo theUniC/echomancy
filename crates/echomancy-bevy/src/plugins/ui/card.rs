@@ -84,8 +84,8 @@ pub(crate) fn card_background_color(types: &[CardType]) -> Color {
     }
 }
 
-/// Build the type-line string for a card (e.g. `"Creature"`, `"Land"`, `"Creature — Land"`).
-pub(crate) fn card_type_line(types: &[CardType]) -> String {
+/// Build the type-line string for a card (e.g. `"Creature — Bear"`, `"Land — Forest"`).
+pub(crate) fn card_type_line(types: &[CardType], subtypes: &[String]) -> String {
     let parts: Vec<&str> = types
         .iter()
         .map(|t| match t {
@@ -98,7 +98,12 @@ pub(crate) fn card_type_line(types: &[CardType]) -> String {
             CardType::Planeswalker => "Planeswalker",
         })
         .collect();
-    parts.join(" \u{2014} ")
+    let type_str = parts.join(" ");
+    if subtypes.is_empty() {
+        type_str
+    } else {
+        format!("{type_str} \u{2014} {}", subtypes.join(" "))
+    }
 }
 
 /// Build the power/toughness string for a creature card.
@@ -119,6 +124,7 @@ pub(crate) fn card_pt_text(power: Option<i32>, toughness: Option<i32>) -> Option
 pub(crate) struct CardSpawnData<'a> {
     pub(crate) name: &'a str,
     pub(crate) types: &'a [CardType],
+    pub(crate) subtypes: &'a [String],
     pub(crate) power: Option<i32>,
     pub(crate) toughness: Option<i32>,
     pub(crate) is_tapped: bool,
@@ -169,7 +175,7 @@ fn spawn_card_inner<'a>(
     };
 
     // Capture derived strings before the closure borrows `data`.
-    let type_line = card_type_line(data.types);
+    let type_line = card_type_line(data.types, data.subtypes);
     let pt_text = card_pt_text(data.power, data.toughness);
     let name = data.name.to_owned();
 
@@ -309,33 +315,47 @@ mod tests {
 
     #[test]
     fn creature_type_line_is_creature() {
-        assert_eq!(card_type_line(&[CardType::Creature]), "Creature");
+        assert_eq!(card_type_line(&[CardType::Creature], &[]), "Creature");
     }
 
     #[test]
     fn land_type_line_is_land() {
-        assert_eq!(card_type_line(&[CardType::Land]), "Land");
+        assert_eq!(card_type_line(&[CardType::Land], &[]), "Land");
     }
 
     #[test]
     fn instant_type_line_is_instant() {
-        assert_eq!(card_type_line(&[CardType::Instant]), "Instant");
+        assert_eq!(card_type_line(&[CardType::Instant], &[]), "Instant");
     }
 
     #[test]
     fn sorcery_type_line_is_sorcery() {
-        assert_eq!(card_type_line(&[CardType::Sorcery]), "Sorcery");
+        assert_eq!(card_type_line(&[CardType::Sorcery], &[]), "Sorcery");
     }
 
     #[test]
-    fn multiple_types_joined_with_em_dash() {
-        let line = card_type_line(&[CardType::Creature, CardType::Land]);
-        assert_eq!(line, "Creature \u{2014} Land");
+    fn multiple_types_joined_with_space() {
+        let line = card_type_line(&[CardType::Creature, CardType::Land], &[]);
+        assert_eq!(line, "Creature Land");
+    }
+
+    #[test]
+    fn type_line_with_subtypes_uses_em_dash() {
+        let subtypes = vec!["Bear".to_owned()];
+        let line = card_type_line(&[CardType::Creature], &subtypes);
+        assert_eq!(line, "Creature \u{2014} Bear");
+    }
+
+    #[test]
+    fn type_line_with_multiple_subtypes() {
+        let subtypes = vec!["Human".to_owned(), "Soldier".to_owned()];
+        let line = card_type_line(&[CardType::Creature], &subtypes);
+        assert_eq!(line, "Creature \u{2014} Human Soldier");
     }
 
     #[test]
     fn empty_types_gives_empty_string() {
-        assert_eq!(card_type_line(&[]), "");
+        assert_eq!(card_type_line(&[], &[]), "");
     }
 
     // ---- card_pt_text ------------------------------------------------------

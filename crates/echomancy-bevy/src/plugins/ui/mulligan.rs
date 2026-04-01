@@ -130,7 +130,7 @@ fn setup_mulligan_screen(
             for card in hand.iter() {
                 let border_color = card_border_color(&card.types);
                 let bg_color = card_background_color(&card.types);
-                let type_line = card_type_line(&card.types);
+                let type_line = card_type_line(&card.types, &card.subtypes);
                 let pt_text = card_pt_text(card.power, card.toughness);
                 let name = card.name.clone();
                 let instance_id = card.instance_id.clone();
@@ -311,7 +311,7 @@ fn rebuild_mulligan_screen(
             for card in hand.iter() {
                 let border_color = card_border_color(&card.types);
                 let bg_color = card_background_color(&card.types);
-                let type_line = card_type_line(&card.types);
+                let type_line = card_type_line(&card.types, &card.subtypes);
                 let pt_text = card_pt_text(card.power, card.toughness);
                 let name = card.name.clone();
                 let instance_id = card.instance_id.clone();

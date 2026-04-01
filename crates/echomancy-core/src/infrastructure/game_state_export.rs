@@ -61,6 +61,8 @@ pub struct CardInstanceExport {
     pub card_definition_id: String,
     pub types: Vec<CardType>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subtypes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub static_abilities: Vec<StaticAbility>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub power: Option<u32>,
@@ -387,6 +389,7 @@ pub(crate) fn export_card_instance(
         controller_id: controller_id.to_owned(),
         card_definition_id: def.id().to_owned(),
         types: def.types().to_vec(),
+        subtypes: def.subtypes().to_vec(),
         static_abilities: def.static_abilities().to_vec(),
         power: def.power(),
         toughness: def.toughness(),

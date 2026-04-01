@@ -22,6 +22,7 @@ use crate::domain::value_objects::mana::ManaCost;
 /// Activated ability: {T} → Add {G}.
 pub fn forest() -> CardDefinition {
     CardDefinition::new("forest", "Forest", vec![CardType::Land])
+        .with_subtype("Forest")
         .with_activated_ability(ActivatedAbility {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::Green, amount: 1 },
@@ -34,6 +35,7 @@ pub fn forest() -> CardDefinition {
 /// Activated ability: {T} → Add {R}.
 pub fn mountain() -> CardDefinition {
     CardDefinition::new("mountain", "Mountain", vec![CardType::Land])
+        .with_subtype("Mountain")
         .with_activated_ability(ActivatedAbility {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::Red, amount: 1 },
@@ -46,6 +48,7 @@ pub fn mountain() -> CardDefinition {
 /// Activated ability: {T} → Add {W}.
 pub fn plains() -> CardDefinition {
     CardDefinition::new("plains", "Plains", vec![CardType::Land])
+        .with_subtype("Plains")
         .with_activated_ability(ActivatedAbility {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::White, amount: 1 },
@@ -58,6 +61,7 @@ pub fn plains() -> CardDefinition {
 /// Activated ability: {T} → Add {U}.
 pub fn island() -> CardDefinition {
     CardDefinition::new("island", "Island", vec![CardType::Land])
+        .with_subtype("Island")
         .with_activated_ability(ActivatedAbility {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::Blue, amount: 1 },
@@ -70,6 +74,7 @@ pub fn island() -> CardDefinition {
 /// Activated ability: {T} → Add {B}.
 pub fn swamp() -> CardDefinition {
     CardDefinition::new("swamp", "Swamp", vec![CardType::Land])
+        .with_subtype("Swamp")
         .with_activated_ability(ActivatedAbility {
             cost: ActivationCost::Tap,
             effect: Effect::AddMana { color: ManaColor::Black, amount: 1 },
@@ -88,6 +93,7 @@ pub fn bear() -> CardDefinition {
     // SAFETY: "1G" is a valid mana cost string; this cannot fail at runtime.
     let cost = ManaCost::parse("1G").expect("bear mana cost is valid");
     CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+        .with_subtype("Bear")
         .with_power_toughness(2, 2)
         .with_mana_cost(cost)
     // Bears have no rules text.
@@ -99,6 +105,8 @@ pub fn bear() -> CardDefinition {
 pub fn elite_vanguard() -> CardDefinition {
     let cost = ManaCost::parse("W").expect("elite vanguard mana cost is valid");
     CardDefinition::new("elite-vanguard", "Elite Vanguard", vec![CardType::Creature])
+        .with_subtype("Human")
+        .with_subtype("Soldier")
         .with_power_toughness(2, 1)
         .with_mana_cost(cost)
 }
@@ -109,6 +117,7 @@ pub fn elite_vanguard() -> CardDefinition {
 pub fn goblin() -> CardDefinition {
     let cost = ManaCost::parse("R").expect("goblin mana cost is valid");
     CardDefinition::new("goblin", "Goblin", vec![CardType::Creature])
+        .with_subtype("Goblin")
         .with_power_toughness(1, 1)
         .with_mana_cost(cost)
     // Goblins have no rules text.

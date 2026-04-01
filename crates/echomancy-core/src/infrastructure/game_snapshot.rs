@@ -72,6 +72,7 @@ pub struct CardSnapshot {
     /// Resolved human-readable name (from the card registry).
     pub name: String,
     pub types: Vec<CardType>,
+    pub subtypes: Vec<String>,
     /// Static keyword abilities (Flying, Reach, Vigilance, …).
     pub static_keywords: Vec<StaticAbility>,
 
@@ -394,6 +395,7 @@ fn make_card_snapshot(
         definition_id: card.card_definition_id.clone(),
         name,
         types: card.types.clone(),
+        subtypes: card.subtypes.clone(),
         static_keywords: card.static_abilities.clone(),
         controller_id: card.controller_id.clone(),
         owner_id: card.owner_id.clone(),

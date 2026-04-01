@@ -301,6 +301,7 @@ pub(crate) fn rebuild_battlefields(
                 &CardSpawnData {
                     name: &card.name,
                     types: &card.types,
+                    subtypes: &card.subtypes,
                     power: card.power,
                     toughness: card.toughness,
                     is_tapped,
@@ -386,6 +387,7 @@ pub(crate) fn rebuild_battlefields(
                     &CardSpawnData {
                         name: &card.name,
                         types: &card.types,
+                        subtypes: &card.subtypes,
                         power: card.power,
                         toughness: card.toughness,
                         is_tapped,

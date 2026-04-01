@@ -212,7 +212,7 @@ pub(crate) fn rebuild_detail_panel(
 
 /// Spawn the card-detail overlay panel for the given card snapshot.
 fn spawn_detail_panel(commands: &mut Commands, card: &CardSnapshot) {
-    let type_line = card_type_line(&card.types);
+    let type_line = card_type_line(&card.types, &card.subtypes);
     let mana_line = format_mana_cost_line(card.mana_cost_text.as_deref()).to_owned();
     let oracle_str = format_oracle_text(card.oracle_text.as_deref()).to_owned();
     let pt_line = format_pt_line(card.power, card.toughness);
@@ -357,6 +357,7 @@ mod tests {
             definition_id: "test".to_owned(),
             name: name.to_owned(),
             types: vec![echomancy_core::prelude::CardType::Creature],
+            subtypes: vec![],
             static_keywords: vec![],
             controller_id: "p1".to_owned(),
             owner_id: "p1".to_owned(),
