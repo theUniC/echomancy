@@ -116,7 +116,7 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 | R11 | Replacement effects ("instead" effects) | TODO | 614-615 | Very High | - | Fundamental to many cards |
 | R12 | Prevention effects (prevent damage) | TODO | 615 | High | R11 | Often implemented together |
 | R13 | Hand size enforcement at Cleanup (discard to 7) | DONE | 514.1 | Low | - | Auto-discard last cards (MVP) |
-| R14 | Color identity on cards (derived from mana cost) | TODO | 105 | Low | - | Needed for protection, devotion |
+| R14 | Color identity on cards (derived from mana cost) | DONE | 105 | Low | - | colors() and is_colorless() on CardDefinition |
 | R15 | Multiple activated abilities per card | TODO | 602 | Medium | R5 | Currently `Option<ActivatedAbility>` (singular) |
 
 ### Phase 7: Keywords & Abilities

@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::domain::abilities::ActivatedAbility;
-use crate::domain::enums::{CardType, StaticAbility};
+use crate::domain::enums::{CardType, ManaColor, StaticAbility};
 use crate::domain::targets::TargetRequirement;
 use crate::domain::triggers::Trigger;
 use crate::domain::value_objects::mana::ManaCost;
@@ -168,6 +168,29 @@ impl CardDefinition {
         self.static_abilities.contains(&ability)
     }
 
+    /// Returns the colors of this card, derived from its mana cost (CR 105.2).
+    ///
+    /// A card's color identity is determined by the colored mana symbols in its
+    /// cost. Cards with no colored mana (e.g. Sol Ring {1}) are colorless.
+    /// Lands have no mana cost and are colorless.
+    pub fn colors(&self) -> Vec<ManaColor> {
+        let Some(cost) = &self.mana_cost else {
+            return Vec::new();
+        };
+        let mut colors = Vec::new();
+        if cost.white > 0 { colors.push(ManaColor::White); }
+        if cost.blue > 0 { colors.push(ManaColor::Blue); }
+        if cost.black > 0 { colors.push(ManaColor::Black); }
+        if cost.red > 0 { colors.push(ManaColor::Red); }
+        if cost.green > 0 { colors.push(ManaColor::Green); }
+        colors
+    }
+
+    /// Returns `true` if this card is colorless (no colored mana in cost).
+    pub fn is_colorless(&self) -> bool {
+        self.colors().is_empty()
+    }
+
     // -------------------------------------------------------------------------
     // Builder methods (consume `self`)
     // -------------------------------------------------------------------------
@@ -323,5 +346,46 @@ mod tests {
     fn is_enchantment_false_for_non_enchantment() {
         let land = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
         assert!(!land.is_enchantment());
+    }
+
+    // ---- Color identity (CR 105.2) ------------------------------------------
+
+    #[test]
+    fn green_creature_has_green_color() {
+        let bear = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_mana_cost(ManaCost::parse("1G").unwrap());
+        assert_eq!(bear.colors(), vec![ManaColor::Green]);
+        assert!(!bear.is_colorless());
+    }
+
+    #[test]
+    fn red_instant_has_red_color() {
+        let bolt = CardDefinition::new("bolt", "Bolt", vec![CardType::Instant])
+            .with_mana_cost(ManaCost::parse("1R").unwrap());
+        assert_eq!(bolt.colors(), vec![ManaColor::Red]);
+    }
+
+    #[test]
+    fn multicolor_card_has_multiple_colors() {
+        let gold = CardDefinition::new("gold", "Gold Card", vec![CardType::Creature])
+            .with_mana_cost(ManaCost::parse("WG").unwrap());
+        let colors = gold.colors();
+        assert!(colors.contains(&ManaColor::White));
+        assert!(colors.contains(&ManaColor::Green));
+        assert_eq!(colors.len(), 2);
+    }
+
+    #[test]
+    fn artifact_with_generic_cost_is_colorless() {
+        let ring = CardDefinition::new("ring", "Ring", vec![CardType::Artifact])
+            .with_mana_cost(ManaCost::parse("1").unwrap());
+        assert!(ring.is_colorless());
+        assert!(ring.colors().is_empty());
+    }
+
+    #[test]
+    fn land_is_colorless() {
+        let land = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
+        assert!(land.is_colorless());
     }
 }
