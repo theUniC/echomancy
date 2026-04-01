@@ -252,6 +252,9 @@ impl Game {
             RulesAction::Mill { player, amount } => {
                 self.mill(player, *amount as usize);
             }
+            RulesAction::Discard { player, amount } => {
+                self.discard_random(player, *amount as usize);
+            }
             // Stubs for M3: log but don't crash
             RulesAction::MoveZone { .. }
             | RulesAction::AddCounter { .. }

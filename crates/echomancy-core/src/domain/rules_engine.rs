@@ -93,6 +93,8 @@ pub enum RulesAction {
     Scry { player: String, amount: u32 },
     /// Mill N — move top N cards from library to graveyard (CR 701.13).
     Mill { player: String, amount: u32 },
+    /// Discard N cards from a player's hand (CR 701.8). MVP: auto-discard last N.
+    Discard { player: String, amount: u32 },
     /// Apply a temporary power/toughness modification to a creature.
     ModifyPowerToughness {
         /// Instance ID of the permanent to modify.

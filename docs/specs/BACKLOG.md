@@ -152,7 +152,7 @@ Static abilities and keywords not yet implemented.
 |---|-------------|--------|--------|------------|------------|-------|
 | MM1 | Scry mechanic | DONE | 701.18 | Low | - | scry/scry_with_choices + RulesAction::Scry |
 | MM2 | Mill mechanic | DONE | 701.13 | Low | - | Game::mill + RulesAction::Mill |
-| MM3 | Discard mechanic (forced discard) | TODO | - | Low | - | |
+| MM3 | Discard mechanic (forced discard) | DONE | 701.8 | Low | - | discard (specific) + discard_random + RulesAction::Discard |
 | MM4 | Control change (Act of Treason) | TODO | 701.10 | High | - | Owner ≠ controller |
 | MM5 | "Enters tapped" for lands | DONE | - | Low | K8 | Covered by K8 (EntersTapped static ability) |
 

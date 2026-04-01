@@ -622,6 +622,39 @@ impl Game {
         }
     }
 
+    /// Discard a specific card from a player's hand to their graveyard.
+    ///
+    /// Per CR 701.8. Used for forced discard effects (e.g. Mind Rot).
+    /// Returns `true` if the card was found and discarded.
+    pub(crate) fn discard(&mut self, player_id: &str, card_id: &str) -> bool {
+        let Ok(player) = self.player_state_mut(player_id) else {
+            return false;
+        };
+        if let Some(pos) = player.hand.iter().position(|c| c.instance_id() == card_id) {
+            let card = player.hand.remove(pos);
+            player.graveyard.push(card);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Discard N random cards from a player's hand.
+    ///
+    /// For MVP, discards the last N cards (no random selection).
+    /// Used by effects like "discard 2 cards".
+    pub(crate) fn discard_random(&mut self, player_id: &str, amount: usize) {
+        let Ok(player) = self.player_state_mut(player_id) else {
+            return;
+        };
+        let n = amount.min(player.hand.len());
+        for _ in 0..n {
+            if let Some(card) = player.hand.pop() {
+                player.graveyard.push(card);
+            }
+        }
+    }
+
     /// Mill N — move the top N cards of a player's library to their graveyard.
     ///
     /// Per CR 701.13. If the library has fewer than N cards, mills all remaining.
@@ -1158,5 +1191,77 @@ mod tests {
         let (mut game, p1, _p2) = make_started_game();
         game.mill(&p1, 0);
         assert_eq!(game.graveyard(&p1).unwrap().len(), 0);
+    }
+
+    // ---- Discard (CR 701.8) ---------------------------------------------
+
+    #[test]
+    fn discard_moves_specific_card_to_graveyard() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        let card = CardInstance::new(
+            "spell-1",
+            CardDefinition::new("bolt", "Bolt", vec![CardType::Instant]),
+            &p1,
+        );
+        add_card_to_hand(&mut game, &p1, card);
+        assert_eq!(game.hand(&p1).unwrap().len(), 1);
+
+        let result = game.discard(&p1, "spell-1");
+
+        assert!(result);
+        assert_eq!(game.hand(&p1).unwrap().len(), 0);
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn discard_nonexistent_card_returns_false() {
+        let (mut game, p1, _p2) = make_started_game();
+        assert!(!game.discard(&p1, "nope"));
+    }
+
+    #[test]
+    fn discard_random_removes_n_cards() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        for i in 0..3 {
+            let card = CardInstance::new(
+                format!("card-{i}"),
+                CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+                &p1,
+            );
+            add_card_to_hand(&mut game, &p1, card);
+        }
+
+        game.discard_random(&p1, 2);
+
+        assert_eq!(game.hand(&p1).unwrap().len(), 1);
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn discard_random_more_than_hand_discards_all() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        let card = CardInstance::new(
+            "only",
+            CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+            &p1,
+        );
+        add_card_to_hand(&mut game, &p1, card);
+
+        game.discard_random(&p1, 5);
+
+        assert_eq!(game.hand(&p1).unwrap().len(), 0);
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 1);
     }
 }
