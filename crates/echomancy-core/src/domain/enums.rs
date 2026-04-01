@@ -107,6 +107,8 @@ pub enum StaticAbility {
     CannotAttack,
     /// CR 508.1d — this creature can't block.
     CannotBlock,
+    /// CR 508.1d — this creature must attack each combat if able.
+    MustAttack,
 }
 
 impl fmt::Display for StaticAbility {
@@ -129,6 +131,7 @@ impl fmt::Display for StaticAbility {
             StaticAbility::EntersTapped => "ENTERS_TAPPED",
             StaticAbility::CannotAttack => "CANNOT_ATTACK",
             StaticAbility::CannotBlock => "CANNOT_BLOCK",
+            StaticAbility::MustAttack => "MUST_ATTACK",
         };
         write!(f, "{s}")
     }

@@ -301,6 +301,10 @@ pub(crate) fn compute_attackable_creatures(game: &Game, player_id: &str) -> Vec<
             {
                 return false;
             }
+            // CR 508.1d: CannotAttack creatures can't attack.
+            if card.definition().has_static_ability(StaticAbility::CannotAttack) {
+                return false;
+            }
             true
         })
         .map(|card| card.instance_id().to_owned())
@@ -336,7 +340,14 @@ pub(crate) fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<S
             let Some(cs) = state.creature_state() else {
                 return false;
             };
-            cs.blocking_creature_id().is_none()
+            if cs.blocking_creature_id().is_some() {
+                return false;
+            }
+            // CR 508.1d: CannotBlock creatures can't block.
+            if card.definition().has_static_ability(StaticAbility::CannotBlock) {
+                return false;
+            }
+            true
         })
         .map(|card| card.instance_id().to_owned())
         .collect()
