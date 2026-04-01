@@ -150,7 +150,7 @@ Static abilities and keywords not yet implemented.
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| MM1 | Scry mechanic | TODO | 701.18 | Low | - | |
+| MM1 | Scry mechanic | DONE | 701.18 | Low | - | scry/scry_with_choices + RulesAction::Scry |
 | MM2 | Mill mechanic | TODO | 701.13 | Low | - | |
 | MM3 | Discard mechanic (forced discard) | TODO | - | Low | - | |
 | MM4 | Control change (Act of Treason) | TODO | 701.10 | High | - | Owner ≠ controller |

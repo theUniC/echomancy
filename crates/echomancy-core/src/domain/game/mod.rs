@@ -572,6 +572,55 @@ impl Game {
         player.library.insert(0, card);
         Ok(())
     }
+
+    /// Scry N — look at the top N cards and put any number on the bottom
+    /// of the library in any order, and the rest on top in any order.
+    ///
+    /// Per CR 701.18. MVP: auto-scry keeps all cards on top (no-op).
+    /// The `to_bottom` parameter lists instance IDs of cards to move to bottom.
+    /// Cards not in `to_bottom` stay on top in their original order.
+    pub(crate) fn scry(&mut self, player_id: &str, amount: usize) {
+        self.scry_with_choices(player_id, amount, &[]);
+    }
+
+    /// Scry with explicit choices of which cards go to the bottom.
+    pub(crate) fn scry_with_choices(
+        &mut self,
+        player_id: &str,
+        amount: usize,
+        to_bottom_ids: &[&str],
+    ) {
+        let Ok(player) = self.player_state_mut(player_id) else {
+            return;
+        };
+
+        let n = amount.min(player.library.len());
+        if n == 0 {
+            return;
+        }
+
+        // Take the top N cards
+        let top_n: Vec<CardInstance> = player.library.drain(..n).collect();
+
+        // Split into keep-on-top and put-on-bottom
+        let mut on_top = Vec::new();
+        let mut on_bottom = Vec::new();
+        for card in top_n {
+            if to_bottom_ids.contains(&card.instance_id()) {
+                on_bottom.push(card);
+            } else {
+                on_top.push(card);
+            }
+        }
+
+        // Re-insert: top cards go back to front, bottom cards go to end
+        for (i, card) in on_top.into_iter().enumerate() {
+            player.library.insert(i, card);
+        }
+        for card in on_bottom {
+            player.library.push(card);
+        }
+    }
 }
 
 // ============================================================================
@@ -961,5 +1010,86 @@ mod tests {
         assert!(game
             .players_who_attempted_empty_library_draw
             .contains(&p1));
+    }
+
+    // ---- Scry (CR 701.18) -----------------------------------------------
+
+    #[test]
+    fn scry_keeps_all_on_top_by_default() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        // Add 3 cards to library
+        for i in 0..3 {
+            let card = CardInstance::new(
+                format!("card-{i}"),
+                CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+                &p1,
+            );
+            game.add_card_to_library_top(&p1, card).unwrap();
+        }
+        // Library order: card-2, card-1, card-0 (last inserted = top)
+        assert_eq!(game.library_count(&p1).unwrap(), 3);
+
+        game.scry(&p1, 2);
+
+        // All cards still there, same count
+        assert_eq!(game.library_count(&p1).unwrap(), 3);
+    }
+
+    #[test]
+    fn scry_with_choices_moves_selected_to_bottom() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        for i in 0..4 {
+            let card = CardInstance::new(
+                format!("card-{i}"),
+                CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+                &p1,
+            );
+            game.add_card_to_library_top(&p1, card).unwrap();
+        }
+        // Library: card-3 (top), card-2, card-1, card-0 (bottom)
+
+        // Scry 2, put card-3 on bottom
+        game.scry_with_choices(&p1, 2, &["card-3"]);
+
+        // card-2 should now be on top (card-3 went to bottom)
+        let player = game.player_state(&p1).unwrap();
+        assert_eq!(player.library[0].instance_id(), "card-2");
+        // card-3 should be at the bottom
+        assert_eq!(player.library.last().unwrap().instance_id(), "card-3");
+        assert_eq!(player.library.len(), 4);
+    }
+
+    #[test]
+    fn scry_zero_is_noop() {
+        let (mut game, p1, _p2) = make_started_game();
+        game.scry(&p1, 0);
+        assert_eq!(game.library_count(&p1).unwrap(), 0);
+    }
+
+    #[test]
+    fn scry_more_than_library_size_only_looks_at_available() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        let card = CardInstance::new(
+            "only-card",
+            CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+            &p1,
+        );
+        game.add_card_to_library_top(&p1, card).unwrap();
+
+        game.scry(&p1, 5); // Only 1 card, scry 5
+
+        assert_eq!(game.library_count(&p1).unwrap(), 1);
     }
 }

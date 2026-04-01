@@ -246,6 +246,9 @@ impl Game {
                     self.permanent_states.insert(target.clone(), new_state);
                 }
             }
+            RulesAction::Scry { player, amount } => {
+                self.scry(player, *amount as usize);
+            }
             // Stubs for M3: log but don't crash
             RulesAction::MoveZone { .. }
             | RulesAction::AddCounter { .. }
