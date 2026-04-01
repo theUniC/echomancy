@@ -239,6 +239,10 @@ impl Game {
     pub(crate) fn perform_step_advance(&mut self) -> Vec<GameEvent> {
         let mut events = Vec::new();
 
+        // CR 106.4: Mana pools empty at the end of each step and phase.
+        // Clear before advancing so mana from one step cannot be used in the next.
+        self.clear_all_mana_pools();
+
         // Emit combat ended event and clear isAttacking when leaving END_OF_COMBAT
         if self.turn_state.current_step() == Step::EndOfCombat {
             let active_player = self.turn_state.current_player_id().clone();

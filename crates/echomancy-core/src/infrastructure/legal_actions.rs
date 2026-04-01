@@ -806,8 +806,6 @@ mod tests {
         let (mut game, p1, p2) = make_empty_game_in_first_main();
         let instant = make_instant_card("instant-1", &p2);
         game.add_card_to_hand(&p2, instant).unwrap();
-        game.add_mana(&p2, ManaColor::Colorless, 1).unwrap();
-        game.add_mana(&p2, ManaColor::Red, 1).unwrap();
 
         // Advance from FirstMain through combat steps to DeclareAttackers
         // FirstMain → BeginningOfCombat → DeclareAttackers
@@ -825,6 +823,10 @@ mod tests {
             player_id: PlayerId::new(&p1),
         })
         .unwrap();
+
+        // Add mana AFTER arriving at the step (CR 106.4: pools empty on step change)
+        game.add_mana(&p2, ManaColor::Colorless, 1).unwrap();
+        game.add_mana(&p2, ManaColor::Red, 1).unwrap();
 
         assert_eq!(game.current_step(), Step::DeclareAttackers);
         assert_eq!(game.priority_player_id(), Some(p2.as_str()));
