@@ -88,11 +88,12 @@ that affect correctness of every game.
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| C1 | Mana pools must empty at each step, not just Cleanup | TODO | 106.4 | Low | - | Currently mana persists across steps within a turn |
+| C1 | Mana pools must empty at each step, not just Cleanup | DONE | 106.4 | Low | - | Cleared in perform_step_advance |
 | C2 | Double Strike keyword | TODO | 702.4 | Medium | - | Creatures deal damage in both first-strike and normal steps |
 | C3 | Counterspells / target spells on the stack | BLOCKED | 114.1 | High | R1 | Blue's core mechanic — requires stack targeting |
-| C4 | Verify target legality at resolution ("fizzle") | TODO | 608.2b | Medium | - | Spells with illegal targets should be countered by game rules |
-| C5 | SBA loop must repeat until no more actions taken | TODO | 704.3 | Low | - | Currently runs once instead of looping |
+| C4 | Verify target legality at resolution ("fizzle") | DONE | 608.2b | Medium | - | Spell goes to GY without effect if all targets illegal |
+| C5 | SBA loop must repeat until no more actions taken | DONE | 704.3 | Low | - | Loops up to 20 iterations |
+| C5b | SBA infinite loop should declare draw (CR 104.4b) | TODO | 104.4b | Low | C5 | Currently stops silently at cap=20 instead of declaring draw |
 | C6 | Multiple blockers per attacker + damage ordering | TODO | 509.1a | High | - | Core combat mechanic, enables gang blocking |
 
 ### Phase 6: Major Missing Mechanics
@@ -113,7 +114,7 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 | R10 | Triggered abilities should use the stack | TODO | 603.3 | High | - | Currently execute immediately, can't be responded to |
 | R11 | Replacement effects ("instead" effects) | TODO | 614-615 | Very High | - | Fundamental to many cards |
 | R12 | Prevention effects (prevent damage) | TODO | 615 | High | R11 | Often implemented together |
-| R13 | Hand size enforcement at Cleanup (discard to 7) | TODO | 514.1 | Low | - | Missing from Cleanup step |
+| R13 | Hand size enforcement at Cleanup (discard to 7) | DONE | 514.1 | Low | - | Auto-discard last cards (MVP) |
 | R14 | Color identity on cards (derived from mana cost) | TODO | 105 | Low | - | Needed for protection, devotion |
 | R15 | Multiple activated abilities per card | TODO | 602 | Medium | R5 | Currently `Option<ActivatedAbility>` (singular) |
 

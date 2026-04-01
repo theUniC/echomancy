@@ -95,6 +95,17 @@ impl Game {
     pub(crate) fn resolve_spell(&mut self, spell: SpellOnStack) -> Vec<GameEvent> {
         let mut events = Vec::new();
 
+        // CR 608.2b: If all targets of a spell are illegal at resolution,
+        // the spell is countered by game rules ("fizzles"). It goes to the
+        // graveyard without any effect.
+        if !spell.targets.is_empty() && !self.any_target_legal(&spell.targets) {
+            let owner_id = spell.card.owner_id().to_owned();
+            if let Ok(owner) = self.player_state_mut(&owner_id) {
+                owner.graveyard.push(spell.card);
+            }
+            return events;
+        }
+
         // Move card to appropriate zone
         if self.is_permanent_type(&spell.card) {
             events.extend(self.enter_battlefield(spell.card.clone(), &spell.controller_id, ZoneName::Stack));
@@ -235,6 +246,25 @@ impl Game {
         // In MVP: effects are simple and operate on the game state directly.
         // TODO: Call ability.effect.resolve() when Effect::resolve() signature is implemented
         Vec::new()
+    }
+
+    /// Check if at least one target in the list is still legal.
+    ///
+    /// Per CR 608.2b, a spell fizzles only if ALL targets are illegal.
+    /// A player target is legal if the player exists in the game.
+    /// A creature target is legal if the permanent is still on the battlefield.
+    fn any_target_legal(&self, targets: &[crate::domain::targets::Target]) -> bool {
+        use crate::domain::targets::Target;
+        targets.iter().any(|t| match t {
+            Target::Player { player_id } => {
+                self.players.iter().any(|p| p.player_id.as_str() == player_id)
+            }
+            Target::Creature { permanent_id } => {
+                self.players.iter().any(|p| {
+                    p.battlefield.iter().any(|c| c.instance_id() == permanent_id.as_str())
+                })
+            }
+        })
     }
 }
 
