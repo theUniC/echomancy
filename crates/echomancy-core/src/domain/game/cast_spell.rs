@@ -145,49 +145,112 @@ fn validate_targets(
                         });
                     }
                 }
-                Target::Creature { permanent_id } => {
-                    // Validate the permanent exists on the battlefield as a creature.
-                    validate_creature_target(game, permanent_id)?;
+                Target::Creature { permanent_id } | Target::Permanent { permanent_id } => {
+                    // Validate the permanent exists on the battlefield.
+                    validate_permanent_target_with_type(game, permanent_id, None, |_| true)?;
+                }
+                Target::StackSpell { stack_index } => {
+                    validate_stack_target(game, *stack_index)?;
                 }
             }
             Ok(targets[..1].to_vec())
         }
         TargetRequirement::Creature => {
-            if targets.is_empty() {
-                return Err(GameError::TargetRequired {
-                    card_id: card_id.to_owned(),
-                });
-            }
-            let target = &targets[0];
-            match target {
-                Target::Player { player_id } => {
-                    return Err(GameError::InvalidTarget {
-                        reason: format!(
-                            "player '{player_id}' is not a valid creature target"
-                        ),
-                    });
-                }
+            require_one_target(targets, card_id)?;
+            match &targets[0] {
                 Target::Creature { permanent_id } => {
                     validate_creature_target(game, permanent_id)?;
                 }
+                _ => return Err(GameError::InvalidTarget {
+                    reason: "target must be a creature".to_owned(),
+                }),
+            }
+            Ok(targets[..1].to_vec())
+        }
+        TargetRequirement::Artifact => {
+            require_one_target(targets, card_id)?;
+            let perm_id = require_permanent_target(&targets[0])?;
+            validate_permanent_target_with_type(game, perm_id, Some("artifact"), |c| c.definition().is_artifact())?;
+            Ok(targets[..1].to_vec())
+        }
+        TargetRequirement::Enchantment => {
+            require_one_target(targets, card_id)?;
+            let perm_id = require_permanent_target(&targets[0])?;
+            validate_permanent_target_with_type(game, perm_id, Some("enchantment"), |c| c.definition().is_enchantment())?;
+            Ok(targets[..1].to_vec())
+        }
+        TargetRequirement::ArtifactOrEnchantment => {
+            require_one_target(targets, card_id)?;
+            let perm_id = require_permanent_target(&targets[0])?;
+            validate_permanent_target_with_type(game, perm_id, Some("artifact or enchantment"), |c| {
+                c.definition().is_artifact() || c.definition().is_enchantment()
+            })?;
+            Ok(targets[..1].to_vec())
+        }
+        TargetRequirement::Permanent => {
+            require_one_target(targets, card_id)?;
+            let perm_id = require_permanent_target(&targets[0])?;
+            validate_permanent_target_with_type(game, perm_id, None, |_| true)?;
+            Ok(targets[..1].to_vec())
+        }
+        TargetRequirement::Spell => {
+            require_one_target(targets, card_id)?;
+            match &targets[0] {
+                Target::StackSpell { stack_index } => {
+                    validate_stack_target(game, *stack_index)?;
+                }
+                _ => return Err(GameError::InvalidTarget {
+                    reason: "target must be a spell on the stack".to_owned(),
+                }),
             }
             Ok(targets[..1].to_vec())
         }
     }
 }
 
+fn require_one_target(targets: &[Target], card_id: &str) -> Result<(), GameError> {
+    if targets.is_empty() {
+        return Err(GameError::TargetRequired {
+            card_id: card_id.to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn require_permanent_target(target: &Target) -> Result<&str, GameError> {
+    match target {
+        Target::Creature { permanent_id } | Target::Permanent { permanent_id } => {
+            Ok(permanent_id.as_str())
+        }
+        _ => Err(GameError::InvalidTarget {
+            reason: "target must be a permanent on the battlefield".to_owned(),
+        }),
+    }
+}
+
 /// Validate that a permanent ID refers to a creature on the battlefield.
 fn validate_creature_target(game: &Game, permanent_id: &str) -> Result<(), GameError> {
-    // Search all players' battlefields for the permanent.
+    validate_permanent_target_with_type(game, permanent_id, Some("creature"), |card| {
+        card.definition().is_creature()
+    })
+}
+
+/// Validate that a permanent exists on the battlefield, optionally checking a type predicate.
+fn validate_permanent_target_with_type(
+    game: &Game,
+    permanent_id: &str,
+    type_name: Option<&str>,
+    type_check: impl Fn(&crate::domain::cards::card_instance::CardInstance) -> bool,
+) -> Result<(), GameError> {
     for pid in game.turn_order() {
         if let Ok(battlefield) = game.battlefield(pid) {
             if let Some(card) = battlefield.iter().find(|c| c.instance_id() == permanent_id) {
-                if !card.definition().is_creature() {
-                    return Err(GameError::InvalidTarget {
-                        reason: format!(
-                            "permanent '{permanent_id}' is not a creature"
-                        ),
-                    });
+                if let Some(name) = type_name {
+                    if !type_check(card) {
+                        return Err(GameError::InvalidTarget {
+                            reason: format!("permanent '{permanent_id}' is not a {name}"),
+                        });
+                    }
                 }
                 return Ok(());
             }
@@ -196,6 +259,17 @@ fn validate_creature_target(game: &Game, permanent_id: &str) -> Result<(), GameE
     Err(GameError::InvalidTarget {
         reason: format!("permanent '{permanent_id}' is not on the battlefield"),
     })
+}
+
+/// Validate that a stack index refers to a valid spell on the stack.
+fn validate_stack_target(game: &Game, stack_index: usize) -> Result<(), GameError> {
+    if stack_index < game.stack().len() {
+        Ok(())
+    } else {
+        Err(GameError::InvalidTarget {
+            reason: format!("stack index {stack_index} is out of bounds (stack size: {})", game.stack().len()),
+        })
+    }
 }
 
 #[cfg(test)]

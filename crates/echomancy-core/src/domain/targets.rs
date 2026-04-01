@@ -14,11 +14,19 @@ pub enum TargetRequirement {
     AnyTarget,
     /// Must target a creature on the battlefield.
     Creature,
+    /// Must target an artifact on the battlefield.
+    Artifact,
+    /// Must target an enchantment on the battlefield.
+    Enchantment,
+    /// Must target an artifact or enchantment on the battlefield.
+    ArtifactOrEnchantment,
+    /// Must target any permanent on the battlefield.
+    Permanent,
+    /// Must target a spell on the stack. Used by Counterspell.
+    Spell,
 }
 
 /// A target for an effect.
-///
-/// Mirrors the TypeScript `Target` type from `targets/Target.ts`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Target {
     /// A player is targeted.
@@ -30,6 +38,16 @@ pub enum Target {
     Creature {
         /// The targeted permanent's instance ID.
         permanent_id: String,
+    },
+    /// Any permanent on the battlefield is targeted (artifact, enchantment, etc.)
+    Permanent {
+        /// The targeted permanent's instance ID.
+        permanent_id: String,
+    },
+    /// A spell on the stack is targeted. Used by counterspells.
+    StackSpell {
+        /// Index into the stack (0 = top).
+        stack_index: usize,
     },
 }
 
@@ -48,27 +66,54 @@ impl Target {
         }
     }
 
+    /// Convenience constructor for a permanent target (any permanent type).
+    pub fn permanent(permanent_id: impl Into<String>) -> Self {
+        Target::Permanent {
+            permanent_id: permanent_id.into(),
+        }
+    }
+
+    /// Convenience constructor for a stack spell target.
+    pub fn stack_spell(stack_index: usize) -> Self {
+        Target::StackSpell { stack_index }
+    }
+
     /// Returns the player ID if this target is a player target, otherwise `None`.
     pub fn player_id(&self) -> Option<&str> {
         match self {
             Target::Player { player_id } => Some(player_id.as_str()),
-            Target::Creature { .. } => None,
+            _ => None,
         }
     }
 
-    /// Returns the permanent ID if this target is a creature target, otherwise `None`.
+    /// Returns the permanent ID if this target is a creature or permanent target.
     pub fn permanent_id(&self) -> Option<&str> {
         match self {
-            Target::Creature { permanent_id } => Some(permanent_id.as_str()),
-            Target::Player { .. } => None,
+            Target::Creature { permanent_id } | Target::Permanent { permanent_id } => {
+                Some(permanent_id.as_str())
+            }
+            _ => None,
         }
     }
 
-    /// Returns a string ID that identifies the target object (player ID or permanent ID).
+    /// Returns the stack index if this target is a stack spell target.
+    pub fn stack_index(&self) -> Option<usize> {
+        match self {
+            Target::StackSpell { stack_index } => Some(*stack_index),
+            _ => None,
+        }
+    }
+
+    /// Returns a string ID that identifies the target object (player ID, permanent ID,
+    /// or stack index as string).
     pub fn target_id(&self) -> &str {
         match self {
             Target::Player { player_id } => player_id.as_str(),
-            Target::Creature { permanent_id } => permanent_id.as_str(),
+            Target::Creature { permanent_id } | Target::Permanent { permanent_id } => {
+                permanent_id.as_str()
+            }
+            // Stack targets don't have a string ID — return empty.
+            Target::StackSpell { .. } => "",
         }
     }
 }

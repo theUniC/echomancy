@@ -259,11 +259,12 @@ impl Game {
             Target::Player { player_id } => {
                 self.players.iter().any(|p| p.player_id.as_str() == player_id)
             }
-            Target::Creature { permanent_id } => {
+            Target::Creature { permanent_id } | Target::Permanent { permanent_id } => {
                 self.players.iter().any(|p| {
                     p.battlefield.iter().any(|c| c.instance_id() == permanent_id.as_str())
                 })
             }
+            Target::StackSpell { stack_index } => *stack_index < self.stack.len(),
         })
     }
 }

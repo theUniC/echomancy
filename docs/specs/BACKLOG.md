@@ -90,7 +90,7 @@ that affect correctness of every game.
 |---|-------------|--------|--------|------------|------------|-------|
 | C1 | Mana pools must empty at each step, not just Cleanup | DONE | 106.4 | Low | - | Cleared in perform_step_advance |
 | C2 | Double Strike keyword | DONE | 702.4 | Medium | - | Deals damage in both first-strike and normal combat damage steps |
-| C3 | Counterspells / target spells on the stack | BLOCKED | 114.1 | High | R1 | Blue's core mechanic — requires stack targeting |
+| C3 | Counterspells / target spells on the stack | TODO | 114.1 | High | R1 ✅ | Blue's core mechanic — R1 done, stack targeting available |
 | C4 | Verify target legality at resolution ("fizzle") | DONE | 608.2b | Medium | - | Spell goes to GY without effect if all targets illegal |
 | C5 | SBA loop must repeat until no more actions taken | DONE | 704.3 | Low | - | Loops up to 20 iterations |
 | C5b | SBA infinite loop should declare draw (CR 104.4b) | TODO | 104.4b | Low | C5 | Currently stops silently at cap=20 instead of declaring draw |
@@ -102,7 +102,7 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| R1 | Expand target system (artifact, enchantment, stack spell, graveyard) | TODO | 114-115 | High | - | Unblocks counterspells (C3) and most removal |
+| R1 | Expand target system (artifact, enchantment, permanent, stack spell) | DONE | 114-115 | High | - | Unblocks counterspells (C3) and most removal |
 | R2 | Card subtypes (creature types, land types, etc.) | TODO | 205.3 | Medium | - | Needed for tribal, fetching, many interactions |
 | R3 | Legendary rule (legend rule) | TODO | 704.5j | Medium | R2 | Supertype system needed |
 | R4 | Aura enchantments (attach to permanent, fall off) | BLOCKED | 303.4 | Very High | R1 | Pacifism, enchant creature, etc. |
