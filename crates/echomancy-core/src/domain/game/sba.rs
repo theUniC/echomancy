@@ -18,37 +18,49 @@ use super::{Game, GameEndReason, GameOutcome};
 impl Game {
     /// Perform state-based actions (SBA).
     ///
+    /// Per CR 704.3, SBAs are checked repeatedly in a loop until no more apply.
     /// Destroys creatures with lethal damage or zero toughness, and ends the
     /// game if a player has lost their win condition.
     pub(crate) fn perform_state_based_actions(&mut self) -> Vec<GameEvent> {
         let mut events = Vec::new();
 
-        // 1. Destroy creatures with lethal damage or zero toughness
-        let creature_entries: Vec<(String, PermanentState)> = self
-            .permanent_states
-            .iter()
-            .filter(|(_, s)| s.creature_state().is_some())
-            .map(|(id, s)| (id.clone(), s.clone()))
-            .collect();
+        // CR 704.3: loop until no state-based actions are performed.
+        const MAX_SBA_ITERATIONS: usize = 20;
+        for _ in 0..MAX_SBA_ITERATIONS {
+            let mut any_action = false;
 
-        let sba_entries: Vec<CreatureSbaEntry<'_>> = creature_entries
-            .iter()
-            .map(|(id, s)| CreatureSbaEntry {
-                instance_id: id.as_str(),
-                state: s,
-            })
-            .collect();
+            // 1. Destroy creatures with lethal damage or zero toughness
+            let creature_entries: Vec<(String, PermanentState)> = self
+                .permanent_states
+                .iter()
+                .filter(|(_, s)| s.creature_state().is_some())
+                .map(|(id, s)| (id.clone(), s.clone()))
+                .collect();
 
-        let to_destroy = find_creatures_to_destroy(&sba_entries);
-        for creature_id in to_destroy {
-            if let Ok(evts) =
-                self.move_permanent_to_graveyard(&creature_id, GraveyardReason::StateBased)
-            {
-                events.extend(evts);
+            let sba_entries: Vec<CreatureSbaEntry<'_>> = creature_entries
+                .iter()
+                .map(|(id, s)| CreatureSbaEntry {
+                    instance_id: id.as_str(),
+                    state: s,
+                })
+                .collect();
+
+            let to_destroy = find_creatures_to_destroy(&sba_entries);
+            for creature_id in &to_destroy {
+                if let Ok(evts) =
+                    self.move_permanent_to_graveyard(creature_id, GraveyardReason::StateBased)
+                {
+                    events.extend(evts);
+                    any_action = true;
+                }
+            }
+
+            if !any_action {
+                break;
             }
         }
 
-        // 2. Check player loss conditions
+        // 2. Check player loss conditions (outside the loop — game-ending)
         let player_entries: Vec<(String, i32, bool)> = self
             .players
             .iter()
