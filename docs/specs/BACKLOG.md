@@ -128,7 +128,7 @@ Static abilities and keywords not yet implemented.
 | K1 | Double Strike | DONE | 702.4 | Medium | - | Implemented in C2 |
 | K2 | Menace (must be blocked by 2+) | BLOCKED | 702.110 | Medium | C6 | Needs multiple blockers |
 | K3 | Indestructible | DONE | 702.12 | Medium | - | Survives lethal damage + deathtouch, still dies to 0 toughness |
-| K4 | Hexproof | TODO | 702.11 | Medium | - | Can't be targeted by opponents |
+| K4 | Hexproof | DONE | 702.11 | Medium | - | Opponents can't target; controller can |
 | K5 | Shroud | TODO | 702.18 | Medium | K4 | Can't be targeted at all |
 | K6 | Protection from X | TODO | 702.16 | Very High | C6, R1 | DEBT: Damage, Enchanting, Blocking, Targeting |
 | K7 | "Does not untap" ability | DONE | 302.6 | Low | - | StaticAbility::DoesNotUntap skips auto-untap |

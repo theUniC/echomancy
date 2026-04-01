@@ -68,7 +68,7 @@ pub(crate) fn handle(
     }
 
     // 4. Target validation (CR 601.2c)
-    let validated_targets = validate_targets(game, card_id, card.definition().target_requirement(), &targets)?;
+    let validated_targets = validate_targets(game, player_id, card_id, card.definition().target_requirement(), &targets)?;
 
     // 5. Timing validation
     if !is_instant_speed(&card) {
@@ -119,6 +119,7 @@ pub(crate) fn handle(
 /// `GameError` describing the first violation.
 fn validate_targets(
     game: &Game,
+    caster_id: &str,
     card_id: &str,
     requirement: TargetRequirement,
     targets: &[Target],
@@ -146,8 +147,7 @@ fn validate_targets(
                     }
                 }
                 Target::Creature { permanent_id } | Target::Permanent { permanent_id } => {
-                    // Validate the permanent exists on the battlefield.
-                    validate_permanent_target_with_type(game, permanent_id, None, |_| true)?;
+                    validate_permanent_target_with_type(game, caster_id, permanent_id, None, |_| true)?;
                 }
                 Target::StackSpell { spell_id } => {
                     validate_stack_target(game, spell_id)?;
@@ -159,7 +159,7 @@ fn validate_targets(
             require_one_target(targets, card_id)?;
             match &targets[0] {
                 Target::Creature { permanent_id } => {
-                    validate_creature_target(game, permanent_id)?;
+                    validate_creature_target(game, caster_id, permanent_id)?;
                 }
                 _ => return Err(GameError::InvalidTarget {
                     reason: "target must be a creature".to_owned(),
@@ -170,19 +170,19 @@ fn validate_targets(
         TargetRequirement::Artifact => {
             require_one_target(targets, card_id)?;
             let perm_id = require_permanent_target(&targets[0])?;
-            validate_permanent_target_with_type(game, perm_id, Some("artifact"), |c| c.definition().is_artifact())?;
+            validate_permanent_target_with_type(game, caster_id, perm_id, Some("artifact"), |c| c.definition().is_artifact())?;
             Ok(targets[..1].to_vec())
         }
         TargetRequirement::Enchantment => {
             require_one_target(targets, card_id)?;
             let perm_id = require_permanent_target(&targets[0])?;
-            validate_permanent_target_with_type(game, perm_id, Some("enchantment"), |c| c.definition().is_enchantment())?;
+            validate_permanent_target_with_type(game, caster_id, perm_id, Some("enchantment"), |c| c.definition().is_enchantment())?;
             Ok(targets[..1].to_vec())
         }
         TargetRequirement::ArtifactOrEnchantment => {
             require_one_target(targets, card_id)?;
             let perm_id = require_permanent_target(&targets[0])?;
-            validate_permanent_target_with_type(game, perm_id, Some("artifact or enchantment"), |c| {
+            validate_permanent_target_with_type(game, caster_id, perm_id, Some("artifact or enchantment"), |c| {
                 c.definition().is_artifact() || c.definition().is_enchantment()
             })?;
             Ok(targets[..1].to_vec())
@@ -190,7 +190,7 @@ fn validate_targets(
         TargetRequirement::Permanent => {
             require_one_target(targets, card_id)?;
             let perm_id = require_permanent_target(&targets[0])?;
-            validate_permanent_target_with_type(game, perm_id, None, |_| true)?;
+            validate_permanent_target_with_type(game, caster_id, perm_id, None, |_| true)?;
             Ok(targets[..1].to_vec())
         }
         TargetRequirement::Spell => {
@@ -229,19 +229,25 @@ fn require_permanent_target(target: &Target) -> Result<&str, GameError> {
 }
 
 /// Validate that a permanent ID refers to a creature on the battlefield.
-fn validate_creature_target(game: &Game, permanent_id: &str) -> Result<(), GameError> {
-    validate_permanent_target_with_type(game, permanent_id, Some("creature"), |card| {
+fn validate_creature_target(game: &Game, caster_id: &str, permanent_id: &str) -> Result<(), GameError> {
+    validate_permanent_target_with_type(game, caster_id, permanent_id, Some("creature"), |card| {
         card.definition().is_creature()
     })
 }
 
 /// Validate that a permanent exists on the battlefield, optionally checking a type predicate.
+///
+/// Also checks Hexproof (CR 702.11): a permanent with Hexproof can't be targeted
+/// by spells or abilities controlled by an opponent.
 fn validate_permanent_target_with_type(
     game: &Game,
+    caster_id: &str,
     permanent_id: &str,
     type_name: Option<&str>,
     type_check: impl Fn(&crate::domain::cards::card_instance::CardInstance) -> bool,
 ) -> Result<(), GameError> {
+    use crate::domain::enums::StaticAbility;
+
     for pid in game.turn_order() {
         if let Ok(battlefield) = game.battlefield(pid) {
             if let Some(card) = battlefield.iter().find(|c| c.instance_id() == permanent_id) {
@@ -251,6 +257,16 @@ fn validate_permanent_target_with_type(
                             reason: format!("permanent '{permanent_id}' is not a {name}"),
                         });
                     }
+                }
+                // CR 702.11: Hexproof — can't be targeted by opponents.
+                if card.definition().has_static_ability(StaticAbility::Hexproof)
+                    && pid != caster_id
+                {
+                    return Err(GameError::InvalidTarget {
+                        reason: format!(
+                            "permanent '{permanent_id}' has hexproof and can't be targeted by opponents"
+                        ),
+                    });
                 }
                 return Ok(());
             }
@@ -870,5 +886,70 @@ mod tests {
         } else {
             panic!("expected spell on stack");
         }
+    }
+
+    // ---- Hexproof (CR 702.11) -------------------------------------------
+
+    #[test]
+    fn hexproof_creature_cannot_be_targeted_by_opponent() {
+        use crate::domain::game::test_helpers::add_permanent_to_battlefield;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        // P2 has a Hexproof creature on battlefield
+        let hexproof_bear = CardDefinition::new("hex-bear", "Hexproof Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2)
+            .with_static_ability(StaticAbility::Hexproof);
+        let card = CardInstance::new("hex-bear-1", hexproof_bear, &p2);
+        add_permanent_to_battlefield(&mut game, &p2, card);
+
+        // P1 casts a spell targeting P2's Hexproof creature
+        let bolt = CardDefinition::new("bolt", "Lightning Bolt", vec![CardType::Instant])
+            .with_target_requirement(TargetRequirement::Creature);
+        let bolt_card = CardInstance::new("bolt-1", bolt, &p1);
+        add_card_to_hand(&mut game, &p1, bolt_card);
+
+        // Add mana
+        game.add_mana(&p1, ManaColor::Red, 1).unwrap();
+
+        let result = game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("bolt-1"),
+            targets: vec![Target::creature("hex-bear-1")],
+        });
+
+        assert!(result.is_err(), "should not be able to target Hexproof creature");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("hexproof"), "error should mention hexproof: {err}");
+    }
+
+    #[test]
+    fn hexproof_creature_can_be_targeted_by_controller() {
+        use crate::domain::game::test_helpers::add_permanent_to_battlefield;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        // P1 has a Hexproof creature on battlefield
+        let hexproof_bear = CardDefinition::new("hex-bear", "Hexproof Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2)
+            .with_static_ability(StaticAbility::Hexproof);
+        let card = CardInstance::new("hex-bear-1", hexproof_bear, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        // P1 casts Giant Growth on own Hexproof creature — should succeed
+        let growth = CardDefinition::new("growth", "Giant Growth", vec![CardType::Instant])
+            .with_target_requirement(TargetRequirement::Creature);
+        let growth_card = CardInstance::new("growth-1", growth, &p1);
+        add_card_to_hand(&mut game, &p1, growth_card);
+
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+
+        let result = game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("growth-1"),
+            targets: vec![Target::creature("hex-bear-1")],
+        });
+
+        assert!(result.is_ok(), "controller should be able to target own Hexproof creature");
     }
 }
