@@ -178,6 +178,20 @@ fn evaluate_condition(
                 _ => false,
             }
         }
+        TriggerCondition::SourceEntersBattlefield => {
+            // Fires when the source card itself entered the battlefield (ETB).
+            match event {
+                GameEvent::ZoneChanged {
+                    card,
+                    to_zone,
+                    ..
+                } => {
+                    card.instance_id == source.instance_id().into()
+                        && *to_zone == ZoneName::Battlefield
+                }
+                _ => false,
+            }
+        }
         TriggerCondition::AtStepStart { step } => match event {
             GameEvent::StepStarted { step: event_step, .. } => event_step == step,
             _ => false,

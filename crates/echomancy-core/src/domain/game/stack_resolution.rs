@@ -1,6 +1,6 @@
 //! Stack and spell resolution helpers for the `Game` aggregate.
 
-use crate::domain::entities::the_stack::{AbilityOnStack, SpellOnStack, StackItem};
+use crate::domain::entities::the_stack::{AbilityKind, AbilityOnStack, SpellOnStack, StackItem};
 use crate::domain::enums::{GraveyardReason, ManaColor, ZoneName};
 use crate::domain::events::{CardInstanceSnapshot, GameEvent};
 use crate::domain::rules_engine::RulesAction;
@@ -50,45 +50,39 @@ impl Game {
         find_matching_triggers(&all_permanents, event)
     }
 
+    /// Place triggered abilities onto the stack (CR 603.3).
+    ///
+    /// Previously, triggered abilities executed immediately. Per CR 603.3, they
+    /// must be placed on the stack so players can respond to them. Each triggered
+    /// ability becomes an `AbilityOnStack` item with `AbilityKind::Triggered`, which
+    /// carries the metadata needed to re-fire the CLIPS event at resolution time.
+    ///
+    /// If there is no rules engine and the trigger uses a NoOp effect, there is
+    /// nothing meaningful to put on the stack, so we skip it.
     pub(crate) fn execute_triggered_abilities(&mut self, abilities: Vec<TriggeredAbilityInfo>) {
-        if abilities.is_empty() || self.rules_engine.is_none() {
+        if abilities.is_empty() {
             return;
         }
 
         for ability in abilities {
-            let source_snapshot = CardInstanceSnapshot {
-                instance_id: CardInstanceId::new(&ability.source_id),
-                definition_id: CardDefinitionId::new(&ability.source_definition_id),
-                owner_id: PlayerId::new(&ability.source_owner_id),
-            };
-            let trigger_type = trigger_type_string(&ability.trigger_event_type);
-            let trigger_event = GameEvent::TriggeredAbilityFires {
-                source: source_snapshot,
-                controller_id: PlayerId::new(&ability.controller_id),
-                trigger_type,
-            };
-
-            // Take the engine out to avoid a simultaneous &mut self borrow
-            // (same pattern as resolve_spell). Put it back unconditionally.
-            let mut engine = match self.rules_engine.take() {
-                Some(e) => e,
-                None => return,
-            };
-            match engine.evaluate(self, &trigger_event) {
-                Ok(result) => {
-                    let actions: Vec<crate::domain::rules_engine::RulesAction> =
-                        result.actions.clone();
-                    for action in &actions {
-                        self.apply_rules_action(action);
-                    }
-                }
-                Err(_) => {
-                    // Log error but don't crash — CLIPS bugs shouldn't break the
-                    // game. Routing/logging infrastructure is added in a later
-                    // milestone.
-                }
+            // Skip pure no-ops with no rules engine — nothing to resolve.
+            if self.rules_engine.is_none()
+                && ability.effect == crate::domain::effects::Effect::NoOp
+            {
+                continue;
             }
-            self.rules_engine = Some(engine);
+
+            self.stack.push(StackItem::Ability(AbilityOnStack {
+                source_id: ability.source_id,
+                effect: ability.effect,
+                controller_id: ability.controller_id.clone(),
+                targets: Vec::new(),
+                kind: AbilityKind::Triggered {
+                    trigger_event_type: ability.trigger_event_type,
+                    source_definition_id: ability.source_definition_id,
+                    source_owner_id: ability.source_owner_id,
+                },
+            }));
         }
     }
 
@@ -272,12 +266,61 @@ impl Game {
         }
     }
 
-    pub(crate) fn resolve_ability(&mut self, _ability: AbilityOnStack) -> Vec<GameEvent> {
-        // Find the source permanent (for Last Known Information)
-        // The effect was stored when activated, so it can resolve even if the source left.
-        // In MVP: effects are simple and operate on the game state directly.
-        // TODO: Call ability.effect.resolve() when Effect::resolve() signature is implemented
-        Vec::new()
+    pub(crate) fn resolve_ability(&mut self, ability: AbilityOnStack) -> Vec<GameEvent> {
+        match ability.kind {
+            AbilityKind::Activated => {
+                // Activated abilities resolve their effect directly.
+                // (Currently no non-mana activated abilities need CLIPS.)
+                Vec::new()
+            }
+            AbilityKind::Triggered {
+                trigger_event_type,
+                source_definition_id,
+                source_owner_id,
+            } => {
+                // Reconstruct the TriggeredAbilityFires event and send it to CLIPS,
+                // exactly as the old `execute_triggered_abilities` did — but now
+                // deferred to resolution time instead of firing immediately.
+                if self.rules_engine.is_none() {
+                    return Vec::new();
+                }
+
+                let source_snapshot = CardInstanceSnapshot {
+                    instance_id: CardInstanceId::new(&ability.source_id),
+                    definition_id: CardDefinitionId::new(&source_definition_id),
+                    owner_id: PlayerId::new(&source_owner_id),
+                };
+                let trigger_type = trigger_type_string(&trigger_event_type);
+                let trigger_event = GameEvent::TriggeredAbilityFires {
+                    source: source_snapshot,
+                    controller_id: PlayerId::new(&ability.controller_id),
+                    trigger_type,
+                };
+
+                // Take the engine out to avoid a simultaneous &mut self borrow
+                // (same pattern as resolve_spell). Put it back unconditionally.
+                let mut engine = match self.rules_engine.take() {
+                    Some(e) => e,
+                    None => return Vec::new(),
+                };
+                match engine.evaluate(self, &trigger_event) {
+                    Ok(result) => {
+                        let actions: Vec<RulesAction> = result.actions.clone();
+                        for action in &actions {
+                            self.apply_rules_action(action);
+                        }
+                    }
+                    Err(_) => {
+                        // Log error but don't crash — CLIPS bugs shouldn't break the
+                        // game. Routing/logging infrastructure is added in a later
+                        // milestone.
+                    }
+                }
+                self.rules_engine = Some(engine);
+
+                Vec::new()
+            }
+        }
     }
 
     /// Check if at least one target in the list is still legal.
@@ -716,20 +759,25 @@ mod tests {
 
         let hand_before = game.hand(&p1).unwrap().len();
 
-        // Cast the creature and resolve it onto the battlefield.
+        // Cast the creature and resolve it onto the battlefield (spell resolves).
+        // After spell resolves, the ETB triggered ability is placed on the stack (CR 603.3).
         cast_and_resolve_sorcery(&mut game, &p1, &p2, "etb-1");
 
-        // After the spell resolves and the ETB trigger fires, the CLIPS engine is
-        // called twice — once for SpellResolved (draws 1) and once for
-        // TriggeredAbilityFires/ETB (draws 1).
-        // hand_before includes the creature. After cast: -1. After spell CLIPS: +1.
-        // After ETB CLIPS: +1. Net: hand_before + 1.
+        // The creature should be on the battlefield now (spell resolved).
         assert_eq!(
             game.battlefield(&p1).unwrap().len(),
             1,
             "creature should be on the battlefield"
         );
 
+        // The ETB trigger is now on the stack — resolve it (both pass priority again).
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) })
+            .expect("p1 pass priority for triggered ability should succeed");
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) })
+            .expect("p2 pass priority for triggered ability should succeed");
+
+        // Now trigger has resolved: CLIPS was called for SpellResolved (draws 1) and
+        // then for TriggeredAbilityFires (draws 1). Net: hand_before - 1 + 1 + 1 = hand_before + 1.
         assert_eq!(
             game.hand(&p1).unwrap().len(),
             hand_before + 1,
@@ -742,7 +790,7 @@ mod tests {
         use crate::domain::enums::GraveyardReason;
         use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
 
-        let (mut game, p1, _p2) = make_game_in_first_main();
+        let (mut game, p1, p2) = make_game_in_first_main();
 
         // Give p1 a 5-card library.
         for i in 0..5 {
@@ -767,7 +815,7 @@ mod tests {
 
         let hand_before = game.hand(&p1).unwrap().len();
 
-        // Kill the creature — this should fire its death trigger via CLIPS.
+        // Kill the creature — this places the death triggered ability on the stack (CR 603.3).
         game.move_permanent_to_graveyard("death-1", GraveyardReason::Destroy)
             .expect("creature should be moved to graveyard");
 
@@ -776,6 +824,13 @@ mod tests {
             1,
             "creature should be in graveyard"
         );
+
+        // The trigger is now on the stack — resolve it (both players pass priority).
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) })
+            .expect("p1 pass priority for triggered ability should succeed");
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) })
+            .expect("p2 pass priority for triggered ability should succeed");
+
         assert_eq!(
             game.hand(&p1).unwrap().len(),
             hand_before + 1,
@@ -832,7 +887,7 @@ mod tests {
         use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
         use crate::domain::enums::GraveyardReason;
 
-        let (mut game, p1, _p2) = make_game_in_first_main();
+        let (mut game, p1, p2) = make_game_in_first_main();
 
         // Give p1 a 10-card library.
         for i in 0..10 {
@@ -874,11 +929,24 @@ mod tests {
 
         let hand_before = game.hand(&p1).unwrap().len();
 
-        // Kill both creatures in sequence.
+        // Kill both creatures in sequence — each death places a triggered ability
+        // on the stack (CR 603.3). After both deaths, stack has 2 triggers.
         game.move_permanent_to_graveyard("death-1", GraveyardReason::Destroy)
             .expect("first death should succeed");
         game.move_permanent_to_graveyard("death-2", GraveyardReason::Destroy)
             .expect("second death should succeed");
+
+        // Resolve the first triggered ability (LIFO: death-2 resolves first).
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) })
+            .expect("p1 pass priority for first triggered ability should succeed");
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) })
+            .expect("p2 pass priority for first triggered ability should succeed");
+
+        // Resolve the second triggered ability.
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) })
+            .expect("p1 pass priority for second triggered ability should succeed");
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) })
+            .expect("p2 pass priority for second triggered ability should succeed");
 
         assert_eq!(
             game.hand(&p1).unwrap().len(),

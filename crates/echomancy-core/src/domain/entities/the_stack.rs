@@ -9,6 +9,7 @@
 use crate::domain::cards::card_instance::CardInstance;
 use crate::domain::effects::Effect;
 use crate::domain::targets::Target;
+use crate::domain::triggers::TriggerEventType;
 
 /// A spell on the stack — a card waiting to resolve.
 ///
@@ -23,19 +24,38 @@ pub struct SpellOnStack {
     pub targets: Vec<Target>,
 }
 
-/// An activated ability on the stack.
+/// Distinguishes how an ability was placed on the stack.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbilityKind {
+    /// An ability activated by the controller (e.g., tap abilities, CR 602).
+    Activated,
+    /// A triggered ability that fired automatically from a game event (CR 603).
+    ///
+    /// The `TriggerEventType` and source card metadata are required to reconstruct
+    /// the `GameEvent::TriggeredAbilityFires` event when the ability resolves
+    /// and is sent to the CLIPS rules engine.
+    Triggered {
+        trigger_event_type: TriggerEventType,
+        source_definition_id: String,
+        source_owner_id: String,
+    },
+}
+
+/// An activated or triggered ability on the stack.
 ///
 /// Mirrors the TypeScript `AbilityOnStack` type from `StackTypes.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbilityOnStack {
-    /// The permanent whose ability was activated.
+    /// The permanent whose ability fired.
     pub source_id: String,
     /// The effect to execute when the ability resolves.
     pub effect: Effect,
-    /// The player who activated the ability.
+    /// The player who controls the ability.
     pub controller_id: String,
     /// Target players or permanents (MVP: usually empty).
     pub targets: Vec<Target>,
+    /// Whether this is a triggered ability or an activated ability.
+    pub kind: AbilityKind,
 }
 
 /// Items that can be on the stack.
@@ -166,6 +186,7 @@ mod tests {
             effect: Effect::NoOp,
             controller_id: controller_id.to_owned(),
             targets: Vec::new(),
+            kind: AbilityKind::Activated,
         })
     }
 

@@ -269,10 +269,12 @@ pub(crate) fn serialize_game_event(event: &GameEvent) -> String {
                  (type TRIGGERED_ABILITY_FIRES) \
                  (source-id {source_id}) \
                  (controller {controller}) \
-                 (data {data}))",
+                 (data {data}) \
+                 (target-id {definition_id}))",
                 source_id = clips_string(source.instance_id.as_str()),
                 controller = clips_string(controller_id.as_str()),
                 data = clips_string(trigger_type),
+                definition_id = clips_string(source.definition_id.as_str()),
             )
         }
     }

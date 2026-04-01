@@ -112,7 +112,7 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 | R7 | Sacrifice mechanic | DONE | 701.17 | Medium | - | Action::Sacrifice moves permanent to graveyard |
 | R8 | Planeswalker mechanics (loyalty, abilities, attackable) | TODO | 306 | Very High | - | Loyalty counters, +N/-N abilities |
 | R9 | Token creation | DONE | 111 | High | - | Game::create_token() + RulesAction::CreateToken wired |
-| R10 | Triggered abilities should use the stack | TODO | 603.3 | High | - | Currently execute immediately, can't be responded to |
+| R10 | Triggered abilities should use the stack | DONE | 603.3 | High | - | AbilityKind::Triggered + resolve_ability calls CLIPS at resolution time |
 | R11 | Replacement effects ("instead" effects) | TODO | 614-615 | Very High | - | Fundamental to many cards |
 | R12 | Prevention effects (prevent damage) | TODO | 615 | High | R11 | Often implemented together |
 | R13 | Hand size enforcement at Cleanup (discard to 7) | DONE | 514.1 | Low | - | Auto-discard last cards (MVP) |
@@ -243,7 +243,7 @@ Full migration from TypeScript/Next.js to Rust/Bevy.
 | Bot doesn't block | MVP simplification | Future |
 | Bot targets opponent only | No creature targeting in bot | Future |
 | No counterspells | Target system too limited | C3 (blocked by R1) |
-| Triggered abilities skip the stack | Execute immediately via CLIPS | R10 |
+| Triggered abilities skip the stack | Fixed — now use the stack (CR 603.3) | R10 DONE |
 | No target legality check at resolution | Spells can't fizzle | C4 |
 | SBA runs once, not loop | Implementation gap | C5 |
 | No hand size enforcement | Missing from Cleanup | R13 |

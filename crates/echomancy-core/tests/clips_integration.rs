@@ -575,3 +575,185 @@ fn wild_bounty_draws_a_card_on_etb() {
         p1_hand_before - 1 + 1
     );
 }
+
+// ============================================================================
+// R10: Triggered abilities use the stack (CR 603.3)
+// ============================================================================
+
+/// R10-1: When a triggered ability fires, it is placed on the stack (not executed immediately).
+///
+/// After a creature with an ETB trigger enters the battlefield (resolving
+/// the spell from the stack), the triggered ability should be on the stack
+/// before any resolution happens.
+#[test]
+fn triggered_ability_goes_on_the_stack() {
+    let (mut game, p1, _p2) = make_test_game();
+
+    // Give P1 enough mana to cast Wild Bounty ({1}{G}).
+    game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+    game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+
+    // Add extra cards to P1's library so draw doesn't fail silently.
+    let extra_lib = CardInstance::new("extra-lib-r10a", catalog::forest(), &p1);
+    game.add_card_to_library_top(&p1, extra_lib).unwrap();
+
+    // Add Wild Bounty to P1's hand.
+    let enchantment = CardInstance::new("wild-bounty-r10", catalog::wild_bounty(), &p1);
+    game.add_card_to_hand(&p1, enchantment).unwrap();
+
+    // Cast Wild Bounty — it goes on the stack.
+    game.apply(Action::CastSpell {
+        player_id: PlayerId::new(&p1),
+        card_id: CardInstanceId::new("wild-bounty-r10"),
+        targets: vec![],
+    })
+    .expect("P1 should be able to cast Wild Bounty");
+
+    assert_eq!(game.stack().len(), 1, "Wild Bounty should be on stack");
+
+    // Manually resolve ONE item (the spell) via PassPriority.
+    // After spell resolves, Wild Bounty ETB trigger goes on the stack.
+    // The stack should now have 1 item: the triggered ability.
+    let p1_clone = p1.clone();
+    let p2 = "p2".to_owned();
+
+    // Both players pass priority once to resolve the spell.
+    game.apply(Action::PassPriority { player_id: PlayerId::new(&p1_clone) }).unwrap();
+    game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+
+    // The spell (Wild Bounty) has resolved — it should be on the battlefield now.
+    assert!(
+        game.battlefield(&p1).unwrap().iter().any(|c| c.instance_id() == "wild-bounty-r10"),
+        "Wild Bounty should be on the battlefield after spell resolves"
+    );
+
+    // R10 assertion: The ETB triggered ability should now be on the stack.
+    assert_eq!(
+        game.stack().len(),
+        1,
+        "The ETB triggered ability should be on the stack after the spell resolves (stack has {} items)",
+        game.stack().len()
+    );
+}
+
+/// R10-2: A triggered ability resolves when the stack resolves normally.
+///
+/// After the triggered ability is on the stack and both players pass priority,
+/// it should resolve and produce its effect (Wild Bounty draws 1 card).
+#[test]
+fn triggered_ability_resolves_when_stack_resolves() {
+    let (mut game, p1, _p2) = make_test_game();
+
+    // Give P1 enough mana to cast Wild Bounty ({1}{G}).
+    game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+    game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+
+    // Add extra cards to P1's library so draw doesn't fail silently.
+    let extra_lib = CardInstance::new("extra-lib-r10b", catalog::forest(), &p1);
+    game.add_card_to_library_top(&p1, extra_lib).unwrap();
+
+    // Add Wild Bounty to P1's hand.
+    let enchantment = CardInstance::new("wild-bounty-r10b", catalog::wild_bounty(), &p1);
+    game.add_card_to_hand(&p1, enchantment).unwrap();
+
+    let p1_hand_before = game.hand(&p1).unwrap().len(); // includes the enchantment
+
+    // Cast Wild Bounty.
+    game.apply(Action::CastSpell {
+        player_id: PlayerId::new(&p1),
+        card_id: CardInstanceId::new("wild-bounty-r10b"),
+        targets: vec![],
+    })
+    .expect("P1 should be able to cast Wild Bounty");
+
+    // Fully resolve the stack (spell + triggered ability).
+    auto_resolve_stack(&mut game);
+
+    assert_eq!(game.stack().len(), 0, "stack should be empty after full resolution");
+
+    // Net hand change: -1 (cast) + 1 (ETB draw) = 0.
+    let p1_hand_after = game.hand(&p1).unwrap().len();
+    assert_eq!(
+        p1_hand_after,
+        p1_hand_before - 1 + 1,
+        "Wild Bounty ETB should draw 1 card: before={p1_hand_before}, expected {}, got {p1_hand_after}",
+        p1_hand_before - 1 + 1
+    );
+}
+
+/// R10-3: A player can respond to a triggered ability with an instant before it resolves.
+///
+/// After the trigger goes on the stack, the active player should still have
+/// priority and be able to cast an instant-speed spell in response.
+#[test]
+fn player_can_respond_to_triggered_ability_with_instant() {
+    let (mut game, p1, p2) = make_test_game();
+
+    // Give P1 mana to cast Wild Bounty ({1}{G}).
+    game.add_mana(&p1, ManaColor::Colorless, 1).unwrap();
+    game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+
+    // Give P2 mana to cast Lightning Strike ({1}{R}).
+    game.add_mana(&p2, ManaColor::Colorless, 1).unwrap();
+    game.add_mana(&p2, ManaColor::Red, 1).unwrap();
+
+    // Add extra library cards so draws don't fail.
+    let extra_lib = CardInstance::new("extra-lib-r10c", catalog::forest(), &p1);
+    game.add_card_to_library_top(&p1, extra_lib).unwrap();
+
+    // Add Wild Bounty to P1's hand.
+    let enchantment = CardInstance::new("wild-bounty-r10c", catalog::wild_bounty(), &p1);
+    game.add_card_to_hand(&p1, enchantment).unwrap();
+
+    // Add Lightning Strike to P2's hand.
+    let strike = CardInstance::new("strike-r10c", catalog::lightning_strike(), &p2);
+    game.add_card_to_hand(&p2, strike).unwrap();
+
+    // Put a Bear on P1's battlefield (Lightning Strike target).
+    let bear = CardInstance::new("bear-r10c", catalog::bear(), &p1);
+    game.add_permanent_to_battlefield(&p1, bear).unwrap();
+
+    // Cast Wild Bounty — spell goes on stack.
+    game.apply(Action::CastSpell {
+        player_id: PlayerId::new(&p1),
+        card_id: CardInstanceId::new("wild-bounty-r10c"),
+        targets: vec![],
+    })
+    .expect("P1 should be able to cast Wild Bounty");
+
+    // Both players pass to resolve the spell.
+    game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+    game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+
+    // Now Wild Bounty is on battlefield and ETB trigger is on the stack.
+    // P1 has priority. P2 should be able to respond to the trigger.
+    // P1 passes, P2 casts Lightning Strike targeting the bear.
+    game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+
+    // P2 casts Lightning Strike in response to the triggered ability.
+    game.apply(Action::CastSpell {
+        player_id: PlayerId::new(&p2),
+        card_id: CardInstanceId::new("strike-r10c"),
+        targets: vec![Target::creature("bear-r10c")],
+    })
+    .expect("P2 should be able to cast Lightning Strike in response to the triggered ability");
+
+    // Stack should now have: [ETB trigger (bottom), Lightning Strike (top)].
+    assert_eq!(
+        game.stack().len(),
+        2,
+        "Stack should have 2 items: ETB trigger and Lightning Strike (has {})",
+        game.stack().len()
+    );
+
+    // Resolve everything.
+    auto_resolve_stack(&mut game);
+
+    assert_eq!(game.stack().len(), 0, "stack should be empty after full resolution");
+
+    // Bear should be dead (killed by Lightning Strike which resolved before the ETB trigger).
+    assert!(
+        !game.battlefield(&p1).unwrap().iter().any(|c| c.instance_id() == "bear-r10c"),
+        "Bear should have been killed by Lightning Strike"
+    );
+}

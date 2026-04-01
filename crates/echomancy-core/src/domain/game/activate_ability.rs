@@ -6,7 +6,7 @@
 
 use crate::domain::abilities::ActivationCost;
 use crate::domain::effects::Effect;
-use crate::domain::entities::the_stack::{AbilityOnStack, StackItem};
+use crate::domain::entities::the_stack::{AbilityKind, AbilityOnStack, StackItem};
 use crate::domain::errors::GameError;
 use crate::domain::events::GameEvent;
 use crate::domain::types::{CardInstanceId, PlayerId};
@@ -84,6 +84,7 @@ pub(crate) fn handle(
         effect: ability.effect,
         controller_id: player_id.to_owned(),
         targets: Vec::new(),
+        kind: AbilityKind::Activated,
     }));
 
     // Give priority to opponent

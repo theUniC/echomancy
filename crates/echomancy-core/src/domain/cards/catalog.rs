@@ -11,6 +11,7 @@ use crate::domain::cards::card_definition::CardDefinition;
 use crate::domain::effects::Effect;
 use crate::domain::enums::{CardType, ManaColor};
 use crate::domain::targets::TargetRequirement;
+use crate::domain::triggers::{Trigger, TriggerCondition, TriggerEventType};
 use crate::domain::value_objects::mana::ManaCost;
 
 // ============================================================================
@@ -196,12 +197,20 @@ pub fn sol_ring() -> CardDefinition {
 ///
 /// This is a non-aura enchantment. It resolves to the battlefield and stays
 /// there (unlike instants/sorceries which go to the graveyard). The ETB draw
-/// is handled by the CLIPS rule `wild-bounty-etb-draw`.
+/// is modelled as a Rust `Trigger` (CR 603.3) that places an `AbilityOnStack`
+/// item on the stack. When the ability resolves, the CLIPS rule
+/// `wild-bounty-etb-draw` fires on `TRIGGERED_ABILITY_FIRES`.
 pub fn wild_bounty() -> CardDefinition {
     let cost = ManaCost::parse("1G").expect("wild bounty mana cost is valid");
+    let etb_trigger = Trigger::new(
+        TriggerEventType::ZoneChanged,
+        TriggerCondition::SourceEntersBattlefield,
+        Effect::DrawCards { amount: 1 },
+    );
     CardDefinition::new("wild-bounty", "Wild Bounty", vec![CardType::Enchantment])
         .with_mana_cost(cost)
         .with_oracle_text("When Wild Bounty enters the battlefield, draw a card.")
+        .with_trigger(etb_trigger)
 }
 
 /// Return the `Divination` sorcery definition.

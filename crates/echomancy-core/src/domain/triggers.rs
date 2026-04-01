@@ -68,6 +68,8 @@ pub enum TriggerCondition {
     Always,
     /// Only fires when the source card itself enters the graveyard.
     SourceDies,
+    /// Only fires when the source card itself enters the battlefield (ETB trigger).
+    SourceEntersBattlefield,
     /// Only fires at the beginning of a specific step for the active player.
     AtStepStart { step: crate::domain::enums::Step },
 }
