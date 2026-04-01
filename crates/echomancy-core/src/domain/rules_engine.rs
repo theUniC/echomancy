@@ -86,6 +86,8 @@ pub enum RulesAction {
     },
     /// Exile a permanent (move it from the battlefield to exile).
     Exile { target: String },
+    /// Counter a spell on the stack (remove it and put in graveyard).
+    CounterSpell { target: String },
     /// Apply a temporary power/toughness modification to a creature.
     ModifyPowerToughness {
         /// Instance ID of the permanent to modify.

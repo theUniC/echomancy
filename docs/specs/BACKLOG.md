@@ -90,7 +90,7 @@ that affect correctness of every game.
 |---|-------------|--------|--------|------------|------------|-------|
 | C1 | Mana pools must empty at each step, not just Cleanup | DONE | 106.4 | Low | - | Cleared in perform_step_advance |
 | C2 | Double Strike keyword | DONE | 702.4 | Medium | - | Deals damage in both first-strike and normal combat damage steps |
-| C3 | Counterspells / target spells on the stack | TODO | 114.1 | High | R1 ✅ | Blue's core mechanic — R1 done, stack targeting available |
+| C3 | Counterspells / target spells on the stack | DONE | 114.1 | High | R1 ✅ | Cancel card + RulesAction::CounterSpell + CLIPS rule |
 | C4 | Verify target legality at resolution ("fizzle") | DONE | 608.2b | Medium | - | Spell goes to GY without effect if all targets illegal |
 | C5 | SBA loop must repeat until no more actions taken | DONE | 704.3 | Low | - | Loops up to 20 iterations |
 | C5b | SBA infinite loop should declare draw (CR 104.4b) | TODO | 104.4b | Low | C5 | Currently stops silently at cap=20 instead of declaring draw |

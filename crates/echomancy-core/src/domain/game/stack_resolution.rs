@@ -218,6 +218,21 @@ impl Game {
                 // Ignore if the permanent no longer exists.
                 let _ = self.move_permanent_to_exile(target);
             }
+            RulesAction::CounterSpell { target } => {
+                // Remove the targeted spell from the stack and put it in its owner's graveyard.
+                if let Some(pos) = self.stack.iter().position(|item| match item {
+                    StackItem::Spell(s) => s.card.instance_id() == target,
+                    StackItem::Ability(a) => a.source_id == *target,
+                }) {
+                    let item = self.stack.remove(pos);
+                    if let StackItem::Spell(spell) = item {
+                        let owner_id = spell.card.owner_id().to_owned();
+                        if let Ok(owner) = self.player_state_mut(&owner_id) {
+                            owner.graveyard.push(spell.card);
+                        }
+                    }
+                }
+            }
             RulesAction::ModifyPowerToughness { target, power, toughness, duration, source } => {
                 if let Some(state) = self.permanent_states.get(target).cloned() {
                     let effect_duration = parse_effect_duration(duration);
@@ -264,7 +279,16 @@ impl Game {
                     p.battlefield.iter().any(|c| c.instance_id() == permanent_id.as_str())
                 })
             }
-            Target::StackSpell { stack_index } => *stack_index < self.stack.len(),
+            Target::StackSpell { spell_id } => {
+                self.stack.iter().any(|item| match item {
+                    crate::domain::entities::the_stack::StackItem::Spell(s) => {
+                        s.card.instance_id() == spell_id
+                    }
+                    crate::domain::entities::the_stack::StackItem::Ability(a) => {
+                        a.source_id == *spell_id
+                    }
+                })
+            }
         })
     }
 }

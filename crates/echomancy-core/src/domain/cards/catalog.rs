@@ -118,6 +118,19 @@ pub fn goblin() -> CardDefinition {
 // Spells
 // ============================================================================
 
+/// Return the `Cancel` instant definition (simplified counterspell).
+///
+/// Mana cost: {1} (1 generic — simplified from {1}{U}{U} to be deck-agnostic).
+/// Targets: a spell on the stack.
+/// Effect: Counter target spell.
+pub fn cancel() -> CardDefinition {
+    let cost = ManaCost::parse("1").expect("cancel mana cost is valid");
+    CardDefinition::new("cancel", "Cancel", vec![CardType::Instant])
+        .with_mana_cost(cost)
+        .with_target_requirement(TargetRequirement::Spell)
+        .with_oracle_text("Counter target spell.")
+}
+
 /// Return the `Giant Growth` instant definition.
 ///
 /// Mana cost: {G} (1 green).

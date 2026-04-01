@@ -38,6 +38,9 @@ const GIANT_GROWTH_RULES: &str =
 const WILD_BOUNTY_RULES: &str =
     include_str!("../../../../../rules/cards/w/wild-bounty.clp");
 
+const CANCEL_RULES: &str =
+    include_str!("../../../../../rules/cards/c/cancel.clp");
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -75,6 +78,7 @@ pub(crate) fn load_card_rules(engine: &mut ClipsEngine, card_id: &str) -> Result
         "divination" => engine.load_rules(DIVINATION_RULES),
         "giant-growth" => engine.load_rules(GIANT_GROWTH_RULES),
         "wild-bounty" => engine.load_rules(WILD_BOUNTY_RULES),
+        "cancel" => engine.load_rules(CANCEL_RULES),
         // Sol Ring uses no CLIPS rule — its mana ability is handled entirely by
         // the Rust domain (CR 605 mana abilities bypass the stack).
         // Vanilla/keyword-only cards have no .clp — this is expected and fine.

@@ -149,8 +149,8 @@ fn validate_targets(
                     // Validate the permanent exists on the battlefield.
                     validate_permanent_target_with_type(game, permanent_id, None, |_| true)?;
                 }
-                Target::StackSpell { stack_index } => {
-                    validate_stack_target(game, *stack_index)?;
+                Target::StackSpell { spell_id } => {
+                    validate_stack_target(game, spell_id)?;
                 }
             }
             Ok(targets[..1].to_vec())
@@ -196,8 +196,8 @@ fn validate_targets(
         TargetRequirement::Spell => {
             require_one_target(targets, card_id)?;
             match &targets[0] {
-                Target::StackSpell { stack_index } => {
-                    validate_stack_target(game, *stack_index)?;
+                Target::StackSpell { spell_id } => {
+                    validate_stack_target(game, spell_id)?;
                 }
                 _ => return Err(GameError::InvalidTarget {
                     reason: "target must be a spell on the stack".to_owned(),
@@ -261,13 +261,18 @@ fn validate_permanent_target_with_type(
     })
 }
 
-/// Validate that a stack index refers to a valid spell on the stack.
-fn validate_stack_target(game: &Game, stack_index: usize) -> Result<(), GameError> {
-    if stack_index < game.stack().len() {
+/// Validate that a spell ID refers to a spell currently on the stack.
+fn validate_stack_target(game: &Game, spell_id: &str) -> Result<(), GameError> {
+    use crate::domain::entities::the_stack::StackItem;
+    let found = game.stack().iter().any(|item| match item {
+        StackItem::Spell(s) => s.card.instance_id() == spell_id,
+        StackItem::Ability(a) => a.source_id == spell_id,
+    });
+    if found {
         Ok(())
     } else {
         Err(GameError::InvalidTarget {
-            reason: format!("stack index {stack_index} is out of bounds (stack size: {})", game.stack().len()),
+            reason: format!("spell '{spell_id}' is not on the stack"),
         })
     }
 }

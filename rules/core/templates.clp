@@ -146,6 +146,11 @@
   (multislot types)
   (multislot keywords))
 
+(deftemplate action-counter-spell
+  "Counter a spell on the stack (remove it, put in owner's graveyard)."
+  (slot priority (type INTEGER) (default 0))
+  (slot target (type STRING)))
+
 (deftemplate action-modify-pt
   "Apply a temporary power/toughness modification to a creature (until end of turn)."
   (slot priority (type INTEGER) (default 0))

@@ -184,6 +184,7 @@ impl CatalogRegistry {
             "divination" => Some(catalog::divination()),
             "sol-ring" => Some(catalog::sol_ring()),
             "wild-bounty" => Some(catalog::wild_bounty()),
+            "cancel" => Some(catalog::cancel()),
             _ => None,
         }
     }

@@ -46,8 +46,8 @@ pub enum Target {
     },
     /// A spell on the stack is targeted. Used by counterspells.
     StackSpell {
-        /// Index into the stack (0 = top).
-        stack_index: usize,
+        /// Instance ID of the spell's card on the stack.
+        spell_id: String,
     },
 }
 
@@ -74,8 +74,10 @@ impl Target {
     }
 
     /// Convenience constructor for a stack spell target.
-    pub fn stack_spell(stack_index: usize) -> Self {
-        Target::StackSpell { stack_index }
+    pub fn stack_spell(spell_id: impl Into<String>) -> Self {
+        Target::StackSpell {
+            spell_id: spell_id.into(),
+        }
     }
 
     /// Returns the player ID if this target is a player target, otherwise `None`.
@@ -96,10 +98,10 @@ impl Target {
         }
     }
 
-    /// Returns the stack index if this target is a stack spell target.
-    pub fn stack_index(&self) -> Option<usize> {
+    /// Returns the spell ID if this target is a stack spell target.
+    pub fn spell_id(&self) -> Option<&str> {
         match self {
-            Target::StackSpell { stack_index } => Some(*stack_index),
+            Target::StackSpell { spell_id } => Some(spell_id.as_str()),
             _ => None,
         }
     }
@@ -112,8 +114,7 @@ impl Target {
             Target::Creature { permanent_id } | Target::Permanent { permanent_id } => {
                 permanent_id.as_str()
             }
-            // Stack targets don't have a string ID — return empty.
-            Target::StackSpell { .. } => "",
+            Target::StackSpell { spell_id } => spell_id.as_str(),
         }
     }
 }

@@ -203,6 +203,16 @@ pub(crate) fn parse_action_facts(engine: &ClipsEngine) -> Result<Vec<RulesAction
         ));
     }
 
+    // action-counter-spell
+    for row in engine.collect_facts_by_template("action-counter-spell", &["priority", "target"]) {
+        let priority = extract_integer(&row, "priority").unwrap_or(100);
+        let target = match extract_string(&row, "target") {
+            Some(s) => s,
+            None => continue,
+        };
+        actions.push((priority, RulesAction::CounterSpell { target }));
+    }
+
     // action-modify-pt
     for row in engine.collect_facts_by_template(
         "action-modify-pt",
