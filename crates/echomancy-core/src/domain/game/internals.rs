@@ -353,10 +353,12 @@ impl Game {
         }
 
         // Clear mana pools and damage at CLEANUP, and expire timed effects.
+        // CR 514.1: discard down to maximum hand size (7).
         if step == Step::Cleanup {
             self.clear_all_mana_pools();
             self.clear_damage_on_all_creatures();
             self.expire_continuous_effects(EffectDuration::UntilEndOfTurn);
+            self.enforce_hand_size_limit();
         }
 
         // Emit step started event and evaluate triggers
@@ -699,6 +701,20 @@ impl Game {
             if let Some(state) = self.permanent_states.get(&id).cloned() {
                 let new_state = state.without_expired_effects(duration.clone());
                 self.permanent_states.insert(id, new_state);
+            }
+        }
+    }
+
+    /// CR 514.1: At Cleanup, each player with more than 7 cards in hand
+    /// discards down to 7. For MVP, the last cards added are discarded
+    /// automatically (player doesn't choose).
+    fn enforce_hand_size_limit(&mut self) {
+        const MAX_HAND_SIZE: usize = 7;
+        for player in &mut self.players {
+            while player.hand.len() > MAX_HAND_SIZE {
+                if let Some(card) = player.hand.pop() {
+                    player.graveyard.push(card);
+                }
             }
         }
     }
