@@ -32,6 +32,16 @@ impl Game {
             let mut any_action = false;
 
             // 1. Destroy creatures with lethal damage or zero toughness
+            //    Build a lookup of which permanents are indestructible.
+            use crate::domain::enums::StaticAbility;
+            let indestructible_ids: std::collections::HashSet<String> = self
+                .players
+                .iter()
+                .flat_map(|p| p.battlefield.iter())
+                .filter(|c| c.definition().has_static_ability(StaticAbility::Indestructible))
+                .map(|c| c.instance_id().to_owned())
+                .collect();
+
             let creature_entries: Vec<(String, PermanentState)> = self
                 .permanent_states
                 .iter()
@@ -44,6 +54,7 @@ impl Game {
                 .map(|(id, s)| CreatureSbaEntry {
                     instance_id: id.as_str(),
                     state: s,
+                    is_indestructible: indestructible_ids.contains(id),
                 })
                 .collect();
 

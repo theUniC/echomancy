@@ -93,6 +93,8 @@ pub enum StaticAbility {
     Trample,
     Deathtouch,
     Lifelink,
+    /// CR 702.12 — this permanent can't be destroyed by lethal damage or effects.
+    Indestructible,
     /// CR 302.6 — this permanent does not untap during its controller's untap step.
     DoesNotUntap,
     /// This permanent enters the battlefield tapped.
@@ -112,6 +114,7 @@ impl fmt::Display for StaticAbility {
             StaticAbility::Trample => "TRAMPLE",
             StaticAbility::Deathtouch => "DEATHTOUCH",
             StaticAbility::Lifelink => "LIFELINK",
+            StaticAbility::Indestructible => "INDESTRUCTIBLE",
             StaticAbility::DoesNotUntap => "DOES_NOT_UNTAP",
             StaticAbility::EntersTapped => "ENTERS_TAPPED",
         };

@@ -20,6 +20,8 @@ pub(crate) struct CreatureSbaEntry<'a> {
     pub instance_id: &'a str,
     /// The permanent state (must have creature sub-state).
     pub state: &'a PermanentState,
+    /// Whether this creature has Indestructible (CR 702.12).
+    pub is_indestructible: bool,
 }
 
 /// A minimal description of a player for SBA checks.
@@ -60,6 +62,19 @@ pub(crate) fn find_creatures_to_destroy(
             Err(_) => continue,
         };
 
+        // Check 0 or less toughness — this is NOT "destroy", so Indestructible
+        // does NOT prevent it (CR 704.5f).
+        if current_toughness <= 0 {
+            to_destroy.push(entry.instance_id.to_owned());
+            continue;
+        }
+
+        // CR 702.12: Indestructible permanents can't be destroyed by lethal
+        // damage or deathtouch. Skip the destroy checks.
+        if entry.is_indestructible {
+            continue;
+        }
+
         // Check lethal damage.
         if cs.damage_marked_this_turn() >= current_toughness {
             to_destroy.push(entry.instance_id.to_owned());
@@ -68,12 +83,6 @@ pub(crate) fn find_creatures_to_destroy(
 
         // Check Deathtouch: any non-zero damage from a Deathtouch source is lethal (CR 702.2).
         if cs.has_deathtouch_damage() && cs.damage_marked_this_turn() > 0 {
-            to_destroy.push(entry.instance_id.to_owned());
-            continue;
-        }
-
-        // Check 0 or less toughness.
-        if current_toughness <= 0 {
             to_destroy.push(entry.instance_id.to_owned());
         }
     }
@@ -146,6 +155,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -157,6 +167,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -168,6 +179,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty());
@@ -182,6 +194,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -193,6 +206,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -204,6 +218,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty());
@@ -223,6 +238,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -238,6 +254,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty());
@@ -255,6 +272,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty());
@@ -269,6 +287,7 @@ mod tests {
         let entries = [CreatureSbaEntry {
             instance_id: "c1",
             state: &state,
+            is_indestructible: false,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -285,15 +304,61 @@ mod tests {
             CreatureSbaEntry {
                 instance_id: "dead",
                 state: &dying,
+                is_indestructible: false,
             },
             CreatureSbaEntry {
                 instance_id: "alive",
                 state: &healthy,
+                is_indestructible: false,
             },
         ];
 
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["dead"]);
+    }
+
+    // ---- find_creatures_to_destroy: indestructible (CR 702.12) ------------
+
+    #[test]
+    fn indestructible_creature_survives_lethal_damage() {
+        let state = creature_with_damage(2, 2, 5); // 5 damage >= 2 toughness
+        let entries = [CreatureSbaEntry {
+            instance_id: "c1",
+            state: &state,
+            is_indestructible: true,
+        }];
+        let result = find_creatures_to_destroy(&entries);
+        assert!(result.is_empty(), "Indestructible should survive lethal damage");
+    }
+
+    #[test]
+    fn indestructible_creature_survives_deathtouch() {
+        let state = PermanentState::for_creature(5, 5)
+            .with_summoning_sickness(false)
+            .unwrap()
+            .with_damage(1)
+            .unwrap()
+            .with_deathtouch_damage();
+        let entries = [CreatureSbaEntry {
+            instance_id: "c1",
+            state: &state,
+            is_indestructible: true,
+        }];
+        let result = find_creatures_to_destroy(&entries);
+        assert!(result.is_empty(), "Indestructible should survive deathtouch");
+    }
+
+    #[test]
+    fn indestructible_creature_still_dies_to_zero_toughness() {
+        // CR 704.5f: toughness <= 0 is NOT destroy — Indestructible doesn't help.
+        let state = PermanentState::for_creature(1, 0);
+        let entries = [CreatureSbaEntry {
+            instance_id: "c1",
+            state: &state,
+            is_indestructible: true,
+        }];
+        let result = find_creatures_to_destroy(&entries);
+        assert_eq!(result, vec!["c1"], "zero toughness kills even Indestructible");
     }
 
     // ---- find_players_who_attempted_empty_library_draw ---------------------
