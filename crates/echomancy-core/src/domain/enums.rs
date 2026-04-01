@@ -95,6 +95,8 @@ pub enum StaticAbility {
     Lifelink,
     /// CR 702.11 — can't be the target of spells or abilities opponents control.
     Hexproof,
+    /// CR 702.18 — can't be the target of spells or abilities at all.
+    Shroud,
     /// CR 702.12 — this permanent can't be destroyed by lethal damage or effects.
     Indestructible,
     /// CR 302.6 — this permanent does not untap during its controller's untap step.
@@ -117,6 +119,7 @@ impl fmt::Display for StaticAbility {
             StaticAbility::Deathtouch => "DEATHTOUCH",
             StaticAbility::Lifelink => "LIFELINK",
             StaticAbility::Hexproof => "HEXPROOF",
+            StaticAbility::Shroud => "SHROUD",
             StaticAbility::Indestructible => "INDESTRUCTIBLE",
             StaticAbility::DoesNotUntap => "DOES_NOT_UNTAP",
             StaticAbility::EntersTapped => "ENTERS_TAPPED",

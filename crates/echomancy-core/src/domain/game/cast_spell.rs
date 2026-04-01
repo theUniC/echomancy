@@ -258,6 +258,14 @@ fn validate_permanent_target_with_type(
                         });
                     }
                 }
+                // CR 702.18: Shroud — can't be targeted by anyone.
+                if card.definition().has_static_ability(StaticAbility::Shroud) {
+                    return Err(GameError::InvalidTarget {
+                        reason: format!(
+                            "permanent '{permanent_id}' has shroud and can't be targeted"
+                        ),
+                    });
+                }
                 // CR 702.11: Hexproof — can't be targeted by opponents.
                 if card.definition().has_static_ability(StaticAbility::Hexproof)
                     && pid != caster_id
@@ -951,5 +959,60 @@ mod tests {
         });
 
         assert!(result.is_ok(), "controller should be able to target own Hexproof creature");
+    }
+
+    // ---- Shroud (CR 702.18) ---------------------------------------------
+
+    #[test]
+    fn shroud_creature_cannot_be_targeted_by_opponent() {
+        use crate::domain::game::test_helpers::add_permanent_to_battlefield;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        let shroud_bear = CardDefinition::new("sh-bear", "Shroud Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2)
+            .with_static_ability(StaticAbility::Shroud);
+        let card = CardInstance::new("sh-bear-1", shroud_bear, &p2);
+        add_permanent_to_battlefield(&mut game, &p2, card);
+
+        let bolt = CardDefinition::new("bolt", "Bolt", vec![CardType::Instant])
+            .with_target_requirement(TargetRequirement::Creature);
+        add_card_to_hand(&mut game, &p1, CardInstance::new("bolt-1", bolt, &p1));
+        game.add_mana(&p1, ManaColor::Red, 1).unwrap();
+
+        let result = game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("bolt-1"),
+            targets: vec![Target::creature("sh-bear-1")],
+        });
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("shroud"));
+    }
+
+    #[test]
+    fn shroud_creature_cannot_be_targeted_by_controller_either() {
+        use crate::domain::game::test_helpers::add_permanent_to_battlefield;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let shroud_bear = CardDefinition::new("sh-bear", "Shroud Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2)
+            .with_static_ability(StaticAbility::Shroud);
+        let card = CardInstance::new("sh-bear-1", shroud_bear, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        let growth = CardDefinition::new("growth", "Giant Growth", vec![CardType::Instant])
+            .with_target_requirement(TargetRequirement::Creature);
+        add_card_to_hand(&mut game, &p1, CardInstance::new("growth-1", growth, &p1));
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+
+        let result = game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("growth-1"),
+            targets: vec![Target::creature("sh-bear-1")],
+        });
+
+        assert!(result.is_err(), "controller should NOT be able to target Shroud creature");
     }
 }
