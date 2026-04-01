@@ -169,7 +169,7 @@ mod tests {
 
         let attacker_state = game.permanent_state("attacker-1").unwrap();
         let attacker_cs = attacker_state.creature_state().unwrap();
-        assert!(attacker_cs.blocked_by().is_some());
+        assert!(attacker_cs.is_blocked());
     }
 
     #[test]
@@ -288,5 +288,43 @@ mod tests {
 
         let state = game.permanent_state("reach-1").unwrap();
         assert!(state.creature_state().unwrap().blocking_creature_id().is_some());
+    }
+
+    #[test]
+    fn creature_can_be_blocked_by_multiple_creatures() {
+        let (mut game, _, p2) = setup_declare_blockers();
+
+        let blocker1 = make_creature_card("blocker-1", &p2, 1, 1);
+        let blocker2 = make_creature_card("blocker-2", &p2, 2, 2);
+        add_permanent_to_battlefield(&mut game, &p2, blocker1);
+        add_permanent_to_battlefield(&mut game, &p2, blocker2);
+
+        // First blocker declares.
+        game.apply(Action::DeclareBlocker {
+            player_id: PlayerId::new(&p2),
+            blocker_id: CardInstanceId::new("blocker-1"),
+            attacker_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        // Second blocker should also be allowed — no error.
+        game.apply(Action::DeclareBlocker {
+            player_id: PlayerId::new(&p2),
+            blocker_id: CardInstanceId::new("blocker-2"),
+            attacker_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        // Attacker should now have two blockers.
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        let attacker_cs = attacker_state.creature_state().unwrap();
+        assert_eq!(attacker_cs.blocked_by().len(), 2);
+
+        // Both blockers should track which creature they are blocking.
+        let b1_state = game.permanent_state("blocker-1").unwrap();
+        assert_eq!(b1_state.creature_state().unwrap().blocking_creature_id(), Some("attacker-1"));
+
+        let b2_state = game.permanent_state("blocker-2").unwrap();
+        assert_eq!(b2_state.creature_state().unwrap().blocking_creature_id(), Some("attacker-1"));
     }
 }

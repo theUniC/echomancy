@@ -46,7 +46,7 @@ pub struct CreatureStateExport {
     pub toughness: i32,
     pub damage_marked_this_turn: i32,
     pub blocking_creature_id: Option<String>,
-    pub blocked_by: Option<String>,
+    pub blocked_by: Vec<String>,
     /// Counter type name → count. Includes all counter types on the creature.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub counters: HashMap<String, u32>,
@@ -415,7 +415,7 @@ pub(crate) fn export_creature_state(state: &PermanentState) -> Option<CreatureSt
         toughness,
         damage_marked_this_turn: cs.damage_marked_this_turn(),
         blocking_creature_id: cs.blocking_creature_id().map(str::to_owned),
-        blocked_by: cs.blocked_by().map(str::to_owned),
+        blocked_by: cs.blocked_by().iter().map(|id| id.as_str().to_owned()).collect(),
         counters,
     })
 }
@@ -518,7 +518,7 @@ mod tests {
         assert!(!cs.has_summoning_sickness);
         assert_eq!(cs.damage_marked_this_turn, 0);
         assert!(cs.blocking_creature_id.is_none());
-        assert!(cs.blocked_by.is_none());
+        assert!(cs.blocked_by.is_empty());
     }
 
     #[test]
@@ -555,7 +555,7 @@ mod tests {
         let cs = export.creature_state.unwrap();
         assert_eq!(cs.damage_marked_this_turn, 2);
         assert_eq!(cs.blocking_creature_id, Some("attacker-1".to_owned()));
-        assert!(cs.blocked_by.is_none());
+        assert!(cs.blocked_by.is_empty());
     }
 
     #[test]

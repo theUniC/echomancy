@@ -433,7 +433,7 @@ mod tests {
         assert_eq!(cs.base_toughness(), 3);
         assert_eq!(cs.damage_marked_this_turn(), 0);
         assert!(cs.blocking_creature_id().is_none());
-        assert!(cs.blocked_by().is_none());
+        assert!(cs.blocked_by().is_empty());
     }
 
     // ---- for_non_creature --------------------------------------------------

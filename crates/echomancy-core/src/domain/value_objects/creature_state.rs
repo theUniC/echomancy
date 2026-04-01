@@ -19,7 +19,9 @@ pub struct CreatureSubState {
     pub(crate) has_attacked_this_turn: bool,
     pub(crate) damage_marked_this_turn: i32,
     pub(crate) blocking_creature_id: Option<CardInstanceId>,
-    pub(crate) blocked_by: Option<CardInstanceId>,
+    /// Instance IDs of creatures currently blocking this creature.
+    /// Empty when unblocked; may contain multiple IDs when multiple blockers are declared.
+    pub(crate) blocked_by: Vec<CardInstanceId>,
     /// Set to `true` when this creature has dealt damage in the `FirstStrikeDamage` step.
     ///
     /// Used to prevent the creature from dealing damage again in the regular
@@ -44,7 +46,7 @@ impl CreatureSubState {
             has_attacked_this_turn: false,
             damage_marked_this_turn: 0,
             blocking_creature_id: None,
-            blocked_by: None,
+            blocked_by: Vec::new(),
             dealt_first_strike_damage: false,
             has_deathtouch_damage: false,
         }
@@ -87,9 +89,14 @@ impl CreatureSubState {
         self.blocking_creature_id.as_ref().map(|id| id.as_str())
     }
 
-    /// Returns the instance ID of the creature blocking this creature, if any.
-    pub fn blocked_by(&self) -> Option<&str> {
-        self.blocked_by.as_ref().map(|id| id.as_str())
+    /// Returns the instance IDs of all creatures currently blocking this creature.
+    pub fn blocked_by(&self) -> &[CardInstanceId] {
+        &self.blocked_by
+    }
+
+    /// Returns `true` if at least one creature is blocking this creature.
+    pub fn is_blocked(&self) -> bool {
+        !self.blocked_by.is_empty()
     }
 
     /// Returns `true` if this creature already dealt damage in the `FirstStrikeDamage` step.
@@ -144,11 +151,24 @@ impl CreatureSubState {
         }
     }
 
-    /// Returns a new `CreatureSubState` with `blocked_by` updated.
+    /// Returns a new `CreatureSubState` with the given blocker ID added to `blocked_by`.
+    ///
+    /// Passing `None` clears all blockers (used for reset).
+    /// Passing `Some(id)` appends the ID to the list (multiple blockers supported).
     pub(crate) fn with_blocked_by(&self, id: Option<CardInstanceId>) -> Self {
-        Self {
-            blocked_by: id,
-            ..self.clone()
+        match id {
+            None => Self {
+                blocked_by: Vec::new(),
+                ..self.clone()
+            },
+            Some(blocker_id) => {
+                let mut new_blocked_by = self.blocked_by.clone();
+                new_blocked_by.push(blocker_id);
+                Self {
+                    blocked_by: new_blocked_by,
+                    ..self.clone()
+                }
+            }
         }
     }
 
@@ -176,7 +196,7 @@ impl CreatureSubState {
             has_attacked_this_turn: false,
             damage_marked_this_turn: 0,
             blocking_creature_id: None,
-            blocked_by: None,
+            blocked_by: Vec::new(),
             has_summoning_sickness: false,
             dealt_first_strike_damage: false,
             has_deathtouch_damage: false,
@@ -199,7 +219,7 @@ impl CreatureSubState {
         Self {
             is_attacking: false,
             blocking_creature_id: None,
-            blocked_by: None,
+            blocked_by: Vec::new(),
             dealt_first_strike_damage: false,
             ..self.clone()
         }
@@ -223,7 +243,7 @@ mod tests {
         assert_eq!(cs.base_toughness(), 3);
         assert_eq!(cs.damage_marked_this_turn(), 0);
         assert!(cs.blocking_creature_id().is_none());
-        assert!(cs.blocked_by().is_none());
+        assert!(cs.blocked_by().is_empty());
     }
 
     #[test]
@@ -266,12 +286,33 @@ mod tests {
     }
 
     #[test]
-    fn with_blocked_by_updates_field() {
+    fn with_blocked_by_adds_to_vec() {
         let id = CardInstanceId::new("attacker-1");
         let cs = CreatureSubState::new(2, 2);
         let blocked = cs.with_blocked_by(Some(id.clone()));
-        assert_eq!(blocked.blocked_by(), Some("attacker-1"));
-        assert!(cs.blocked_by().is_none());
+        assert_eq!(blocked.blocked_by().len(), 1);
+        assert_eq!(blocked.blocked_by()[0].as_str(), "attacker-1");
+        assert!(cs.blocked_by().is_empty());
+    }
+
+    #[test]
+    fn with_blocked_by_multiple_adds_all() {
+        let id1 = CardInstanceId::new("blocker-1");
+        let id2 = CardInstanceId::new("blocker-2");
+        let cs = CreatureSubState::new(2, 2);
+        let once = cs.with_blocked_by(Some(id1.clone()));
+        let twice = once.with_blocked_by(Some(id2.clone()));
+        assert_eq!(twice.blocked_by().len(), 2);
+        assert!(twice.is_blocked());
+    }
+
+    #[test]
+    fn with_blocked_by_none_clears_vec() {
+        let id = CardInstanceId::new("attacker-1");
+        let cs = CreatureSubState::new(2, 2).with_blocked_by(Some(id));
+        let cleared = cs.with_blocked_by(None);
+        assert!(cleared.blocked_by().is_empty());
+        assert!(!cleared.is_blocked());
     }
 
     #[test]
@@ -286,7 +327,7 @@ mod tests {
         assert_eq!(reset.damage_marked_this_turn(), 0);
         assert!(!reset.has_summoning_sickness());
         assert!(reset.blocking_creature_id().is_none());
-        assert!(reset.blocked_by().is_none());
+        assert!(reset.blocked_by().is_empty());
     }
 
     #[test]

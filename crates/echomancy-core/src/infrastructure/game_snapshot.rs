@@ -369,7 +369,7 @@ fn make_card_snapshot(
             let combat = CombatStateSnapshot {
                 is_attacking: cs.is_attacking,
                 is_blocking: cs.blocking_creature_id.is_some(),
-                blocked_by: cs.blocked_by.iter().cloned().collect(),
+                blocked_by: cs.blocked_by.to_vec(),
                 blocking: cs.blocking_creature_id.iter().cloned().collect(),
             };
             (

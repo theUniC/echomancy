@@ -79,6 +79,7 @@ See `docs/architecture-clips-integration.md` for full design spec.
 | U6 | ~~Hotseat transition screen~~ | N/A | - | Superseded by G1 (bot replaces hotseat) |
 | U7 | Battlefield overflow (horizontal scroll) | DONE | - | scroll_x on battlefield + hand zones |
 | U8 | Multiple blocker assignment UI (N blockers → 1 attacker) | BLOCKED | C6 | Needs domain support first |
+| U10 | Damage assignment UI (attacker chooses how to split damage among blockers) | BLOCKED | C6 | CR 510.1c — currently auto-assigned |
 | U9 | Non-land artifacts tappable for mana | DONE | - | compute_tappable_lands includes any mana ability permanent |
 
 ### Phase 5: Critical Rules Fixes
@@ -94,7 +95,7 @@ that affect correctness of every game.
 | C4 | Verify target legality at resolution ("fizzle") | DONE | 608.2b | Medium | - | Spell goes to GY without effect if all targets illegal |
 | C5 | SBA loop must repeat until no more actions taken | DONE | 704.3 | Low | - | Loops up to 20 iterations |
 | C5b | SBA infinite loop should declare draw (CR 104.4b) | TODO | 104.4b | Low | C5 | Currently stops silently at cap=20 instead of declaring draw |
-| C6 | Multiple blockers per attacker + damage ordering | TODO | 509.1a | High | - | Core combat mechanic, enables gang blocking |
+| C6 | Multiple blockers per attacker + damage ordering | DONE | 509.1a | High | - | Auto-assign damage (smallest first), UI pending (U8/U10) |
 
 ### Phase 6: Major Missing Mechanics
 

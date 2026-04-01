@@ -270,13 +270,6 @@ pub(crate) fn validate_declare_blocker(
         });
     }
 
-    // 8. MVP: only one blocker per attacker.
-    if attacker_cs.blocked_by().is_some() {
-        return Err(GameError::AttackerAlreadyBlocked {
-            attacker_id: CardInstanceId::new(attacker_id),
-        });
-    }
-
     // 9. Flying restriction.
     let attacker = ctx
         .battlefield_cards(ctx.current_player_id())
@@ -558,15 +551,10 @@ mod tests {
                 .blocking_creature_id(),
             Some("a1")
         );
-        // Attacker now has blocked_by = b1.
-        assert_eq!(
-            result
-                .new_attacker_state
-                .creature_state()
-                .unwrap()
-                .blocked_by(),
-            Some("b1")
-        );
+        // Attacker now has blocked_by containing b1.
+        let attacker_cs = result.new_attacker_state.creature_state().unwrap();
+        assert_eq!(attacker_cs.blocked_by().len(), 1);
+        assert_eq!(attacker_cs.blocked_by()[0].as_str(), "b1");
     }
 
     #[test]
@@ -635,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn error_attacker_already_blocked() {
+    fn multiple_blockers_for_same_attacker_are_allowed() {
         let attacker_card = make_creature("a1", "p1");
         let attacker_state = attacking_state()
             .with_blocked_by(Some(CardInstanceId::new("other")))
@@ -648,8 +636,12 @@ mod tests {
             .add_permanent("p1", attacker_card, attacker_state)
             .add_permanent("p2", blocker_card, blocker_state);
 
-        let err = validate_declare_blocker(&ctx, "p2", "b1", "a1").unwrap_err();
-        assert!(matches!(err, GameError::AttackerAlreadyBlocked { .. }));
+        // A second blocker should now be allowed — no error expected.
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_ok());
+        let declare_result = result.unwrap();
+        let attacker_cs = declare_result.new_attacker_state.creature_state().unwrap();
+        assert_eq!(attacker_cs.blocked_by().len(), 2);
     }
 
     #[test]
