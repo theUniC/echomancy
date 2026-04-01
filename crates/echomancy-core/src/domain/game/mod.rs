@@ -36,6 +36,7 @@ mod internals;
 mod pass_priority;
 mod play_land;
 mod priority;
+mod sacrifice;
 mod sba;
 mod stack_resolution;
 mod zone_transitions;
@@ -400,6 +401,9 @@ impl Game {
             }
             Action::ActivateAbility { player_id, permanent_id } => {
                 activate_ability::handle(self, player_id.as_str(), permanent_id.as_str())?
+            }
+            Action::Sacrifice { player_id, permanent_id } => {
+                sacrifice::handle(self, player_id.as_str(), permanent_id.as_str())?
             }
             Action::DrawCard { player_id, amount } => {
                 draw_card::handle(self, player_id.as_str(), amount)?

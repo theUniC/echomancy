@@ -85,6 +85,14 @@ pub enum Action {
         amount: DrawAmount,
     },
 
+    /// Sacrifice a permanent you control (CR 701.17).
+    Sacrifice {
+        #[serde(rename = "playerId")]
+        player_id: PlayerId,
+        #[serde(rename = "permanentId")]
+        permanent_id: CardInstanceId,
+    },
+
     // -------------------------------------------------------------------------
     // Mulligan actions (only valid during the mulligan phase)
     // -------------------------------------------------------------------------

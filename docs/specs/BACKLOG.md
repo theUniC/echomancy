@@ -109,7 +109,7 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 | R4 | Aura enchantments (attach to permanent, fall off) | BLOCKED | 303.4 | Very High | R1 | Pacifism, enchant creature, etc. |
 | R5 | Activated abilities with mana costs ({2}: Pump) | TODO | 602.1 | High | - | Currently only {T} cost supported |
 | R6 | Equipment (attach to creature, equip cost) | BLOCKED | 301.5 | Very High | R4, R5 | Depends on attachment + mana activation |
-| R7 | Sacrifice mechanic | TODO | 701.17 | Medium | - | No Action::Sacrifice exists |
+| R7 | Sacrifice mechanic | DONE | 701.17 | Medium | - | Action::Sacrifice moves permanent to graveyard |
 | R8 | Planeswalker mechanics (loyalty, abilities, attackable) | TODO | 306 | Very High | R5 | Loyalty counters, +N/-N abilities |
 | R9 | Token creation | TODO | 111 | High | - | RulesAction::CreateToken exists but not implemented |
 | R10 | Triggered abilities should use the stack | TODO | 603.3 | High | - | Currently execute immediately, can't be responded to |
