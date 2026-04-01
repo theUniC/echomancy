@@ -54,6 +54,8 @@ pub(crate) struct CreatureCombatEntry<'a> {
     pub has_deathtouch: bool,
     /// `true` if this creature has Lifelink.
     pub has_lifelink: bool,
+    /// `true` if this creature has Menace (CR 702.110).
+    pub has_menace: bool,
 }
 
 /// Calculates combat damage for both attacking and blocking creatures.
@@ -93,7 +95,12 @@ pub(crate) fn calculate_all_combat_damage(
 
         let blocker_ids = cs.blocked_by();
 
-        if blocker_ids.is_empty() {
+        // CR 702.110: Menace — attacker with fewer than 2 blockers is treated
+        // as unblocked (the blocking assignment was illegal).
+        let effectively_unblocked =
+            blocker_ids.is_empty() || (entry.has_menace && blocker_ids.len() < 2);
+
+        if effectively_unblocked {
             // Unblocked attacker damages the defending player.
             if attacker_power > 0 {
                 assignments.push(DamageAssignment {
@@ -437,6 +444,7 @@ mod tests {
             has_trample: false,
             has_deathtouch: false,
             has_lifelink: false,
+            has_menace: false,
         }
     }
 
@@ -448,6 +456,7 @@ mod tests {
             has_trample: true,
             has_deathtouch: false,
             has_lifelink: false,
+            has_menace: false,
         }
     }
 
@@ -459,6 +468,7 @@ mod tests {
             has_trample: false,
             has_deathtouch: true,
             has_lifelink: false,
+            has_menace: false,
         }
     }
 
@@ -470,6 +480,19 @@ mod tests {
             has_trample: true,
             has_deathtouch: true,
             has_lifelink: false,
+            has_menace: false,
+        }
+    }
+
+    fn menace_entry<'a>(instance_id: &'a str, controller_id: &'a str, state: &'a PermanentState) -> CreatureCombatEntry<'a> {
+        CreatureCombatEntry {
+            instance_id,
+            controller_id,
+            state,
+            has_trample: false,
+            has_deathtouch: false,
+            has_lifelink: false,
+            has_menace: true,
         }
     }
 
@@ -481,6 +504,7 @@ mod tests {
             has_trample: false,
             has_deathtouch: false,
             has_lifelink: true,
+            has_menace: false,
         }
     }
 
@@ -853,5 +877,69 @@ mod tests {
         let to_player = result.iter().find(|d| d.is_player).unwrap();
         assert_eq!(to_player.amount, 7, "7 damage should trample to player");
         assert_eq!(to_player.target_id, "p2");
+    }
+
+    // ---- Menace (CR 702.110) ------------------------------------------------
+
+    #[test]
+    fn menace_attacker_with_one_blocker_hits_player() {
+        // Menace 3/3 blocked by a single 2/2 — treated as unblocked.
+        let attacker_state = attacker_blocked_by(3, 3, "b1");
+        let blocker_state = blocker(2, 2, "a1");
+
+        let result = calculate_all_combat_damage(
+            &[menace_entry("a1", "p1", &attacker_state), plain_entry("b1", "p2", &blocker_state)],
+            "p2",
+        );
+
+        // Menace with 1 blocker → unblocked → damage goes to player, not blocker.
+        let player_damage: Vec<_> = result.iter().filter(|d| d.is_player).collect();
+        assert_eq!(player_damage.len(), 1);
+        assert_eq!(player_damage[0].amount, 3);
+        assert_eq!(player_damage[0].target_id, "p2");
+    }
+
+    #[test]
+    fn menace_attacker_with_two_blockers_fights_blockers() {
+        // Menace 4/4 blocked by two 1/1s — legal block, fights normally.
+        let attacker_state = PermanentState::for_creature(4, 4)
+            .with_summoning_sickness(false).unwrap()
+            .with_attacking(true).unwrap()
+            .with_has_attacked_this_turn(true).unwrap()
+            .with_blocked_by(Some(CardInstanceId::new("b1"))).unwrap()
+            .with_blocked_by(Some(CardInstanceId::new("b2"))).unwrap();
+        let blocker1 = blocker(1, 1, "a1");
+        let blocker2 = blocker(1, 1, "a1");
+
+        let result = calculate_all_combat_damage(
+            &[
+                menace_entry("a1", "p1", &attacker_state),
+                plain_entry("b1", "p2", &blocker1),
+                plain_entry("b2", "p2", &blocker2),
+            ],
+            "p2",
+        );
+
+        // With 2 blockers, menace is satisfied — damage to blockers, not player.
+        let player_damage: Vec<_> = result.iter().filter(|d| d.is_player).collect();
+        assert!(player_damage.is_empty(), "2 blockers satisfy menace — no player damage");
+
+        let blocker_damage: Vec<_> = result.iter().filter(|d| !d.is_player && d.source_id == "a1").collect();
+        assert!(!blocker_damage.is_empty(), "attacker should damage blockers");
+    }
+
+    #[test]
+    fn non_menace_attacker_with_one_blocker_fights_blocker() {
+        // Regular 3/3 blocked by 2/2 — normal combat.
+        let attacker_state = attacker_blocked_by(3, 3, "b1");
+        let blocker_state = blocker(2, 2, "a1");
+
+        let result = calculate_all_combat_damage(
+            &[plain_entry("a1", "p1", &attacker_state), plain_entry("b1", "p2", &blocker_state)],
+            "p2",
+        );
+
+        let player_damage: Vec<_> = result.iter().filter(|d| d.is_player).collect();
+        assert!(player_damage.is_empty(), "blocked non-menace should not hit player");
     }
 }

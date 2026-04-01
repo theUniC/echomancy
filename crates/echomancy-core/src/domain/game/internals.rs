@@ -491,7 +491,7 @@ impl Game {
     /// Collect all creatures currently in combat (attacking or blocking).
     ///
     /// Returns a list of `(instance_id, controller_id, PermanentState, has_trample, has_deathtouch, has_lifelink)` tuples.
-    fn collect_combat_creatures(&self) -> Vec<(String, String, PermanentState, bool, bool, bool)> {
+    fn collect_combat_creatures(&self) -> Vec<(String, String, PermanentState, bool, bool, bool, bool)> {
         let mut result = Vec::new();
 
         for player in &self.players {
@@ -513,7 +513,8 @@ impl Game {
                 let has_trample = def.has_static_ability(StaticAbility::Trample);
                 let has_deathtouch = def.has_static_ability(StaticAbility::Deathtouch);
                 let has_lifelink = def.has_static_ability(StaticAbility::Lifelink);
-                result.push((id, controller.clone(), state, has_trample, has_deathtouch, has_lifelink));
+                let has_menace = def.has_static_ability(StaticAbility::Menace);
+                result.push((id, controller.clone(), state, has_trample, has_deathtouch, has_lifelink, has_menace));
             }
         }
 
@@ -564,9 +565,9 @@ impl Game {
         let all_combat = self.collect_combat_creatures();
 
         // Determine which combat creatures have FirstStrike.
-        let first_strikers: Vec<(String, String, PermanentState, bool, bool, bool)> = all_combat
+        let first_strikers: Vec<(String, String, PermanentState, bool, bool, bool, bool)> = all_combat
             .iter()
-            .filter(|(id, _, _, _, _, _)| self.creature_has_first_strike(id))
+            .filter(|(id, _, _, _, _, _, _)| self.creature_has_first_strike(id))
             .cloned()
             .collect();
 
@@ -578,32 +579,34 @@ impl Game {
         // Collect IDs that have first strike (both attackers and blockers).
         let first_striker_ids: Vec<String> = first_strikers
             .iter()
-            .map(|(id, _, _, _, _, _)| id.clone())
+            .map(|(id, _, _, _, _, _, _)| id.clone())
             .collect();
 
         // Build snapshots for the full combat pool (needed for blocker lookups) and for
         // first strikers only (the damage sources in this step).
         let all_entries: Vec<CreatureCombatEntry<'_>> = all_combat
             .iter()
-            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink)| CreatureCombatEntry {
+            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
                 instance_id: id.as_str(),
                 controller_id: controller.as_str(),
                 state,
                 has_trample: *has_trample,
                 has_deathtouch: *has_deathtouch,
                 has_lifelink: *has_lifelink,
+                has_menace: *has_menace,
             })
             .collect();
 
         let fs_entries: Vec<CreatureCombatEntry<'_>> = first_strikers
             .iter()
-            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink)| CreatureCombatEntry {
+            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
                 instance_id: id.as_str(),
                 controller_id: controller.as_str(),
                 state,
                 has_trample: *has_trample,
                 has_deathtouch: *has_deathtouch,
                 has_lifelink: *has_lifelink,
+                has_menace: *has_menace,
             })
             .collect();
 
@@ -665,9 +668,9 @@ impl Game {
 
         // Filter out creatures that already dealt first strike damage,
         // UNLESS they have Double Strike (CR 702.4: deal damage in both steps).
-        let regular_combat: Vec<(String, String, PermanentState, bool, bool, bool)> = all_combat
+        let regular_combat: Vec<(String, String, PermanentState, bool, bool, bool, bool)> = all_combat
             .into_iter()
-            .filter(|(id, _, state, _, _, _)| {
+            .filter(|(id, _, state, _, _, _, _)| {
                 let dealt_fs = state
                     .creature_state()
                     .map(|cs| cs.dealt_first_strike_damage())
@@ -682,13 +685,14 @@ impl Game {
 
         let combat_entries: Vec<CreatureCombatEntry<'_>> = regular_combat
             .iter()
-            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink)| CreatureCombatEntry {
+            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
                 instance_id: id.as_str(),
                 controller_id: controller.as_str(),
                 state,
                 has_trample: *has_trample,
                 has_deathtouch: *has_deathtouch,
                 has_lifelink: *has_lifelink,
+                has_menace: *has_menace,
             })
             .collect();
 
