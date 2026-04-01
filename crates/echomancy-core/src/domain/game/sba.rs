@@ -68,6 +68,18 @@ impl Game {
                 }
             }
 
+            // 2. Legend rule (CR 704.5j): if a player controls two or more
+            //    legendary permanents with the same name, keep one and sacrifice the rest.
+            let legend_victims = self.find_legend_rule_victims();
+            for victim_id in &legend_victims {
+                if let Ok(evts) =
+                    self.move_permanent_to_graveyard(victim_id, GraveyardReason::StateBased)
+                {
+                    events.extend(evts);
+                    any_action = true;
+                }
+            }
+
             if !any_action {
                 stabilized = true;
                 break;
@@ -151,5 +163,143 @@ impl Game {
         }
 
         events
+    }
+
+    /// CR 704.5j: Find legendary permanents that violate the legend rule.
+    ///
+    /// For each player, if they control two or more legendary permanents with
+    /// the same name, all but the first (oldest) are returned for removal.
+    fn find_legend_rule_victims(&self) -> Vec<String> {
+        use std::collections::HashMap;
+
+        let mut victims = Vec::new();
+
+        for player in &self.players {
+            // Group legendary permanents by name
+            let mut seen: HashMap<&str, &str> = HashMap::new(); // name → first instance_id
+            for card in &player.battlefield {
+                if card.definition().is_legendary() {
+                    let name = card.definition().name();
+                    if seen.contains_key(name) {
+                        // Duplicate — this one goes to graveyard
+                        victims.push(card.instance_id().to_owned());
+                    } else {
+                        seen.insert(name, card.instance_id());
+                    }
+                }
+            }
+        }
+
+        victims
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::domain::cards::card_definition::CardDefinition;
+    use crate::domain::cards::card_instance::CardInstance;
+    use crate::domain::enums::CardType;
+    use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
+
+    #[test]
+    fn legend_rule_removes_duplicate_legendary_permanent() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let legend_def = CardDefinition::new("thalia", "Thalia", vec![CardType::Creature])
+            .with_legendary()
+            .with_subtype("Human")
+            .with_power_toughness(2, 1);
+
+        let first = CardInstance::new("thalia-1", legend_def.clone(), &p1);
+        let second = CardInstance::new("thalia-2", legend_def, &p1);
+
+        add_permanent_to_battlefield(&mut game, &p1, first);
+        add_permanent_to_battlefield(&mut game, &p1, second);
+        assert_eq!(game.battlefield(&p1).unwrap().len(), 2);
+
+        game.perform_state_based_actions();
+
+        assert_eq!(
+            game.battlefield(&p1).unwrap().len(),
+            1,
+            "legend rule should remove duplicate"
+        );
+        assert_eq!(
+            game.battlefield(&p1).unwrap()[0].instance_id(),
+            "thalia-1",
+            "should keep the first (oldest) legendary permanent"
+        );
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn non_legendary_duplicates_are_fine() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let bear_def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+
+        let bear1 = CardInstance::new("bear-1", bear_def.clone(), &p1);
+        let bear2 = CardInstance::new("bear-2", bear_def, &p1);
+
+        add_permanent_to_battlefield(&mut game, &p1, bear1);
+        add_permanent_to_battlefield(&mut game, &p1, bear2);
+
+        game.perform_state_based_actions();
+
+        assert_eq!(
+            game.battlefield(&p1).unwrap().len(),
+            2,
+            "non-legendary duplicates should both stay"
+        );
+    }
+
+    #[test]
+    fn different_legendary_names_are_fine() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let thalia = CardDefinition::new("thalia", "Thalia", vec![CardType::Creature])
+            .with_legendary()
+            .with_power_toughness(2, 1);
+        let jace = CardDefinition::new("jace", "Jace", vec![CardType::Creature])
+            .with_legendary()
+            .with_power_toughness(1, 3);
+
+        add_permanent_to_battlefield(&mut game, &p1, CardInstance::new("thalia-1", thalia, &p1));
+        add_permanent_to_battlefield(&mut game, &p1, CardInstance::new("jace-1", jace, &p1));
+
+        game.perform_state_based_actions();
+
+        assert_eq!(
+            game.battlefield(&p1).unwrap().len(),
+            2,
+            "different legendary names should both stay"
+        );
+    }
+
+    #[test]
+    fn legend_rule_per_player() {
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        let legend_def = CardDefinition::new("thalia", "Thalia", vec![CardType::Creature])
+            .with_legendary()
+            .with_power_toughness(2, 1);
+
+        // Each player has one Thalia — this is fine
+        add_permanent_to_battlefield(
+            &mut game,
+            &p1,
+            CardInstance::new("thalia-p1", legend_def.clone(), &p1),
+        );
+        add_permanent_to_battlefield(
+            &mut game,
+            &p2,
+            CardInstance::new("thalia-p2", legend_def, &p2),
+        );
+
+        game.perform_state_based_actions();
+
+        assert_eq!(game.battlefield(&p1).unwrap().len(), 1);
+        assert_eq!(game.battlefield(&p2).unwrap().len(), 1);
     }
 }

@@ -105,7 +105,7 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 |---|-------------|--------|--------|------------|------------|-------|
 | R1 | Expand target system (artifact, enchantment, permanent, stack spell) | DONE | 114-115 | High | - | Unblocks counterspells (C3) and most removal |
 | R2 | Card subtypes (creature types, land types, etc.) | DONE | 205.3 | Medium | - | String-based subtypes, has_subtype(), UI type line |
-| R3 | Legendary rule (legend rule) | TODO | 704.5j | Medium | R2 | Supertype system needed |
+| R3 | Legendary rule (legend rule) | DONE | 704.5j | Medium | R2 | is_legendary flag, SBA keeps oldest, per-player |
 | R4 | Aura enchantments (attach to permanent, fall off) | BLOCKED | 303.4 | Very High | R1 | Pacifism, enchant creature, etc. |
 | R5 | Activated abilities with mana costs ({2}: Pump) | TODO | 602.1 | High | - | Currently only {T} cost supported |
 | R6 | Equipment (attach to creature, equip cost) | BLOCKED | 301.5 | Very High | R4, R5 | Depends on attachment + mana activation |

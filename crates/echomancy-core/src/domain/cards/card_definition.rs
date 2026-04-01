@@ -25,6 +25,9 @@ pub struct CardDefinition {
     name: String,
     /// One or more card types (most cards have exactly one).
     types: Vec<CardType>,
+    /// Whether this card has the Legendary supertype (CR 205.4).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    is_legendary: bool,
     /// Subtypes (creature types, land types, etc.) per CR 205.3.
     /// Examples: "Human", "Warrior", "Forest", "Plains", "Equipment".
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -68,6 +71,7 @@ impl CardDefinition {
             id: id.into(),
             name: name.into(),
             types,
+            is_legendary: false,
             subtypes: Vec::new(),
             mana_cost: None,
             power: None,
@@ -97,6 +101,11 @@ impl CardDefinition {
     /// The card's types.
     pub fn types(&self) -> &[CardType] {
         &self.types
+    }
+
+    /// Whether this card has the Legendary supertype (CR 205.4).
+    pub fn is_legendary(&self) -> bool {
+        self.is_legendary
     }
 
     /// The card's subtypes (creature types, land types, etc.).
@@ -213,6 +222,12 @@ impl CardDefinition {
     /// Attach a mana cost.
     pub fn with_mana_cost(mut self, cost: ManaCost) -> Self {
         self.mana_cost = Some(cost);
+        self
+    }
+
+    /// Mark this card as Legendary (CR 205.4).
+    pub fn with_legendary(mut self) -> Self {
+        self.is_legendary = true;
         self
     }
 
