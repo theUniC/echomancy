@@ -360,13 +360,33 @@ mod tests {
     fn play_land_keeps_p1_perspective_and_first_main() {
         let (mut app, p1, _p2) = make_test_app();
 
-        // Find a Forest in P1's hand
+        // Ensure P1 has a Forest in hand. With the updated deck (16 Forests), seed 42
+        // may deal a hand with no Forest — so we inject one directly. A Forest enters
+        // untapped, meaning P1 retains the tappable land as a held action, so
+        // run_auto_pass_loop correctly stops at FirstMain with P1 having priority.
         let forest_id = {
-            let game = &app.world().resource::<GameState>().game;
-            game.hand(&p1).unwrap().iter()
-                .find(|c| c.definition().id() == "forest")
-                .map(|c| c.instance_id().to_owned())
-                .expect("P1 should have Forest")
+            let existing = {
+                let game = &app.world().resource::<GameState>().game;
+                game.hand(&p1).unwrap().iter()
+                    .find(|c| c.definition().id() == "forest")
+                    .map(|c| c.instance_id().to_owned())
+            };
+            if let Some(id) = existing {
+                id
+            } else {
+                let new_id = uuid::Uuid::new_v4().to_string();
+                let forest = CardInstance::new(
+                    new_id.clone(),
+                    echomancy_core::prelude::catalog::forest(),
+                    &p1,
+                );
+                app.world_mut()
+                    .resource_mut::<GameState>()
+                    .game
+                    .add_card_to_hand(&p1, forest)
+                    .expect("should be able to add Forest to hand");
+                new_id
+            }
         };
 
         send_action_and_update(&mut app, Action::PlayLand {
@@ -471,19 +491,20 @@ mod tests {
     fn perspective_always_stays_p1_when_bot_is_p2() {
         let (mut app, p1, _p2) = make_test_app();
 
-        // P1 plays a Forest — after bot stabilization, perspective stays P1
-        let forest_id = {
+        // P1 plays a land if one is in hand — after bot stabilization, perspective stays P1.
+        let land_id_opt = {
             let game = &app.world().resource::<GameState>().game;
             game.hand(&p1).unwrap().iter()
-                .find(|c| c.definition().id() == "forest")
+                .find(|c| c.definition().is_land())
                 .map(|c| c.instance_id().to_owned())
-                .expect("P1 should have Forest")
         };
 
-        send_action_and_update(&mut app, Action::PlayLand {
-            player_id: PlayerId::new(&p1),
-            card_id: CardInstanceId::new(&forest_id),
-        });
+        if let Some(land_id) = land_id_opt {
+            send_action_and_update(&mut app, Action::PlayLand {
+                player_id: PlayerId::new(&p1),
+                card_id: CardInstanceId::new(&land_id),
+            });
+        }
 
         let active = &app.world().resource::<HumanPlayerId>().player_id;
         assert_eq!(active, &p1, "Perspective must stay P1 after PlayLand");

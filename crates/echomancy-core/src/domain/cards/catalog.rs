@@ -9,7 +9,7 @@
 use crate::domain::abilities::{ActivatedAbility, ActivationCost};
 use crate::domain::cards::card_definition::CardDefinition;
 use crate::domain::effects::Effect;
-use crate::domain::enums::{CardType, ManaColor};
+use crate::domain::enums::{CardType, ManaColor, StaticAbility};
 use crate::domain::targets::TargetRequirement;
 use crate::domain::triggers::{Trigger, TriggerCondition, TriggerEventType};
 use crate::domain::value_objects::mana::ManaCost;
@@ -223,6 +223,122 @@ pub fn divination() -> CardDefinition {
         .with_oracle_text("Draw two cards.")
 }
 
+// ============================================================================
+// Showcase cards — testing keyword abilities
+// ============================================================================
+
+/// Return the `Oakshield Troll` creature definition.
+///
+/// Mana cost: {1}{G} (1 generic + 1 green).
+/// A 3/3 Troll with Hexproof — can't be targeted by opponents' spells
+/// or abilities (CR 702.11). Showcases the K4 Hexproof implementation.
+pub fn oakshield_troll() -> CardDefinition {
+    let cost = ManaCost::parse("1G").expect("oakshield troll mana cost is valid");
+    CardDefinition::new("oakshield-troll", "Oakshield Troll", vec![CardType::Creature])
+        .with_subtype("Troll")
+        .with_power_toughness(3, 3)
+        .with_mana_cost(cost)
+        .with_static_ability(StaticAbility::Hexproof)
+        .with_oracle_text("Hexproof (This creature can't be the target of spells or abilities your opponents control.)")
+}
+
+/// Return the `Ancient Guardian` creature definition.
+///
+/// Mana cost: {2}{G} (2 generic + 1 green).
+/// A 4/5 Elemental with Indestructible — can't be destroyed by damage
+/// or effects (CR 702.12). Showcases the K3 Indestructible implementation.
+pub fn ancient_guardian() -> CardDefinition {
+    let cost = ManaCost::parse("2G").expect("ancient guardian mana cost is valid");
+    CardDefinition::new("ancient-guardian", "Ancient Guardian", vec![CardType::Creature])
+        .with_subtype("Elemental")
+        .with_power_toughness(4, 5)
+        .with_mana_cost(cost)
+        .with_static_ability(StaticAbility::Indestructible)
+        .with_oracle_text("Indestructible (Damage and effects that say \"destroy\" don't destroy this creature.)")
+}
+
+/// Return the `Ironbark Wall` creature definition.
+///
+/// Mana cost: {G} (1 green).
+/// A 0/4 Plant Wall with CannotAttack — this creature can't attack
+/// (CR 508.1d). Showcases the K9 CannotAttack implementation.
+pub fn ironbark_wall() -> CardDefinition {
+    let cost = ManaCost::parse("G").expect("ironbark wall mana cost is valid");
+    CardDefinition::new("ironbark-wall", "Ironbark Wall", vec![CardType::Creature])
+        .with_subtype("Plant")
+        .with_subtype("Wall")
+        .with_power_toughness(0, 4)
+        .with_mana_cost(cost)
+        .with_static_ability(StaticAbility::CannotAttack)
+        .with_oracle_text("This creature can't attack.")
+}
+
+/// Return the `Thalia, Forest Keeper` legendary creature definition.
+///
+/// Mana cost: {G} (1 green).
+/// A 2/2 Legendary Human Druid with First Strike. Showcases the R3
+/// Legendary supertype implementation (CR 205.4, CR 704.5j).
+pub fn thalia_forest_keeper() -> CardDefinition {
+    let cost = ManaCost::parse("G").expect("thalia forest keeper mana cost is valid");
+    CardDefinition::new("thalia-forest-keeper", "Thalia, Forest Keeper", vec![CardType::Creature])
+        .with_legendary()
+        .with_subtype("Human")
+        .with_subtype("Druid")
+        .with_power_toughness(2, 2)
+        .with_mana_cost(cost)
+        .with_static_ability(StaticAbility::FirstStrike)
+        .with_oracle_text("Legendary. First strike (This creature deals combat damage before creatures without first strike.)")
+}
+
+/// Return the `Thornwood Tapland` land definition.
+///
+/// No mana cost (land).
+/// Enters the battlefield tapped (CR 614.12). Activated ability: {T} → Add {G}.
+/// Showcases the K8 EntersTapped implementation.
+pub fn thornwood_tapland() -> CardDefinition {
+    CardDefinition::new("thornwood-tapland", "Thornwood Tapland", vec![CardType::Land])
+        .with_static_ability(StaticAbility::EntersTapped)
+        .with_activated_ability(ActivatedAbility {
+            cost: ActivationCost::Tap,
+            effect: Effect::AddMana { color: ManaColor::Green, amount: 1 },
+        })
+        .with_oracle_text("Thornwood Tapland enters the battlefield tapped.\n{T}: Add {G}.")
+}
+
+/// Return the `Reckless Berserker` creature definition.
+///
+/// Mana cost: {R} (1 red).
+/// A 2/1 Berserker with Menace and MustAttack — must attack each combat
+/// if able (CR 508.1d) and can only be blocked by two or more creatures
+/// (CR 702.110). Showcases the K2 Menace and K10 MustAttack implementations.
+pub fn reckless_berserker() -> CardDefinition {
+    let cost = ManaCost::parse("R").expect("reckless berserker mana cost is valid");
+    CardDefinition::new("reckless-berserker", "Reckless Berserker", vec![CardType::Creature])
+        .with_subtype("Berserker")
+        .with_power_toughness(2, 1)
+        .with_mana_cost(cost)
+        .with_static_ability(StaticAbility::Menace)
+        .with_static_ability(StaticAbility::MustAttack)
+        .with_oracle_text("Menace (This creature can't be blocked except by two or more creatures.)\nThis creature attacks each combat if able.")
+}
+
+/// Return the `Frozen Sentinel` creature definition.
+///
+/// Mana cost: {1}{R} (1 generic + 1 red).
+/// A 3/3 Golem that doesn't untap during its controller's untap step
+/// (CR 302.6). Once tapped — e.g. to attack — it stays tapped permanently.
+/// Showcases the K7 DoesNotUntap implementation.
+pub fn frozen_sentinel() -> CardDefinition {
+    let cost = ManaCost::parse("1R").expect("frozen sentinel mana cost is valid");
+    CardDefinition::new("frozen-sentinel", "Frozen Sentinel", vec![CardType::Creature])
+        .with_subtype("Golem")
+        .with_power_toughness(3, 3)
+        .with_mana_cost(cost)
+        .with_static_ability(StaticAbility::Haste)
+        .with_static_ability(StaticAbility::DoesNotUntap)
+        .with_oracle_text("Haste.\nFrozen Sentinel doesn't untap during your untap step.")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -333,11 +449,153 @@ mod tests {
             "divination",
             "sol-ring",
             "wild-bounty",
+            // Showcase cards
+            "oakshield-troll",
+            "ancient-guardian",
+            "ironbark-wall",
+            "thalia-forest-keeper",
+            "thornwood-tapland",
+            "reckless-berserker",
+            "frozen-sentinel",
         ];
         let mut seen = std::collections::HashSet::new();
         for id in &ids {
             assert!(seen.insert(*id), "Duplicate catalog ID: {id}");
         }
+    }
+
+    // =========================================================================
+    // Showcase cards — K4 Hexproof
+    // =========================================================================
+
+    #[test]
+    fn oakshield_troll_is_creature_with_hexproof() {
+        let t = oakshield_troll();
+        assert!(t.is_creature());
+        assert_eq!(t.id(), "oakshield-troll");
+        assert_eq!(t.name(), "Oakshield Troll");
+        assert_eq!(t.power(), Some(3));
+        assert_eq!(t.toughness(), Some(3));
+        assert!(t.has_static_ability(StaticAbility::Hexproof), "Oakshield Troll must have Hexproof");
+        assert!(t.mana_cost().is_some());
+        assert!(t.oracle_text().is_some());
+    }
+
+    // =========================================================================
+    // Showcase cards — K3 Indestructible
+    // =========================================================================
+
+    #[test]
+    fn ancient_guardian_is_creature_with_indestructible() {
+        let g = ancient_guardian();
+        assert!(g.is_creature());
+        assert_eq!(g.id(), "ancient-guardian");
+        assert_eq!(g.name(), "Ancient Guardian");
+        assert_eq!(g.power(), Some(4));
+        assert_eq!(g.toughness(), Some(5));
+        assert!(
+            g.has_static_ability(StaticAbility::Indestructible),
+            "Ancient Guardian must have Indestructible"
+        );
+        assert!(g.oracle_text().is_some());
+    }
+
+    // =========================================================================
+    // Showcase cards — K9 CannotAttack
+    // =========================================================================
+
+    #[test]
+    fn ironbark_wall_is_creature_with_cannot_attack() {
+        let w = ironbark_wall();
+        assert!(w.is_creature());
+        assert_eq!(w.id(), "ironbark-wall");
+        assert_eq!(w.name(), "Ironbark Wall");
+        assert_eq!(w.power(), Some(0));
+        assert_eq!(w.toughness(), Some(4));
+        assert!(
+            w.has_static_ability(StaticAbility::CannotAttack),
+            "Ironbark Wall must have CannotAttack"
+        );
+        assert!(w.oracle_text().is_some());
+    }
+
+    // =========================================================================
+    // Showcase cards — R3 Legendary
+    // =========================================================================
+
+    #[test]
+    fn thalia_forest_keeper_is_legendary_creature() {
+        let t = thalia_forest_keeper();
+        assert!(t.is_creature());
+        assert!(t.is_legendary(), "Thalia, Forest Keeper must be Legendary");
+        assert_eq!(t.id(), "thalia-forest-keeper");
+        assert_eq!(t.name(), "Thalia, Forest Keeper");
+        assert_eq!(t.power(), Some(2));
+        assert_eq!(t.toughness(), Some(2));
+        assert!(
+            t.has_static_ability(StaticAbility::FirstStrike),
+            "Thalia, Forest Keeper must have First Strike"
+        );
+        assert!(t.oracle_text().is_some());
+    }
+
+    // =========================================================================
+    // Showcase cards — K8 EntersTapped
+    // =========================================================================
+
+    #[test]
+    fn thornwood_tapland_is_land_with_enters_tapped() {
+        let l = thornwood_tapland();
+        assert!(l.is_land());
+        assert_eq!(l.id(), "thornwood-tapland");
+        assert_eq!(l.name(), "Thornwood Tapland");
+        assert!(
+            l.has_static_ability(StaticAbility::EntersTapped),
+            "Thornwood Tapland must have EntersTapped"
+        );
+        // Should produce green mana
+        let ability = l.first_activated_ability().expect("Thornwood Tapland must have a mana ability");
+        assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Green, amount: 1 });
+        assert!(l.oracle_text().is_some());
+    }
+
+    // =========================================================================
+    // Showcase cards — K2 Menace + K10 MustAttack
+    // =========================================================================
+
+    #[test]
+    fn reckless_berserker_has_menace_and_must_attack() {
+        let b = reckless_berserker();
+        assert!(b.is_creature());
+        assert_eq!(b.id(), "reckless-berserker");
+        assert_eq!(b.name(), "Reckless Berserker");
+        assert_eq!(b.power(), Some(2));
+        assert_eq!(b.toughness(), Some(1));
+        assert!(b.has_static_ability(StaticAbility::Menace), "Reckless Berserker must have Menace");
+        assert!(
+            b.has_static_ability(StaticAbility::MustAttack),
+            "Reckless Berserker must have MustAttack"
+        );
+        assert!(b.oracle_text().is_some());
+    }
+
+    // =========================================================================
+    // Showcase cards — K7 DoesNotUntap
+    // =========================================================================
+
+    #[test]
+    fn frozen_sentinel_does_not_untap() {
+        let s = frozen_sentinel();
+        assert!(s.is_creature());
+        assert_eq!(s.id(), "frozen-sentinel");
+        assert_eq!(s.name(), "Frozen Sentinel");
+        assert_eq!(s.power(), Some(3));
+        assert_eq!(s.toughness(), Some(3));
+        assert!(
+            s.has_static_ability(StaticAbility::DoesNotUntap),
+            "Frozen Sentinel must have DoesNotUntap"
+        );
+        assert!(s.oracle_text().is_some());
     }
 
     // =========================================================================

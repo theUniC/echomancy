@@ -175,14 +175,15 @@ mod tests {
             game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
         }
 
-        // Find the first forest in P1's hand (green deck has 24 Forests).
+        // Add a known Forest directly to P1's hand so the test is deterministic
+        // regardless of the opening hand shuffle. We need a Forest specifically
+        // (not Thornwood Tapland) because the untapped assertion below requires
+        // a land that enters the battlefield untapped.
         let forest_id = {
-            let hand = game.hand(&p1).unwrap();
-            hand.iter()
-                .find(|c| c.definition().types().contains(&CardType::Land))
-                .expect("green deck should have lands in hand")
-                .instance_id()
-                .to_owned()
+            let id = uuid();
+            let forest = CardInstance::new(id.clone(), catalog::forest(), &p1);
+            game.add_card_to_hand(&p1, forest).unwrap();
+            id
         };
 
         // Play the land onto the battlefield.

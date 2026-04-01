@@ -81,14 +81,22 @@ fn apply_action_and_auto_pass(
 fn play_land_then_still_at_first_main_with_priority() {
     let (mut game, p1, _p2) = make_test_game();
 
-    // Find a Forest in P1's hand
-    let forest_id = game
-        .hand(&p1)
-        .unwrap()
-        .iter()
-        .find(|c| c.definition().id() == "forest")
-        .map(|c| c.instance_id().to_owned())
-        .expect("P1 should have a Forest in hand");
+    // Find a Forest in P1's hand — or inject one if seed 42 dealt a hand without a Forest.
+    // We specifically need a Forest (not Thornwood Tapland) because a Forest enters untapped,
+    // keeping P1's priority at FirstMain via the tappable-land heuristic.
+    let forest_id = {
+        game.hand(&p1)
+            .unwrap()
+            .iter()
+            .find(|c| c.definition().id() == "forest")
+            .map(|c| c.instance_id().to_owned())
+            .unwrap_or_else(|| {
+                let id = "injected-forest".to_owned();
+                let forest = CardInstance::new(id.clone(), catalog::forest(), &p1);
+                game.add_card_to_hand(&p1, forest).expect("should add Forest to hand");
+                id
+            })
+    };
 
     let perspective = apply_action_and_auto_pass(
         &mut game,
@@ -114,14 +122,20 @@ fn play_land_then_still_at_first_main_with_priority() {
 fn tap_land_with_castable_spell_keeps_priority() {
     let (mut game, p1, _p2) = make_test_game();
 
-    // Play a Forest first
-    let forest_id = game
-        .hand(&p1)
-        .unwrap()
-        .iter()
-        .find(|c| c.definition().id() == "forest")
-        .map(|c| c.instance_id().to_owned())
-        .expect("P1 should have a Forest");
+    // Play a Forest first — inject one if seed 42 dealt a hand without a Forest.
+    let forest_id = {
+        game.hand(&p1)
+            .unwrap()
+            .iter()
+            .find(|c| c.definition().id() == "forest")
+            .map(|c| c.instance_id().to_owned())
+            .unwrap_or_else(|| {
+                let id = "injected-forest".to_owned();
+                let forest = CardInstance::new(id.clone(), catalog::forest(), &p1);
+                game.add_card_to_hand(&p1, forest).expect("should add Forest to hand");
+                id
+            })
+    };
 
     apply_action_and_auto_pass(
         &mut game,

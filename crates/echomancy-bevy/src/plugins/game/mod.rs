@@ -185,6 +185,14 @@ impl CatalogRegistry {
             "sol-ring" => Some(catalog::sol_ring()),
             "wild-bounty" => Some(catalog::wild_bounty()),
             "cancel" => Some(catalog::cancel()),
+            // Showcase cards
+            "oakshield-troll" => Some(catalog::oakshield_troll()),
+            "ancient-guardian" => Some(catalog::ancient_guardian()),
+            "ironbark-wall" => Some(catalog::ironbark_wall()),
+            "thalia-forest-keeper" => Some(catalog::thalia_forest_keeper()),
+            "thornwood-tapland" => Some(catalog::thornwood_tapland()),
+            "reckless-berserker" => Some(catalog::reckless_berserker()),
+            "frozen-sentinel" => Some(catalog::frozen_sentinel()),
             _ => None,
         }
     }
