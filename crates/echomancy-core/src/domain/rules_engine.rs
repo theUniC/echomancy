@@ -113,6 +113,21 @@ pub enum RulesAction {
         /// Instance ID of the spell or ability that created this effect.
         source: String,
     },
+    /// Create a Treasure token for the given controller (CR 111.10b).
+    CreateTreasure { controller: String },
+    /// Investigate — create a Clue token for the given controller (CR 701.34).
+    Investigate { controller: String },
+    /// Create a Food token for the given controller (CR 111.10c).
+    CreateFood { controller: String },
+    /// Fight mechanic — each creature deals damage equal to its power to the
+    /// other creature (CR 701.14).
+    Fight { creature_a: String, creature_b: String },
+    /// Bolster N — put N +1/+1 counters on the creature the player controls
+    /// with the least toughness (CR 701.39).
+    Bolster { player: String, amount: u32 },
+    /// Adapt N — if this creature has no +1/+1 counters on it, put N +1/+1
+    /// counters on it (CR 701.46).
+    Adapt { target: String, amount: u32 },
 }
 
 // ============================================================================

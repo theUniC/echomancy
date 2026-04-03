@@ -302,6 +302,7 @@ fn primary_card_type(types: &[CardType]) -> &'static str {
         Some(CardType::Enchantment) => "ENCHANTMENT",
         Some(CardType::Planeswalker) => "PLANESWALKER",
         Some(CardType::Land) => "LAND",
+        Some(CardType::Kindred) => "KINDRED",
         None => "UNKNOWN",
     }
 }

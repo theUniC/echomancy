@@ -108,6 +108,7 @@ pub(crate) fn format_exile_type_line(types: &[CardType]) -> &'static str {
             CardType::Enchantment => "Enchantment",
             CardType::Artifact => "Artifact",
             CardType::Planeswalker => "Planeswalker",
+            CardType::Kindred => "Kindred",
         })
         .next()
         .unwrap_or("Unknown")

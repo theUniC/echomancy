@@ -4,6 +4,11 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Helper for `#[serde(skip_serializing_if)]` — returns `true` when `n == 0`.
+fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
 use crate::domain::abilities::ActivatedAbility;
 use crate::domain::enums::{CardType, ManaColor, StaticAbility};
 use crate::domain::targets::TargetRequirement;
@@ -28,6 +33,16 @@ pub struct CardDefinition {
     /// Whether this card has the Legendary supertype (CR 205.4).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     is_legendary: bool,
+    /// Whether this card has the Snow supertype (CR 205.4g).
+    ///
+    /// Snow cards can produce or interact with snow mana ({S}).
+    /// For now this is just the flag — snow mana payment rules are not yet implemented.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    is_snow: bool,
+    /// CR 702.164 — Toxic N: when this creature deals combat damage to a player,
+    /// that player gets N poison counters. 0 means no Toxic ability.
+    #[serde(default, skip_serializing_if = "crate::domain::cards::card_definition::is_zero")]
+    toxic: u32,
     /// Subtypes (creature types, land types, etc.) per CR 205.3.
     /// Examples: "Human", "Warrior", "Forest", "Plains", "Equipment".
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -75,6 +90,8 @@ impl CardDefinition {
             name: name.into(),
             types,
             is_legendary: false,
+            is_snow: false,
+            toxic: 0,
             subtypes: Vec::new(),
             mana_cost: None,
             power: None,
@@ -109,6 +126,18 @@ impl CardDefinition {
     /// Whether this card has the Legendary supertype (CR 205.4).
     pub fn is_legendary(&self) -> bool {
         self.is_legendary
+    }
+
+    /// Whether this card has the Snow supertype (CR 205.4g).
+    pub fn is_snow(&self) -> bool {
+        self.is_snow
+    }
+
+    /// The Toxic N value for this card (CR 702.164).
+    ///
+    /// Returns 0 if the card does not have Toxic.
+    pub fn toxic(&self) -> u32 {
+        self.toxic
     }
 
     /// The card's subtypes (creature types, land types, etc.).
@@ -216,6 +245,14 @@ impl CardDefinition {
         self.types.contains(&CardType::Enchantment)
     }
 
+    /// Returns `true` if this card has the Kindred type (CR 205.3i).
+    ///
+    /// Kindred cards (formerly "Tribal") are non-creature cards that have
+    /// creature subtypes and can be affected by creature-type-matters effects.
+    pub fn is_kindred(&self) -> bool {
+        self.types.contains(&CardType::Kindred)
+    }
+
     /// Returns `true` if this card has the given static ability.
     pub fn has_static_ability(&self, ability: StaticAbility) -> bool {
         self.static_abilities.contains(&ability)
@@ -265,6 +302,20 @@ impl CardDefinition {
     /// Mark this card as Legendary (CR 205.4).
     pub fn with_legendary(mut self) -> Self {
         self.is_legendary = true;
+        self
+    }
+
+    /// Mark this card as Snow (CR 205.4g).
+    pub fn with_snow(mut self) -> Self {
+        self.is_snow = true;
+        self
+    }
+
+    /// Set the Toxic N value for this card (CR 702.164).
+    ///
+    /// A value of 0 means the card does not have Toxic.
+    pub fn with_toxic(mut self, n: u32) -> Self {
+        self.toxic = n;
         self
     }
 
@@ -467,6 +518,54 @@ mod tests {
         let card = CardDefinition::new("x", "X", vec![CardType::Creature])
             .with_oracle_text("Flying");
         assert_eq!(card.oracle_text(), Some("Flying"));
+    }
+
+    // ---- Kindred (P12.15) --------------------------------------------------
+
+    #[test]
+    fn kindred_card_is_detected() {
+        let card = CardDefinition::new("goblin-war-drums", "Goblin War Drums", vec![CardType::Kindred])
+            .with_subtype("Goblin");
+        assert!(card.is_kindred());
+        assert!(!card.is_creature());
+    }
+
+    #[test]
+    fn non_kindred_card_is_not_kindred() {
+        let card = CardDefinition::new("bear", "Bear", vec![CardType::Creature]);
+        assert!(!card.is_kindred());
+    }
+
+    // ---- Snow (MA5) --------------------------------------------------------
+
+    #[test]
+    fn snow_card_is_detected() {
+        let card = CardDefinition::new("snow-land", "Snow Land", vec![CardType::Land])
+            .with_snow();
+        assert!(card.is_snow());
+    }
+
+    #[test]
+    fn non_snow_card_is_not_snow() {
+        let card = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
+        assert!(!card.is_snow());
+    }
+
+    // ---- Toxic (K11.14) ----------------------------------------------------
+
+    #[test]
+    fn toxic_value_is_stored_and_retrieved() {
+        let card = CardDefinition::new("phyrexian", "Phyrexian", vec![CardType::Creature])
+            .with_power_toughness(1, 1)
+            .with_toxic(2);
+        assert_eq!(card.toxic(), 2);
+    }
+
+    #[test]
+    fn toxic_defaults_to_zero() {
+        let card = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        assert_eq!(card.toxic(), 0);
     }
 
     #[test]

@@ -266,6 +266,24 @@ impl Game {
             } => {
                 self.create_token(controller, name, *power, *toughness, types, keywords);
             }
+            RulesAction::CreateTreasure { controller } => {
+                self.create_treasure_token(controller);
+            }
+            RulesAction::Investigate { controller } => {
+                self.create_clue_token(controller);
+            }
+            RulesAction::CreateFood { controller } => {
+                self.create_food_token(controller);
+            }
+            RulesAction::Fight { creature_a, creature_b } => {
+                let _ = self.fight(creature_a, creature_b);
+            }
+            RulesAction::Bolster { player, amount } => {
+                let _ = self.bolster(player, *amount);
+            }
+            RulesAction::Adapt { target, amount } => {
+                let _ = self.adapt(target, *amount);
+            }
             // Stubs for M3: log but don't crash
             RulesAction::MoveZone { .. } | RulesAction::AddCounter { .. } => {
                 // TODO(M4): implement these actions

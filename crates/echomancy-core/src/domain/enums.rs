@@ -18,6 +18,10 @@ pub enum CardType {
     Enchantment,
     Planeswalker,
     Land,
+    /// CR 205.3i — Kindred (formerly "Tribal"): a non-creature card that has
+    /// creature subtypes. Kindred cards can be affected by effects that refer
+    /// to the specified creature type.
+    Kindred,
 }
 
 impl fmt::Display for CardType {
@@ -30,6 +34,7 @@ impl fmt::Display for CardType {
             CardType::Enchantment => "ENCHANTMENT",
             CardType::Planeswalker => "PLANESWALKER",
             CardType::Land => "LAND",
+            CardType::Kindred => "KINDRED",
         };
         write!(f, "{s}")
     }
@@ -312,6 +317,23 @@ mod tests {
         assert_eq!(CardType::Enchantment.to_string(), "ENCHANTMENT");
         assert_eq!(CardType::Planeswalker.to_string(), "PLANESWALKER");
         assert_eq!(CardType::Land.to_string(), "LAND");
+        assert_eq!(CardType::Kindred.to_string(), "KINDRED");
+    }
+
+    // --- Kindred (P12.15) ---
+
+    #[test]
+    fn kindred_card_type_display() {
+        assert_eq!(CardType::Kindred.to_string(), "KINDRED");
+    }
+
+    #[test]
+    fn kindred_card_type_serde_roundtrip() {
+        let original = CardType::Kindred;
+        let json = serde_json::to_string(&original).unwrap();
+        assert_eq!(json, "\"KINDRED\"");
+        let decoded: CardType = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, decoded);
     }
 
     #[test]

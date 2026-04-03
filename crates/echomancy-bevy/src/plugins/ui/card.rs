@@ -96,6 +96,7 @@ pub(crate) fn card_type_line(types: &[CardType], subtypes: &[String]) -> String 
             CardType::Enchantment => "Enchantment",
             CardType::Artifact => "Artifact",
             CardType::Planeswalker => "Planeswalker",
+            CardType::Kindred => "Kindred",
         })
         .collect();
     let type_str = parts.join(" ");

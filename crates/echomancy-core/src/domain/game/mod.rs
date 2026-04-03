@@ -818,6 +818,209 @@ impl Game {
         let card = CardInstance::new(instance_id, def, controller_id);
         self.enter_battlefield(card, controller_id, ZoneName::Stack)
     }
+
+    /// Create a Treasure token for `controller_id` (CR 111.10b).
+    ///
+    /// Treasure is a colorless Artifact token with subtype "Treasure".
+    /// It has the ability "{T}, Sacrifice this artifact: Add one mana of any color."
+    /// For MVP, the token is created on the battlefield without the full
+    /// sacrifice-for-mana cost (sacrifice as cost is not yet implemented).
+    pub(crate) fn create_treasure_token(
+        &mut self,
+        controller_id: &str,
+    ) -> Vec<crate::domain::events::GameEvent> {
+        self.create_token(
+            controller_id,
+            "Treasure",
+            0,
+            0,
+            &["Artifact".to_owned()],
+            &[],
+        )
+    }
+
+    /// Create a Clue token for `controller_id` (CR 701.34 — Investigate).
+    ///
+    /// Clue is a colorless Artifact token with subtype "Clue".
+    /// It has the ability "{2}, Sacrifice this artifact: Draw a card."
+    /// For MVP, the token is created on the battlefield (sacrifice-as-cost not yet implemented).
+    pub(crate) fn create_clue_token(
+        &mut self,
+        controller_id: &str,
+    ) -> Vec<crate::domain::events::GameEvent> {
+        self.create_token(
+            controller_id,
+            "Clue",
+            0,
+            0,
+            &["Artifact".to_owned()],
+            &[],
+        )
+    }
+
+    /// Create a Food token for `controller_id` (CR 111.10c).
+    ///
+    /// Food is a colorless Artifact token with subtype "Food".
+    /// It has the ability "{2}, {T}, Sacrifice this artifact: You gain 3 life."
+    /// For MVP, the token is created on the battlefield (sacrifice-as-cost not yet implemented).
+    pub(crate) fn create_food_token(
+        &mut self,
+        controller_id: &str,
+    ) -> Vec<crate::domain::events::GameEvent> {
+        self.create_token(
+            controller_id,
+            "Food",
+            0,
+            0,
+            &["Artifact".to_owned()],
+            &[],
+        )
+    }
+
+    /// Fight mechanic: each creature deals damage equal to its power to the other (CR 701.14).
+    ///
+    /// Both creatures must be on the battlefield and have creature state.
+    /// Damage is marked simultaneously (not sequential).
+    ///
+    /// # Errors
+    ///
+    /// Returns `GameError::InvalidTarget` if either creature is not found or
+    /// does not have creature state.
+    pub fn fight(
+        &mut self,
+        creature_a_id: &str,
+        creature_b_id: &str,
+    ) -> Result<Vec<crate::domain::events::GameEvent>, GameError> {
+        // Look up power of each creature from permanent state.
+        let power_a = {
+            let state = self.permanent_states.get(creature_a_id)
+                .ok_or_else(|| GameError::InvalidTarget {
+                    reason: format!("creature '{}' not found on battlefield", creature_a_id),
+                })?;
+            state.current_power().map_err(|_| GameError::InvalidTarget {
+                reason: format!("'{}' is not a creature", creature_a_id),
+            })?
+        };
+
+        let power_b = {
+            let state = self.permanent_states.get(creature_b_id)
+                .ok_or_else(|| GameError::InvalidTarget {
+                    reason: format!("creature '{}' not found on battlefield", creature_b_id),
+                })?;
+            state.current_power().map_err(|_| GameError::InvalidTarget {
+                reason: format!("'{}' is not a creature", creature_b_id),
+            })?
+        };
+
+        // Get deathtouch flags from card definitions on the battlefield.
+        let a_has_deathtouch = self.players.iter().any(|p| {
+            p.battlefield.iter().any(|c| {
+                c.instance_id() == creature_a_id
+                    && c.definition().has_static_ability(crate::domain::enums::StaticAbility::Deathtouch)
+            })
+        });
+        let b_has_deathtouch = self.players.iter().any(|p| {
+            p.battlefield.iter().any(|c| {
+                c.instance_id() == creature_b_id
+                    && c.definition().has_static_ability(crate::domain::enums::StaticAbility::Deathtouch)
+            })
+        });
+
+        // Deal damage simultaneously.
+        self.mark_damage_on_creature(creature_b_id, power_a, a_has_deathtouch);
+        self.mark_damage_on_creature(creature_a_id, power_b, b_has_deathtouch);
+
+        // Run SBAs to destroy any creatures with lethal damage.
+        let sba_events = self.perform_state_based_actions();
+        Ok(sba_events)
+    }
+
+    /// Bolster N: put N +1/+1 counters on the creature you control with the
+    /// least toughness (CR 701.39).
+    ///
+    /// If there is a tie in least toughness, the first creature found is chosen.
+    /// Does nothing if the player controls no creatures.
+    ///
+    /// # Errors
+    ///
+    /// Returns `GameError::InvalidTarget` if the player does not exist.
+    pub fn bolster(
+        &mut self,
+        player_id: &str,
+        amount: u32,
+    ) -> Result<Vec<crate::domain::events::GameEvent>, GameError> {
+        // Validate player exists.
+        let player = self.player_state(player_id)?;
+
+        // Collect (instance_id, effective_toughness) for all creatures the player controls.
+        let creature_ids: Vec<String> = player.battlefield
+            .iter()
+            .filter(|c| c.definition().is_creature())
+            .map(|c| c.instance_id().to_owned())
+            .collect();
+
+        if creature_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Find creature with least toughness using permanent state.
+        let target_id = creature_ids
+            .into_iter()
+            .min_by_key(|id| {
+                self.permanent_states
+                    .get(id.as_str())
+                    .and_then(|s| s.current_toughness().ok())
+                    .unwrap_or(i32::MAX)
+            });
+
+        let Some(target_id) = target_id else {
+            return Ok(Vec::new());
+        };
+
+        // Add N +1/+1 counters to the target.
+        if let Some(state) = self.permanent_states.get(&target_id).cloned() {
+            let new_state = state.add_counters("PLUS_ONE_PLUS_ONE", amount);
+            self.permanent_states.insert(target_id, new_state);
+        }
+
+        Ok(Vec::new())
+    }
+
+    /// Adapt N: if this creature has no +1/+1 counters on it, put N +1/+1
+    /// counters on it (CR 701.46).
+    ///
+    /// Does nothing if the creature already has one or more +1/+1 counters.
+    ///
+    /// # Errors
+    ///
+    /// Returns `GameError::InvalidTarget` if the permanent is not found or
+    /// does not have creature state.
+    pub fn adapt(
+        &mut self,
+        permanent_id: &str,
+        amount: u32,
+    ) -> Result<Vec<crate::domain::events::GameEvent>, GameError> {
+        let state = self.permanent_states.get(permanent_id)
+            .ok_or_else(|| GameError::InvalidTarget {
+                reason: format!("permanent '{}' not found on battlefield", permanent_id),
+            })?
+            .clone();
+
+        // Ensure it is a creature.
+        state.current_power().map_err(|_| GameError::InvalidTarget {
+            reason: format!("'{}' is not a creature", permanent_id),
+        })?;
+
+        // CR 701.46: Only put counters if the creature has NO +1/+1 counters.
+        if state.get_counters("PLUS_ONE_PLUS_ONE") > 0 {
+            return Ok(Vec::new());
+        }
+
+        let new_state = state.add_counters("PLUS_ONE_PLUS_ONE", amount);
+        self.permanent_states.insert(permanent_id.to_owned(), new_state);
+
+        Ok(Vec::new())
+    }
 }
 
 // ============================================================================
@@ -836,6 +1039,7 @@ fn parse_card_type(s: &str) -> Option<crate::domain::enums::CardType> {
         "enchantment" => Some(CardType::Enchantment),
         "artifact" => Some(CardType::Artifact),
         "planeswalker" => Some(CardType::Planeswalker),
+        "kindred" => Some(CardType::Kindred),
         _ => None,
     }
 }
@@ -1642,5 +1846,228 @@ mod tests {
         assert!(battlefield[0].definition().has_static_ability(StaticAbility::Flying));
         // Only 1 recognized ability (Flying); "NotAKeyword" was silently dropped
         assert_eq!(battlefield[0].definition().static_abilities().len(), 1);
+    }
+
+    // ---- Treasure token (P10.17) -------------------------------------------
+
+    #[test]
+    fn create_treasure_token_puts_artifact_on_battlefield() {
+        let (mut game, p1, _p2) = make_started_game();
+        game.create_treasure_token(&p1);
+        let battlefield = game.battlefield(&p1).unwrap();
+        assert_eq!(battlefield.len(), 1, "treasure token should be on battlefield");
+        let token = &battlefield[0];
+        assert!(token.definition().is_artifact(), "treasure token should be an artifact");
+        assert_eq!(token.definition().name(), "Treasure");
+    }
+
+    #[test]
+    fn create_treasure_token_has_treasure_name() {
+        let (mut game, p1, _p2) = make_started_game();
+        game.create_treasure_token(&p1);
+        let battlefield = game.battlefield(&p1).unwrap();
+        assert_eq!(battlefield[0].definition().name(), "Treasure");
+    }
+
+    // ---- Clue token (P10.15) -----------------------------------------------
+
+    #[test]
+    fn create_clue_token_puts_artifact_on_battlefield() {
+        let (mut game, p1, _p2) = make_started_game();
+        game.create_clue_token(&p1);
+        let battlefield = game.battlefield(&p1).unwrap();
+        assert_eq!(battlefield.len(), 1, "clue token should be on battlefield");
+        let token = &battlefield[0];
+        assert!(token.definition().is_artifact(), "clue token should be an artifact");
+        assert_eq!(token.definition().name(), "Clue");
+    }
+
+    // ---- Food token (P10.16) -----------------------------------------------
+
+    #[test]
+    fn create_food_token_puts_artifact_on_battlefield() {
+        let (mut game, p1, _p2) = make_started_game();
+        game.create_food_token(&p1);
+        let battlefield = game.battlefield(&p1).unwrap();
+        assert_eq!(battlefield.len(), 1, "food token should be on battlefield");
+        let token = &battlefield[0];
+        assert!(token.definition().is_artifact(), "food token should be an artifact");
+        assert_eq!(token.definition().name(), "Food");
+    }
+
+    // ---- Fight mechanic (P10.12) -------------------------------------------
+
+    #[test]
+    fn fight_deals_damage_to_both_creatures() {
+        let (mut game, p1, p2) = make_started_game();
+        let attacker = make_creature_card("a1", &p1, 3, 3);
+        let defender = make_creature_card("d1", &p2, 2, 4);
+        add_permanent_to_battlefield(&mut game, &p1, attacker);
+        add_permanent_to_battlefield(&mut game, &p2, defender);
+
+        game.fight("a1", "d1").expect("fight should succeed");
+
+        // a1 (3/3) takes 2 damage from d1's power
+        let a1_state = game.permanent_state("a1").unwrap();
+        assert_eq!(
+            a1_state.creature_state().unwrap().damage_marked_this_turn(),
+            2,
+            "a1 should take 2 damage from d1's power"
+        );
+
+        // d1 (2/4) takes 3 damage from a1's power
+        let d1_state = game.permanent_state("d1").unwrap();
+        assert_eq!(
+            d1_state.creature_state().unwrap().damage_marked_this_turn(),
+            3,
+            "d1 should take 3 damage from a1's power"
+        );
+    }
+
+    #[test]
+    fn fight_creature_dies_from_lethal_damage() {
+        let (mut game, p1, p2) = make_started_game();
+        // 4-power creature fights a 2/2
+        let big = make_creature_card("big", &p1, 4, 4);
+        let small = make_creature_card("small", &p2, 1, 2);
+        add_permanent_to_battlefield(&mut game, &p1, big);
+        add_permanent_to_battlefield(&mut game, &p2, small);
+
+        game.fight("big", "small").expect("fight should succeed");
+
+        // "small" should be dead (4 damage > 2 toughness)
+        assert!(
+            game.battlefield(&p2).unwrap().is_empty(),
+            "small creature should have died from fight"
+        );
+        // "big" should survive (1 damage, toughness 4)
+        assert_eq!(game.battlefield(&p1).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn fight_both_creatures_die() {
+        let (mut game, p1, p2) = make_started_game();
+        let a = make_creature_card("ca", &p1, 3, 1);
+        let b = make_creature_card("cb", &p2, 3, 1);
+        add_permanent_to_battlefield(&mut game, &p1, a);
+        add_permanent_to_battlefield(&mut game, &p2, b);
+
+        game.fight("ca", "cb").expect("fight should succeed");
+
+        assert!(
+            game.battlefield(&p1).unwrap().is_empty(),
+            "creature a should have died"
+        );
+        assert!(
+            game.battlefield(&p2).unwrap().is_empty(),
+            "creature b should have died"
+        );
+    }
+
+    #[test]
+    fn fight_missing_creature_returns_error() {
+        let (mut game, p1, _p2) = make_started_game();
+        let a = make_creature_card("ca", &p1, 2, 2);
+        add_permanent_to_battlefield(&mut game, &p1, a);
+
+        let result = game.fight("ca", "nonexistent");
+        assert!(result.is_err(), "fight with missing creature should fail");
+    }
+
+    // ---- Bolster N (P15.6) -------------------------------------------------
+
+    #[test]
+    fn bolster_puts_counters_on_lowest_toughness_creature() {
+        let (mut game, p1, _p2) = make_started_game();
+        let high = make_creature_card("high", &p1, 2, 4);
+        let low = make_creature_card("low", &p1, 2, 2);
+        add_permanent_to_battlefield(&mut game, &p1, high);
+        add_permanent_to_battlefield(&mut game, &p1, low);
+
+        game.bolster(&p1, 2).expect("bolster should succeed");
+
+        // "low" (2/2) should get the counters
+        let low_state = game.permanent_state("low").unwrap();
+        assert_eq!(
+            low_state.get_counters("PLUS_ONE_PLUS_ONE"),
+            2,
+            "lowest toughness creature should get the +1/+1 counters"
+        );
+
+        // "high" (2/4) should NOT get counters
+        let high_state = game.permanent_state("high").unwrap();
+        assert_eq!(
+            high_state.get_counters("PLUS_ONE_PLUS_ONE"),
+            0,
+            "higher toughness creature should not get counters"
+        );
+    }
+
+    #[test]
+    fn bolster_does_nothing_with_no_creatures() {
+        let (mut game, p1, _p2) = make_started_game();
+        // No creatures on the battlefield
+        let result = game.bolster(&p1, 2);
+        assert!(result.is_ok(), "bolster with no creatures should succeed (no-op)");
+    }
+
+    #[test]
+    fn bolster_on_single_creature() {
+        let (mut game, p1, _p2) = make_started_game();
+        let c = make_creature_card("c1", &p1, 2, 2);
+        add_permanent_to_battlefield(&mut game, &p1, c);
+
+        game.bolster(&p1, 3).expect("bolster should succeed");
+
+        let state = game.permanent_state("c1").unwrap();
+        assert_eq!(state.get_counters("PLUS_ONE_PLUS_ONE"), 3);
+    }
+
+    // ---- Adapt N (P15.7) ---------------------------------------------------
+
+    #[test]
+    fn adapt_adds_counters_when_creature_has_none() {
+        let (mut game, p1, _p2) = make_started_game();
+        let c = make_creature_card("c1", &p1, 2, 2);
+        add_permanent_to_battlefield(&mut game, &p1, c);
+
+        game.adapt("c1", 3).expect("adapt should succeed");
+
+        let state = game.permanent_state("c1").unwrap();
+        assert_eq!(
+            state.get_counters("PLUS_ONE_PLUS_ONE"),
+            3,
+            "adapt should add 3 +1/+1 counters when creature has none"
+        );
+    }
+
+    #[test]
+    fn adapt_does_nothing_when_creature_already_has_counters() {
+        let (mut game, p1, _p2) = make_started_game();
+        let c = make_creature_card("c1", &p1, 2, 2);
+        add_permanent_to_battlefield(&mut game, &p1, c);
+
+        // Pre-existing counters
+        {
+            let state = game.permanent_state("c1").unwrap().clone();
+            let new_state = state.add_counters("PLUS_ONE_PLUS_ONE", 1);
+            game.permanent_states.insert("c1".to_owned(), new_state);
+        }
+
+        game.adapt("c1", 3).expect("adapt should succeed");
+
+        let state = game.permanent_state("c1").unwrap();
+        assert_eq!(
+            state.get_counters("PLUS_ONE_PLUS_ONE"),
+            1,
+            "adapt should not add counters when creature already has +1/+1 counters"
+        );
+    }
+
+    #[test]
+    fn adapt_on_missing_creature_returns_error() {
+        let (mut game, _p1, _p2) = make_started_game();
+        let result = game.adapt("nonexistent", 2);
+        assert!(result.is_err(), "adapt on missing creature should fail");
     }
 }

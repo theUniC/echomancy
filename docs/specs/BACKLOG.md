@@ -144,7 +144,7 @@ Static abilities and keywords not yet implemented.
 | MA2 | Hybrid mana costs ({W/U}) | TODO | 107.4e | Medium | - | |
 | MA3 | Phyrexian mana (pay life instead) | TODO | 107.4f | Medium | - | |
 | MA4 | Convoke (tap creatures to pay) | TODO | 702.50 | High | - | |
-| MA5 | Snow mana | TODO | 107.4h | Low | - | Niche |
+| MA5 | Snow mana | DONE | 107.4h | Low | - | is_snow flag on CardDefinition + with_snow() builder; no snow mana payment logic yet |
 
 ### Phase 9: Minor Mechanics
 
@@ -256,7 +256,7 @@ Full migration from TypeScript/Next.js to Rust/Bevy.
 | No copy effects (CR 707) | Not implemented | P10.5 |
 | No extra turns or extra phases (CR 500.7, 723) | Not implemented | P10.7 |
 | No modal spells (choose one/two) | Not implemented | P10.8 |
-| No fight mechanic (CR 701.14) | Not implemented | P10.12 |
+| No fight mechanic (CR 701.14) | Implemented in P10.12 | DONE |
 | No mana abilities vs non-mana abilities distinction | Partial (Effect::is_mana_ability) | P10.3 |
 | Trigger system limited to 4 event types | ZoneChanged, StepStarted, AttackerDeclared, CombatEnded only | P10.9 |
 
@@ -279,12 +279,14 @@ Fundamental MTG game systems not yet tracked in any phase. Ordered by dependency
 | P10.9 | Expanded trigger event types | TODO | 603.1 | High | - | Currently only 4 types. Need: damage dealt, life gained/lost, spell cast, creature died, land played, counters placed, etc. |
 | P10.10 | Bounce (return to hand) effect | DONE | 701.3 | Low | - | Unsummon-type effects. Need RulesAction::ReturnToHand |
 | P10.11 | Exile-and-return (flicker) effects | TODO | - | Medium | - | Flickerwisp, Restoration Angel. Exile then return to battlefield. Needs delayed trigger system |
-| P10.12 | Fight mechanic | TODO | 701.14 | Medium | - | Each creature deals damage equal to its power to the other. Common in green |
+| P10.12 | Fight mechanic | DONE | 701.14 | Medium | - | Each creature deals damage equal to its power to the other. Common in green |
 | P10.13 | Goad mechanic | TODO | 701.15 | Medium | - | Goaded creature must attack and must attack someone other than goader. Multiplayer-relevant |
 | P10.14 | Proliferate | TODO | 701.34 | Medium | P10.1, P10.2 | Choose any number of permanents/players with counters, add one of each kind. Very common in recent sets |
-| P10.15 | Investigate / Clue tokens | TODO | 701.16 | Low | R9 | Create predefined Clue artifact token with "{2}, Sacrifice: Draw a card" |
-| P10.16 | Food tokens | TODO | - | Low | R9 | Predefined token: "{2}, {T}, Sacrifice: Gain 3 life" |
-| P10.17 | Treasure tokens | TODO | - | Low | R9 | Predefined token: "{T}, Sacrifice: Add one mana of any color." Already very common |
+| P15.6 | Bolster N | DONE | 701.39 | Low | - | Put N +1/+1 counters on the creature you control with the least toughness |
+| P15.7 | Adapt N | DONE | 701.46 | Low | - | If this creature has no +1/+1 counters, put N +1/+1 counters on it |
+| P10.15 | Investigate / Clue tokens | DONE | 701.16 | Low | R9 | Create predefined Clue artifact token with "{2}, Sacrifice: Draw a card" |
+| P10.16 | Food tokens | DONE | - | Low | R9 | Predefined token: "{2}, {T}, Sacrifice: Gain 3 life" |
+| P10.17 | Treasure tokens | DONE | - | Low | R9 | Predefined token: "{T}, Sacrifice: Add one mana of any color." Already very common |
 | P10.18 | Blood tokens | TODO | - | Low | R9 | Predefined token: "{1}, {T}, Discard a card, Sacrifice: Draw a card" |
 | P10.19 | Map tokens | TODO | - | Low | R9 | Predefined token from recent sets |
 | P10.20 | Delayed triggers | TODO | 603.7 | High | - | "At the beginning of next end step, return it" — requires scheduling future triggers |
@@ -320,7 +322,7 @@ Keywords from CR 702 not yet tracked. Grouped by frequency in Standard/Modern pl
 | K11.11 | Persist | TODO | 702.79 | Medium | P10.2 | When dies with no -1/-1 counters, return with a -1/-1 counter. Needs -1/-1 counters |
 | K11.12 | Wither | TODO | 702.80 | Medium | P10.2 | Damage dealt to creatures is dealt as -1/-1 counters instead |
 | K11.13 | Infect | TODO | 702.90 | Medium | P10.1, P10.2 | Damage to creatures as -1/-1, damage to players as poison counters |
-| K11.14 | Toxic N | TODO | 702.164 | Low | P10.1 | Whenever this deals combat damage to a player, that player gets N poison counters |
+| K11.14 | Toxic N | DONE | 702.164 | Low | P10.1 | Whenever this deals combat damage to a player, that player gets N poison counters |
 | K11.15 | Evolve | TODO | 702.100 | Medium | P10.9 | Triggered: when a creature ETBs under your control with greater P or T, put +1/+1 counter |
 | K11.16 | Exploit | TODO | 702.110 | Medium | R7 | When ETBs, you may sacrifice a creature. Cards have "when ~ exploits" trigger |
 | K11.17 | Fabricate N | TODO | 702.123 | Medium | R9 | ETB: choose +1/+1 counters or create N 1/1 Servo tokens |
@@ -379,7 +381,7 @@ Complex card layouts and types not yet tracked.
 | P12.12 | Leveler cards (Level Up) | TODO | 711, 702.87 | Medium | R5 | Level counters unlock abilities at thresholds |
 | P12.13 | Face-down spells and permanents | TODO | 708 | Very High | - | Morph, Megamorph, Manifest, Cloak, Disguise. 2/2 face-down creature with no abilities. Complex reveal timing |
 | P12.14 | Prototype cards | TODO | 718, 702.160 | Medium | P10.4 | Can be cast for alternative characteristics (different cost, P/T, color). Layer 1 interaction |
-| P12.15 | Kindred card type | TODO | 308 | Low | R2 | "Kindred" type that has creature subtypes (e.g., Kindred Sorcery - Goblin). Renamed from "Tribal" |
+| P12.15 | Kindred card type | DONE | 308 | Low | R2 | "Kindred" type that has creature subtypes (e.g., Kindred Sorcery - Goblin). Renamed from "Tribal" |
 | P12.16 | Day/Night and Daybound/Nightbound | TODO | 730, 702.145 | High | P12.2 | Global game state tracking day/night. Creatures transform based on it |
 
 ### Phase 13: Alternative Costs and Casting

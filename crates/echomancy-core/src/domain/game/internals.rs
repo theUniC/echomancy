@@ -620,10 +620,22 @@ impl Game {
             .map(|a| a.source_id.clone())
             .collect();
 
-        // Apply damage; also handle Lifelink life gain.
+        // Apply damage; also handle Lifelink life gain and Toxic poison counters.
         for assignment in &assignments {
             if assignment.is_player {
                 self.deal_damage_to_player(&assignment.target_id, assignment.amount);
+                // CR 702.164: Toxic — if source deals combat damage to a player,
+                // that player gets N poison counters (where N = toxic value on the card).
+                if assignment.amount > 0 {
+                    let toxic_n = self.players.iter()
+                        .flat_map(|p| p.battlefield.iter())
+                        .find(|c| c.instance_id() == assignment.source_id)
+                        .map(|c| c.definition().toxic())
+                        .unwrap_or(0);
+                    if toxic_n > 0 {
+                        let _ = self.add_poison_counters(&assignment.target_id, toxic_n);
+                    }
+                }
             } else {
                 self.mark_damage_on_creature(
                     &assignment.target_id,
@@ -698,10 +710,22 @@ impl Game {
 
         let assignments = calculate_all_combat_damage(&combat_entries, &defending_player_id);
 
-        // Apply all damage; also handle Lifelink life gain.
+        // Apply all damage; also handle Lifelink life gain and Toxic poison counters.
         for assignment in &assignments {
             if assignment.is_player {
                 self.deal_damage_to_player(&assignment.target_id, assignment.amount);
+                // CR 702.164: Toxic — if source deals combat damage to a player,
+                // that player gets N poison counters (where N = toxic value on the card).
+                if assignment.amount > 0 {
+                    let toxic_n = self.players.iter()
+                        .flat_map(|p| p.battlefield.iter())
+                        .find(|c| c.instance_id() == assignment.source_id)
+                        .map(|c| c.definition().toxic())
+                        .unwrap_or(0);
+                    if toxic_n > 0 {
+                        let _ = self.add_poison_counters(&assignment.target_id, toxic_n);
+                    }
+                }
             } else {
                 self.mark_damage_on_creature(
                     &assignment.target_id,
@@ -1768,6 +1792,155 @@ mod tests {
         assert!(
             !game.permanent_state("normal-1").unwrap().is_tapped(),
             "normal creature should be untapped"
+        );
+    }
+
+    // =========================================================================
+    // Toxic tests (K11.14 — CR 702.164)
+    // =========================================================================
+
+    #[test]
+    fn toxic_creature_gives_poison_counters_on_combat_damage_to_player() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, p2) = make_started_game();
+
+        // Advance to DeclareAttackers
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+
+        // 1/1 creature with Toxic 2
+        let def = CardDefinition::new("phyrexian", "Phyrexian", vec![CardType::Creature])
+            .with_power_toughness(1, 1)
+            .with_toxic(2);
+        let attacker_card = CardInstance::new("toxic-attacker", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, attacker_card);
+        clear_summoning_sickness(&mut game, "toxic-attacker");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("toxic-attacker"),
+        })
+        .unwrap();
+
+        // Advance through DeclareBlockers → FirstStrikeDamage → CombatDamage
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        // Defending player should have 1 damage + 2 poison counters
+        assert_eq!(
+            game.player_life_total(&p2).unwrap(),
+            19,
+            "Defending player should take 1 damage"
+        );
+        assert_eq!(
+            game.player_poison_counters(&p2).unwrap(),
+            2,
+            "Toxic 2 should give 2 poison counters"
+        );
+    }
+
+    #[test]
+    fn non_toxic_creature_does_not_give_poison_counters() {
+        let (mut game, p1, p2) = make_started_game();
+
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+
+        let attacker_card = make_creature_card("normal-attacker", &p1, 3, 3);
+        add_permanent_to_battlefield(&mut game, &p1, attacker_card);
+        clear_summoning_sickness(&mut game, "normal-attacker");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("normal-attacker"),
+        })
+        .unwrap();
+
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        assert_eq!(
+            game.player_poison_counters(&p2).unwrap(),
+            0,
+            "Non-toxic creature should not give poison counters"
+        );
+    }
+
+    #[test]
+    fn toxic_blocked_creature_does_not_give_poison_counters() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, p2) = make_started_game();
+
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+
+        // Toxic 2 attacker
+        let def = CardDefinition::new("phyrexian", "Phyrexian", vec![CardType::Creature])
+            .with_power_toughness(2, 2)
+            .with_toxic(2);
+        let attacker_card = CardInstance::new("toxic-attacker", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, attacker_card);
+        clear_summoning_sickness(&mut game, "toxic-attacker");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("toxic-attacker"),
+        })
+        .unwrap();
+
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+
+        // Block the attacker
+        let blocker_card = make_creature_card("blocker-1", &p2, 2, 5);
+        add_permanent_to_battlefield(&mut game, &p2, blocker_card);
+        game.apply(Action::DeclareBlocker {
+            player_id: PlayerId::new(&p2),
+            blocker_id: CardInstanceId::new("blocker-1"),
+            attacker_id: CardInstanceId::new("toxic-attacker"),
+        })
+        .unwrap();
+
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        assert_eq!(game.current_step(), Step::CombatDamage);
+
+        // Blocked — no player damage, no poison counters
+        assert_eq!(
+            game.player_life_total(&p2).unwrap(),
+            20,
+            "Blocked attacker should not deal damage to defending player"
+        );
+        assert_eq!(
+            game.player_poison_counters(&p2).unwrap(),
+            0,
+            "Blocked Toxic creature should not give poison counters"
         );
     }
 }
