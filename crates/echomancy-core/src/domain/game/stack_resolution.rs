@@ -212,6 +212,10 @@ impl Game {
                 // Ignore if the permanent no longer exists.
                 let _ = self.move_permanent_to_exile(target);
             }
+            RulesAction::ReturnToHand { target } => {
+                // Ignore if the permanent no longer exists.
+                let _ = self.return_permanent_to_hand(target);
+            }
             RulesAction::CounterSpell { target } => {
                 // Remove the targeted spell from the stack and put it in its owner's graveyard.
                 if let Some(pos) = self.stack.iter().position(|item| match item {
@@ -242,6 +246,9 @@ impl Game {
             }
             RulesAction::Scry { player, amount } => {
                 self.scry(player, *amount as usize);
+            }
+            RulesAction::Surveil { player, amount } => {
+                self.surveil(player, *amount as usize);
             }
             RulesAction::Mill { player, amount } => {
                 self.mill(player, *amount as usize);

@@ -128,8 +128,10 @@ pub(crate) fn validate_declare_attacker(
         permanent_id: CardInstanceId::new(creature_id),
     })?;
 
-    // 6a. CannotAttack check (CR 508.1d).
-    if ctx.has_static_ability(creature, StaticAbility::CannotAttack) {
+    // 6a. CannotAttack check (CR 508.1d) and Defender (CR 702.3 — can't attack).
+    if ctx.has_static_ability(creature, StaticAbility::CannotAttack)
+        || ctx.has_static_ability(creature, StaticAbility::Defender)
+    {
         return Err(GameError::InvalidPlayerAction {
             player_id: player_id.into(),
             action: "DECLARE_ATTACKER: creature can't attack".to_owned(),
@@ -307,6 +309,57 @@ pub(crate) fn validate_declare_blocker(
         }
     }
 
+    // 10. Fear restriction (CR 702.36): can only be blocked by artifact creatures and/or black creatures.
+    if ctx.has_static_ability(attacker, StaticAbility::Fear) {
+        let blocker_can_block = blocker.definition().is_artifact()
+            || blocker.definition().colors().contains(&crate::domain::enums::ManaColor::Black);
+        if !blocker_can_block {
+            return Err(GameError::InvalidPlayerAction {
+                player_id: player_id.into(),
+                action: "DECLARE_BLOCKER: attacker has Fear".to_owned(),
+            });
+        }
+    }
+
+    // 11. Skulk restriction (CR 702.118): can't be blocked by creatures with greater power.
+    if ctx.has_static_ability(attacker, StaticAbility::Skulk) {
+        let attacker_power = attacker_state
+            .current_power()
+            .unwrap_or(0);
+        let blocker_power = ctx
+            .permanent_state(blocker_id)
+            .and_then(|s| s.current_power().ok())
+            .unwrap_or(0);
+        if blocker_power > attacker_power {
+            return Err(GameError::InvalidPlayerAction {
+                player_id: player_id.into(),
+                action: "DECLARE_BLOCKER: blocker has greater power than skulking attacker".to_owned(),
+            });
+        }
+    }
+
+    // 12. Shadow restriction (CR 702.28): creatures with shadow can only block/be blocked by
+    // other shadow creatures.
+    let attacker_has_shadow = ctx.has_static_ability(attacker, StaticAbility::Shadow);
+    let blocker_has_shadow = ctx.has_static_ability(blocker, StaticAbility::Shadow);
+    if attacker_has_shadow != blocker_has_shadow {
+        return Err(GameError::InvalidPlayerAction {
+            player_id: player_id.into(),
+            action: "DECLARE_BLOCKER: shadow mismatch".to_owned(),
+        });
+    }
+
+    // 13. Horsemanship restriction (CR 702.31): can't be blocked except by creatures
+    // with horsemanship.
+    if ctx.has_static_ability(attacker, StaticAbility::Horsemanship)
+        && !ctx.has_static_ability(blocker, StaticAbility::Horsemanship)
+    {
+        return Err(GameError::InvalidPlayerAction {
+            player_id: player_id.into(),
+            action: "DECLARE_BLOCKER: attacker has Horsemanship".to_owned(),
+        });
+    }
+
     // Build new states.
     let new_blocker_state = blocker_state
         .with_blocking_creature_id(Some(CardInstanceId::new(attacker_id)))
@@ -422,6 +475,34 @@ mod tests {
             .with_power_toughness(2, 2)
             .with_static_ability(ability);
         CardInstance::new(id, def, owner)
+    }
+
+    fn make_artifact_creature(id: &str, owner: &str) -> CardInstance {
+        use crate::domain::value_objects::mana::ManaCost;
+        let def = CardDefinition::new(id, id, vec![CardType::Creature, CardType::Artifact])
+            .with_mana_cost(ManaCost::parse("2").unwrap())
+            .with_power_toughness(2, 2);
+        CardInstance::new(id, def, owner)
+    }
+
+    fn make_black_creature(id: &str, owner: &str) -> CardInstance {
+        use crate::domain::value_objects::mana::ManaCost;
+        let def = CardDefinition::new(id, id, vec![CardType::Creature])
+            .with_mana_cost(ManaCost::parse("B").unwrap())
+            .with_power_toughness(2, 2);
+        CardInstance::new(id, def, owner)
+    }
+
+    fn make_creature_with_power(id: &str, owner: &str, power: u32, toughness: u32) -> CardInstance {
+        let def = CardDefinition::new(id, id, vec![CardType::Creature])
+            .with_power_toughness(power, toughness);
+        CardInstance::new(id, def, owner)
+    }
+
+    fn ready_creature_state_with_power(power: i32, toughness: i32) -> PermanentState {
+        PermanentState::for_creature(power, toughness)
+            .with_summoning_sickness(false)
+            .unwrap()
     }
 
     fn ready_creature_state() -> PermanentState {
@@ -739,5 +820,181 @@ mod tests {
 
         let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
         assert!(result.is_err(), "CannotBlock creature should not be able to block");
+    }
+
+    // ---- Defender (CR 702.3) -----------------------------------------------
+
+    #[test]
+    fn defender_creature_cannot_attack() {
+        let creature = make_creature_with("c1", "p1", StaticAbility::Defender);
+        let state = ready_creature_state();
+        let ctx = TestCtx::new(Step::DeclareAttackers, "p1")
+            .add_permanent("p1", creature, state);
+
+        let result = validate_declare_attacker(&ctx, "p1", "c1");
+        assert!(result.is_err(), "Defender creature should not be able to attack");
+    }
+
+    // ---- Fear (CR 702.36) --------------------------------------------------
+
+    #[test]
+    fn fear_creature_cannot_be_blocked_by_nonblack_nonartifact() {
+        let attacker = make_creature_with("a1", "p1", StaticAbility::Fear);
+        let attacker_state = attacking_state();
+        let blocker = make_creature("b1", "p2");
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_err(), "Non-black non-artifact should not block Fear creature");
+    }
+
+    #[test]
+    fn fear_creature_can_be_blocked_by_artifact_creature() {
+        let attacker = make_creature_with("a1", "p1", StaticAbility::Fear);
+        let attacker_state = attacking_state();
+        let blocker = make_artifact_creature("b1", "p2");
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_ok(), "Artifact creature should be able to block Fear creature");
+    }
+
+    #[test]
+    fn fear_creature_can_be_blocked_by_black_creature() {
+        let attacker = make_creature_with("a1", "p1", StaticAbility::Fear);
+        let attacker_state = attacking_state();
+        let blocker = make_black_creature("b1", "p2");
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_ok(), "Black creature should be able to block Fear creature");
+    }
+
+    // ---- Skulk (CR 702.118) ------------------------------------------------
+
+    #[test]
+    fn skulk_creature_cannot_be_blocked_by_greater_power_creature() {
+        let attacker = make_creature_with("a1", "p1", StaticAbility::Skulk);
+        let attacker_state = ready_creature_state(); // 2/2 attacker by default
+        let attacker_state = attacker_state.with_attacking(true).unwrap().with_has_attacked_this_turn(true).unwrap();
+
+        let blocker = make_creature_with_power("b1", "p2", 3, 3); // power 3 > attacker power 2
+        let blocker_state = ready_creature_state_with_power(3, 3);
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_err(), "Greater-power creature should not block Skulk attacker");
+    }
+
+    #[test]
+    fn skulk_creature_can_be_blocked_by_equal_power_creature() {
+        let attacker = make_creature_with("a1", "p1", StaticAbility::Skulk);
+        let attacker_state = ready_creature_state()
+            .with_attacking(true).unwrap()
+            .with_has_attacked_this_turn(true).unwrap();
+
+        let blocker = make_creature("b1", "p2"); // power 2 = attacker power 2
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_ok(), "Equal-power creature should be able to block Skulk attacker");
+    }
+
+    // ---- Shadow (CR 702.28) ------------------------------------------------
+
+    #[test]
+    fn shadow_attacker_cannot_be_blocked_by_non_shadow_creature() {
+        let attacker = make_creature_with("a1", "p1", StaticAbility::Shadow);
+        let attacker_state = attacking_state();
+        let blocker = make_creature("b1", "p2"); // no shadow
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_err(), "Non-shadow creature should not block shadow attacker");
+    }
+
+    #[test]
+    fn shadow_attacker_can_be_blocked_by_shadow_creature() {
+        let attacker = make_creature_with("a1", "p1", StaticAbility::Shadow);
+        let attacker_state = attacking_state();
+        let blocker = make_creature_with("b1", "p2", StaticAbility::Shadow);
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_ok(), "Shadow creature should be able to block shadow attacker");
+    }
+
+    #[test]
+    fn non_shadow_attacker_cannot_be_blocked_by_shadow_creature() {
+        let attacker = make_creature("a1", "p1"); // no shadow
+        let attacker_state = attacking_state();
+        let blocker = make_creature_with("b1", "p2", StaticAbility::Shadow);
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_err(), "Shadow creature should not block non-shadow attacker");
+    }
+
+    // ---- Horsemanship (CR 702.31) ------------------------------------------
+
+    #[test]
+    fn horsemanship_attacker_cannot_be_blocked_by_non_horsemanship_creature() {
+        let attacker = make_creature_with("a1", "p1", StaticAbility::Horsemanship);
+        let attacker_state = attacking_state();
+        let blocker = make_creature("b1", "p2"); // no horsemanship
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_err(), "Non-horsemanship creature should not block horsemanship attacker");
+    }
+
+    #[test]
+    fn horsemanship_attacker_can_be_blocked_by_horsemanship_creature() {
+        let attacker = make_creature_with("a1", "p1", StaticAbility::Horsemanship);
+        let attacker_state = attacking_state();
+        let blocker = make_creature_with("b1", "p2", StaticAbility::Horsemanship);
+        let blocker_state = ready_creature_state();
+
+        let ctx = TestCtx::new(Step::DeclareBlockers, "p1")
+            .add_permanent("p1", attacker, attacker_state)
+            .add_permanent("p2", blocker, blocker_state);
+
+        let result = validate_declare_blocker(&ctx, "p2", "b1", "a1");
+        assert!(result.is_ok(), "Horsemanship creature should be able to block horsemanship attacker");
     }
 }

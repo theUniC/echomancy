@@ -88,9 +88,14 @@ pub enum RulesAction {
     Exile { target: String },
     /// Counter a spell on the stack (remove it and put in graveyard).
     CounterSpell { target: String },
+    /// Return a permanent from the battlefield to its owner's hand (bounce).
+    ReturnToHand { target: String },
     /// Scry N — look at top N cards, put any on top (in order) and rest on bottom.
     /// For MVP, auto-scry keeps the cards in their current order (top stays top).
     Scry { player: String, amount: u32 },
+    /// Surveil N — look at top N cards, put chosen ones in graveyard (CR 701.37).
+    /// For MVP, auto-surveil sends all to graveyard.
+    Surveil { player: String, amount: u32 },
     /// Mill N — move top N cards from library to graveyard (CR 701.13).
     Mill { player: String, amount: u32 },
     /// Discard N cards from a player's hand (CR 701.8). MVP: auto-discard last N.

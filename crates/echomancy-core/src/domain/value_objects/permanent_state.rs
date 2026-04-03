@@ -323,7 +323,7 @@ impl PermanentState {
 
     // ---- derived creature stats --------------------------------------------
 
-    /// Returns the current power, including +1/+1 counter bonuses and
+    /// Returns the current power, including +1/+1 and -1/-1 counter effects and
     /// continuous effect modifiers.
     ///
     /// # Errors
@@ -332,11 +332,12 @@ impl PermanentState {
     pub fn current_power(&self) -> Result<i32, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let plus_counters = self.get_counters("PLUS_ONE_PLUS_ONE") as i32;
+        let minus_counters = self.get_counters("MINUS_ONE_MINUS_ONE") as i32;
         let effects: i32 = self.continuous_effects.iter().map(|e| e.power_modifier).sum();
-        Ok(cs.base_power() + plus_counters + effects)
+        Ok(cs.base_power() + plus_counters - minus_counters + effects)
     }
 
-    /// Returns the current toughness, including +1/+1 counter bonuses and
+    /// Returns the current toughness, including +1/+1 and -1/-1 counter effects and
     /// continuous effect modifiers.
     ///
     /// # Errors
@@ -345,8 +346,9 @@ impl PermanentState {
     pub fn current_toughness(&self) -> Result<i32, PermanentStateError> {
         let cs = self.require_creature_state()?;
         let plus_counters = self.get_counters("PLUS_ONE_PLUS_ONE") as i32;
+        let minus_counters = self.get_counters("MINUS_ONE_MINUS_ONE") as i32;
         let effects: i32 = self.continuous_effects.iter().map(|e| e.toughness_modifier).sum();
-        Ok(cs.base_toughness() + plus_counters + effects)
+        Ok(cs.base_toughness() + plus_counters - minus_counters + effects)
     }
 
     /// Returns `true` if the creature has taken lethal damage this turn.
@@ -623,6 +625,36 @@ mod tests {
     }
 
     // ---- has_lethal_damage with +1/+1 counters ------------------------------
+
+    // ---- -1/-1 counters (P10.2) -------------------------------------------
+
+    #[test]
+    fn minus_one_minus_one_counters_reduce_power_and_toughness() {
+        let state = PermanentState::for_creature(3, 3)
+            .add_counters("MINUS_ONE_MINUS_ONE", 2);
+        assert_eq!(state.current_power().unwrap(), 1, "3 - 2 = 1 power");
+        assert_eq!(state.current_toughness().unwrap(), 1, "3 - 2 = 1 toughness");
+    }
+
+    #[test]
+    fn minus_counters_reduce_effective_toughness_to_zero_triggers_sba() {
+        // A 1/1 with 1 -1/-1 counter has effective 0/0 — SBA should kill it.
+        let state = PermanentState::for_creature(1, 1)
+            .add_counters("MINUS_ONE_MINUS_ONE", 1);
+        assert_eq!(state.current_toughness().unwrap(), 0);
+        // has_lethal_damage uses current_toughness; 0 toughness kills via SBA check.
+        // (The SBA itself is in find_creatures_to_destroy which checks current_toughness <= 0)
+    }
+
+    #[test]
+    fn plus_and_minus_counters_partially_cancel() {
+        // 3 +1/+1 and 1 -1/-1 = net +2/+2 on base 2/2 → 4/4
+        let state = PermanentState::for_creature(2, 2)
+            .add_counters("PLUS_ONE_PLUS_ONE", 3)
+            .add_counters("MINUS_ONE_MINUS_ONE", 1);
+        assert_eq!(state.current_power().unwrap(), 4);
+        assert_eq!(state.current_toughness().unwrap(), 4);
+    }
 
     #[test]
     fn has_lethal_damage_false_with_plus_counters_boosting_toughness() {

@@ -249,20 +249,16 @@ Full migration from TypeScript/Next.js to Rust/Bevy.
 | No hand size enforcement | Missing from Cleanup | R13 |
 | No card subtypes | Not implemented | R2 |
 | Auto-pass stops for potential plays without valid targets | Conservative heuristic | Future (auto-yield) |
-| No Defender keyword (CannotAttack used instead) | Informal equivalent exists | K11.1 |
 | No Ward keyword | Not implemented | K11.2 |
-| No poison counters / 10-poison loss rule | Snapshot field exists but no gameplay logic | P10.1 |
 | No replacement effects (CR 614) | R11 TODO | R11 |
 | No prevention effects (CR 615) | R12 TODO | R12 |
 | Continuous effects only cover temporary P/T mods | No layers 1-6, no static auras/lords | P10.4 |
 | No copy effects (CR 707) | Not implemented | P10.5 |
 | No extra turns or extra phases (CR 500.7, 723) | Not implemented | P10.7 |
 | No modal spells (choose one/two) | Not implemented | P10.8 |
-| No bounce (return to hand) RulesAction | Not implemented | P10.10 |
 | No fight mechanic (CR 701.14) | Not implemented | P10.12 |
 | No mana abilities vs non-mana abilities distinction | Partial (Effect::is_mana_ability) | P10.3 |
 | Trigger system limited to 4 event types | ZoneChanged, StepStarted, AttackerDeclared, CombatEnded only | P10.9 |
-| No -1/-1 counters or counter annihilation SBA (CR 704.5q) | Not implemented | P10.6 |
 
 ---
 
@@ -272,16 +268,16 @@ Fundamental MTG game systems not yet tracked in any phase. Ordered by dependency
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| P10.1 | Poison counters and 10-poison loss rule | TODO | 704.5c, 122.1b | Medium | - | SBA check: player with 10+ poison loses. Snapshot field already exists but no gameplay logic |
-| P10.2 | -1/-1 counters | TODO | 122.1b | Medium | - | Counter type on creatures, affects P/T calculation |
+| P10.1 | Poison counters and 10-poison loss rule | DONE | 704.5c, 122.1b | Medium | - | SBA check: player with 10+ poison loses. Snapshot field already exists but no gameplay logic |
+| P10.2 | -1/-1 counters | DONE | 122.1b | Medium | - | Counter type on creatures, affects P/T calculation |
 | P10.3 | Mana abilities vs non-mana abilities formal distinction | TODO | 605 | Medium | - | Partial: Effect::is_mana_ability exists. Need: triggered mana abilities, mana ability timing rules during casting (CR 605.3a) |
 | P10.4 | Full 7-layer continuous effects system | TODO | 613 | Very High | - | Currently only temporary P/T mods (layer 7c). Need all 7 layers + sublayers, timestamps, dependency system |
 | P10.5 | Copy effects | TODO | 707 | Very High | P10.4 | Clone, Copy Enchantment, etc. Applies in layer 1. Requires copiable values concept |
-| P10.6 | +1/+1 and -1/-1 counter annihilation SBA | TODO | 704.5q | Low | P10.2 | When both exist on a permanent, remove pairs. Already have +1/+1 counters |
+| P10.6 | +1/+1 and -1/-1 counter annihilation SBA | DONE | 704.5q | Low | P10.2 | When both exist on a permanent, remove pairs. Already have +1/+1 counters |
 | P10.7 | Extra turns and extra phases | TODO | 500.7, 723 | High | - | Time Walk, extra combat phases. Turn queue system |
 | P10.8 | Modal spells (choose one / choose two) | TODO | 700.2 | High | - | Requires mode selection at cast time (CR 700.2a). Many common cards are modal |
 | P10.9 | Expanded trigger event types | TODO | 603.1 | High | - | Currently only 4 types. Need: damage dealt, life gained/lost, spell cast, creature died, land played, counters placed, etc. |
-| P10.10 | Bounce (return to hand) effect | TODO | 701.3 | Low | - | Unsummon-type effects. Need RulesAction::ReturnToHand |
+| P10.10 | Bounce (return to hand) effect | DONE | 701.3 | Low | - | Unsummon-type effects. Need RulesAction::ReturnToHand |
 | P10.11 | Exile-and-return (flicker) effects | TODO | - | Medium | - | Flickerwisp, Restoration Angel. Exile then return to battlefield. Needs delayed trigger system |
 | P10.12 | Fight mechanic | TODO | 701.14 | Medium | - | Each creature deals damage equal to its power to the other. Common in green |
 | P10.13 | Goad mechanic | TODO | 701.15 | Medium | - | Goaded creature must attack and must attack someone other than goader. Multiplayer-relevant |
@@ -306,15 +302,15 @@ Keywords from CR 702 not yet tracked. Grouped by frequency in Standard/Modern pl
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| K11.1 | Defender | TODO | 702.3 | Low | - | "This creature can't attack." Functionally equivalent to CannotAttack but is the official keyword. Should be StaticAbility variant |
+| K11.1 | Defender | DONE | 702.3 | Low | - | "This creature can't attack." Functionally equivalent to CannotAttack but is the official keyword. Should be StaticAbility variant |
 | K11.2 | Ward {N} | TODO | 702.21 | Medium | - | Triggered ability: when targeted by opponent, counter unless they pay cost. Very common since 2021 |
 | K11.3 | Prowess | TODO | 702.108 | Medium | P10.9 | Triggered: whenever you cast a noncreature spell, this gets +1/+1 until EOT. Needs "spell cast" trigger event |
 | K11.4 | Protection from X | TODO | 702.16 | Very High | C6, R1 | DEBT: Damage prevented, Enchanting/Equipping falls off, Blocking prevented, Targeting prevented. Already tracked as K6 |
-| K11.5 | Fear | TODO | 702.36 | Low | - | Can't be blocked except by artifact creatures and/or black creatures. Legacy keyword |
+| K11.5 | Fear | DONE | 702.36 | Low | - | Can't be blocked except by artifact creatures and/or black creatures. Legacy keyword |
 | K11.6 | Intimidate | TODO | 702.13 | Low | R14 | Can't be blocked except by artifact creatures and/or creatures sharing a color. Requires color identity checks |
-| K11.7 | Skulk | TODO | 702.118 | Low | - | Can't be blocked by creatures with greater power |
-| K11.8 | Shadow | TODO | 702.28 | Low | - | Can only block/be blocked by creatures with shadow |
-| K11.9 | Horsemanship | TODO | 702.31 | Low | - | Can only block/be blocked by creatures with horsemanship (flying variant for Portal sets) |
+| K11.7 | Skulk | DONE | 702.118 | Low | - | Can't be blocked by creatures with greater power |
+| K11.8 | Shadow | DONE | 702.28 | Low | - | Can only block/be blocked by creatures with shadow |
+| K11.9 | Horsemanship | DONE | 702.31 | Low | - | Can only block/be blocked by creatures with horsemanship (flying variant for Portal sets) |
 
 **Tier 2: Common (appear in many sets)**
 
@@ -347,8 +343,8 @@ Keywords from CR 702 not yet tracked. Grouped by frequency in Standard/Modern pl
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
 | K11.31 | Phasing | TODO | 702.26 | Very High | - | Phases out on untap step, phases back in next untap. Treated as though it doesn't exist. Complex zone-like behavior |
-| K11.32 | Changeling | TODO | 702.73 | Low | R2 | Has all creature types. Simple flag on subtypes |
-| K11.33 | Devoid | TODO | 702.114 | Low | R14 | Colorless regardless of mana cost. Characteristic-defining ability in layer 5 |
+| K11.32 | Changeling | DONE | 702.73 | Low | R2 | Has all creature types. Simple flag on subtypes |
+| K11.33 | Devoid | DONE | 702.114 | Low | R14 | Colorless regardless of mana cost. Characteristic-defining ability in layer 5 |
 
 **Tier 4: Triggered on death / graveyard (common patterns)**
 
@@ -445,7 +441,7 @@ Keyword actions from CR 701 not yet implemented (beyond scry, mill, discard, sac
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| P15.1 | Surveil N | TODO | 701.25 | Low | - | Like scry but cards go to graveyard instead of bottom. Very common in recent sets |
+| P15.1 | Surveil N | DONE | 701.25 | Low | - | Like scry but cards go to graveyard instead of bottom. Very common in recent sets |
 | P15.2 | Explore | TODO | 701.44 | Medium | - | Reveal top card; if land put in hand, otherwise +1/+1 counter and choose to keep/put to GY. Common |
 | P15.3 | Connive N | TODO | 701.50 | Medium | - | Draw N, discard N, get +1/+1 counter for each nonland discarded. Streets of New Capenna |
 | P15.4 | Populate | TODO | 701.36 | Medium | R9 | Create a copy of a creature token you control. Selesnya mechanic |

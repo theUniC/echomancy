@@ -224,6 +224,74 @@ impl Game {
         Ok(vec![event])
     }
 
+    /// Return a permanent from any battlefield to its owner's hand (bounce).
+    ///
+    /// Removes the permanent from the battlefield, cleans up its permanent state,
+    /// and places the card in its owner's hand.
+    pub(crate) fn return_permanent_to_hand(
+        &mut self,
+        permanent_id: &str,
+    ) -> Result<Vec<GameEvent>, GameError> {
+        // Find which player controls this permanent.
+        let (controller_id, card_idx) = {
+            let mut found = None;
+            for player in &self.players {
+                if let Some(idx) = player
+                    .battlefield
+                    .iter()
+                    .position(|c| c.instance_id() == permanent_id)
+                {
+                    found = Some((player.player_id.as_str().to_owned(), idx));
+                    break;
+                }
+            }
+            found.ok_or_else(|| GameError::PermanentNotFound {
+                permanent_id: CardInstanceId::new(permanent_id),
+            })?
+        };
+
+        // Build the event snapshot while the card is still on the battlefield.
+        let (snapshot, owner_id) = {
+            let player = self
+                .players
+                .iter()
+                .find(|p| p.player_id.as_str() == controller_id)
+                .ok_or_else(|| GameError::PlayerNotFound {
+                    player_id: PlayerId::new(&controller_id),
+                })?;
+            let card = &player.battlefield[card_idx];
+            let snap = CardInstanceSnapshot {
+                instance_id: CardInstanceId::new(card.instance_id()),
+                definition_id: CardDefinitionId::new(card.definition().id()),
+                owner_id: PlayerId::new(card.owner_id()),
+            };
+            (snap, card.owner_id().to_owned())
+        };
+
+        let event = GameEvent::ZoneChanged {
+            card: snapshot,
+            from_zone: ZoneName::Battlefield,
+            to_zone: ZoneName::Hand,
+            controller_id: PlayerId::new(&controller_id),
+        };
+
+        // Perform the zone change.
+        let card = {
+            let player = self.player_state_mut(&controller_id)?;
+            player.battlefield.remove(card_idx)
+        };
+
+        // Clean up permanent state.
+        self.permanent_states.remove(permanent_id);
+
+        // Add to owner's hand.
+        if let Ok(owner) = self.player_state_mut(&owner_id) {
+            owner.hand.push(card);
+        }
+
+        Ok(vec![event])
+    }
+
     /// Tap a permanent.
     pub(crate) fn tap_permanent(&mut self, permanent_id: &str) -> Result<(), GameError> {
         let state = self.permanent_states.get(permanent_id).ok_or_else(|| {
@@ -269,6 +337,70 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
+
+    // ---- return_permanent_to_hand (bounce) -----------------------------------
+
+    #[test]
+    fn return_permanent_to_hand_moves_to_hand() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let card = CardInstance::new("bear-1", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        assert_eq!(game.battlefield(&p1).unwrap().len(), 1);
+        let initial_hand_size = game.hand(&p1).expect("hand should exist").len();
+
+        game.return_permanent_to_hand("bear-1")
+            .expect("return to hand should succeed");
+
+        assert_eq!(
+            game.battlefield(&p1).unwrap().len(),
+            0,
+            "battlefield should be empty after bounce"
+        );
+        assert_eq!(
+            game.hand(&p1).expect("hand should exist").len(),
+            initial_hand_size + 1,
+            "hand should have one more card"
+        );
+    }
+
+    #[test]
+    fn return_permanent_to_hand_removes_permanent_state() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let card = CardInstance::new("bear-bounce", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        assert!(game.permanent_state("bear-bounce").is_some());
+
+        game.return_permanent_to_hand("bear-bounce")
+            .expect("return to hand should succeed");
+
+        assert!(
+            game.permanent_state("bear-bounce").is_none(),
+            "permanent state should be cleaned up"
+        );
+    }
+
+    #[test]
+    fn return_permanent_to_hand_unknown_id_returns_error() {
+        let (mut game, _p1, _p2) = make_game_in_first_main();
+        let result = game.return_permanent_to_hand("nonexistent-999");
+        assert!(result.is_err(), "should fail for unknown permanent id");
+    }
 
     #[test]
     fn exile_starts_empty() {

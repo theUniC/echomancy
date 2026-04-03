@@ -117,7 +117,14 @@ impl CardDefinition {
     }
 
     /// Returns `true` if this card has the given subtype (case-insensitive).
+    ///
+    /// CR 702.73: A card with Changeling has all creature types, so this method
+    /// returns `true` for any subtype query if the card has Changeling.
     pub fn has_subtype(&self, subtype: &str) -> bool {
+        // CR 702.73: Changeling means this card has all creature types.
+        if self.has_static_ability(crate::domain::enums::StaticAbility::Changeling) {
+            return true;
+        }
         self.subtypes.iter().any(|s| s.eq_ignore_ascii_case(subtype))
     }
 
@@ -219,7 +226,13 @@ impl CardDefinition {
     /// A card's color identity is determined by the colored mana symbols in its
     /// cost. Cards with no colored mana (e.g. Sol Ring {1}) are colorless.
     /// Lands have no mana cost and are colorless.
+    ///
+    /// CR 702.114: A card with Devoid is colorless regardless of its mana cost.
     pub fn colors(&self) -> Vec<ManaColor> {
+        // CR 702.114: Devoid overrides color from mana cost.
+        if self.has_static_ability(crate::domain::enums::StaticAbility::Devoid) {
+            return Vec::new();
+        }
         let Some(cost) = &self.mana_cost else {
             return Vec::new();
         };
@@ -233,6 +246,8 @@ impl CardDefinition {
     }
 
     /// Returns `true` if this card is colorless (no colored mana in cost).
+    ///
+    /// CR 702.114: A card with Devoid is always colorless.
     pub fn is_colorless(&self) -> bool {
         self.colors().is_empty()
     }
@@ -555,5 +570,40 @@ mod tests {
         assert!(card.has_subtype("Human"));
         assert!(card.has_subtype("Soldier"));
         assert!(!card.has_subtype("Elf"));
+    }
+
+    // ---- Changeling (CR 702.73) --------------------------------------------
+
+    #[test]
+    fn changeling_has_all_subtypes() {
+        let card = CardDefinition::new("shapeshifter", "Shapeshifter", vec![CardType::Creature])
+            .with_power_toughness(1, 1)
+            .with_static_ability(StaticAbility::Changeling);
+        // Changeling means it has ALL creature types
+        assert!(card.has_subtype("Elf"), "Changeling should have Elf subtype");
+        assert!(card.has_subtype("Wizard"), "Changeling should have Wizard subtype");
+        assert!(card.has_subtype("Dragon"), "Changeling should have Dragon subtype");
+        assert!(card.has_subtype("Human"), "Changeling should have Human subtype");
+    }
+
+    // ---- Devoid (CR 702.114) -----------------------------------------------
+
+    #[test]
+    fn devoid_card_is_colorless_despite_colored_mana_cost() {
+        let card = CardDefinition::new("eldrazi", "Eldrazi", vec![CardType::Creature])
+            .with_mana_cost(ManaCost::parse("1R").unwrap())
+            .with_power_toughness(2, 2)
+            .with_static_ability(StaticAbility::Devoid);
+        assert!(card.is_colorless(), "Devoid card should be colorless");
+        assert!(card.colors().is_empty(), "Devoid card should have no colors");
+    }
+
+    #[test]
+    fn non_devoid_red_card_has_red_color() {
+        let card = CardDefinition::new("goblin", "Goblin", vec![CardType::Creature])
+            .with_mana_cost(ManaCost::parse("R").unwrap())
+            .with_power_toughness(1, 1);
+        assert!(!card.is_colorless());
+        assert!(card.colors().contains(&ManaColor::Red));
     }
 }

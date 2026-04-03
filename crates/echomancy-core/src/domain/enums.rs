@@ -111,6 +111,20 @@ pub enum StaticAbility {
     MustAttack,
     /// CR 702.110 — this creature can't be blocked except by two or more creatures.
     Menace,
+    /// CR 702.3 — this creature can't attack.
+    Defender,
+    /// CR 702.73 — this creature has all creature types.
+    Changeling,
+    /// CR 702.114 — this card is colorless regardless of its mana cost.
+    Devoid,
+    /// CR 702.36 — can't be blocked except by artifact creatures and/or black creatures.
+    Fear,
+    /// CR 702.118 — can't be blocked by creatures with greater power.
+    Skulk,
+    /// CR 702.28 — can only block or be blocked by creatures with shadow.
+    Shadow,
+    /// CR 702.31 — can't be blocked except by creatures with horsemanship.
+    Horsemanship,
 }
 
 impl fmt::Display for StaticAbility {
@@ -135,6 +149,13 @@ impl fmt::Display for StaticAbility {
             StaticAbility::CannotBlock => "CANNOT_BLOCK",
             StaticAbility::MustAttack => "MUST_ATTACK",
             StaticAbility::Menace => "MENACE",
+            StaticAbility::Defender => "DEFENDER",
+            StaticAbility::Changeling => "CHANGELING",
+            StaticAbility::Devoid => "DEVOID",
+            StaticAbility::Fear => "FEAR",
+            StaticAbility::Skulk => "SKULK",
+            StaticAbility::Shadow => "SHADOW",
+            StaticAbility::Horsemanship => "HORSEMANSHIP",
         };
         write!(f, "{s}")
     }
@@ -327,6 +348,13 @@ mod tests {
         assert_eq!(StaticAbility::Trample.to_string(), "TRAMPLE");
         assert_eq!(StaticAbility::Deathtouch.to_string(), "DEATHTOUCH");
         assert_eq!(StaticAbility::Lifelink.to_string(), "LIFELINK");
+        assert_eq!(StaticAbility::Defender.to_string(), "DEFENDER");
+        assert_eq!(StaticAbility::Changeling.to_string(), "CHANGELING");
+        assert_eq!(StaticAbility::Devoid.to_string(), "DEVOID");
+        assert_eq!(StaticAbility::Fear.to_string(), "FEAR");
+        assert_eq!(StaticAbility::Skulk.to_string(), "SKULK");
+        assert_eq!(StaticAbility::Shadow.to_string(), "SHADOW");
+        assert_eq!(StaticAbility::Horsemanship.to_string(), "HORSEMANSHIP");
     }
 
     #[test]

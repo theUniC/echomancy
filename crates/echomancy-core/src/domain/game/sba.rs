@@ -80,6 +80,31 @@ impl Game {
                 }
             }
 
+            // 3. CR 704.5q: Counter annihilation — if a permanent has both
+            //    +1/+1 and -1/-1 counters, remove one of each for each pair.
+            let counter_annihilation_ids: Vec<String> = self
+                .permanent_states
+                .iter()
+                .filter(|(_, s)| {
+                    s.get_counters("PLUS_ONE_PLUS_ONE") > 0
+                        && s.get_counters("MINUS_ONE_MINUS_ONE") > 0
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+
+            for perm_id in &counter_annihilation_ids {
+                if let Some(state) = self.permanent_states.get(perm_id).cloned() {
+                    let plus = state.get_counters("PLUS_ONE_PLUS_ONE");
+                    let minus = state.get_counters("MINUS_ONE_MINUS_ONE");
+                    let pairs = plus.min(minus);
+                    let new_state = state
+                        .remove_counters("PLUS_ONE_PLUS_ONE", pairs)
+                        .remove_counters("MINUS_ONE_MINUS_ONE", pairs);
+                    self.permanent_states.insert(perm_id.clone(), new_state);
+                    any_action = true;
+                }
+            }
+
             if !any_action {
                 stabilized = true;
                 break;
@@ -96,6 +121,14 @@ impl Game {
         }
 
         // 2. Check player loss conditions (outside the loop — game-ending)
+        // CR 704.5c: player with 10 or more poison counters loses.
+        let losers_by_poison: Vec<String> = self
+            .players
+            .iter()
+            .filter(|p| p.poison_counters >= 10)
+            .map(|p| p.player_id.as_str().to_owned())
+            .collect();
+
         let player_entries: Vec<(String, i32, bool)> = self
             .players
             .iter()
@@ -128,10 +161,13 @@ impl Game {
             .iter()
             .map(String::as_str)
             .chain(losers_by_library.iter().map(String::as_str))
+            .chain(losers_by_poison.iter().map(String::as_str))
             .collect();
 
         if !all_losers.is_empty() {
-            let reason = if !losers_by_life.is_empty() && !losers_by_library.is_empty() {
+            let reason = if !losers_by_poison.is_empty() {
+                GameEndReason::PoisonCounters
+            } else if !losers_by_life.is_empty() && !losers_by_library.is_empty() {
                 GameEndReason::SimultaneousLoss
             } else if !losers_by_life.is_empty() {
                 GameEndReason::LifeTotal
@@ -200,6 +236,99 @@ mod tests {
     use crate::domain::cards::card_instance::CardInstance;
     use crate::domain::enums::CardType;
     use crate::domain::game::test_helpers::{add_permanent_to_battlefield, make_game_in_first_main};
+
+    // ---- Poison counters (CR 704.5c) ---------------------------------------
+
+    #[test]
+    fn player_with_ten_poison_counters_loses() {
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        game.add_poison_counters(&p1, 10).expect("should add poison counters");
+        game.perform_state_based_actions();
+
+        let outcome = game.outcome();
+        assert!(outcome.is_some(), "game should be over");
+        use crate::domain::game::{GameEndReason, GameOutcome};
+        match outcome.unwrap() {
+            GameOutcome::Win { winner_id, reason } => {
+                assert_eq!(winner_id.as_str(), p2, "opponent should win");
+                assert_eq!(*reason, GameEndReason::PoisonCounters);
+            }
+            _ => panic!("expected Win outcome"),
+        }
+    }
+
+    #[test]
+    fn player_with_nine_poison_counters_survives() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        game.add_poison_counters(&p1, 9).expect("should add 9 poison counters");
+        game.perform_state_based_actions();
+
+        assert!(game.outcome().is_none(), "9 poison counters should not end the game");
+    }
+
+    // ---- Counter annihilation (CR 704.5q) ----------------------------------
+
+    #[test]
+    fn counter_annihilation_removes_pairs_of_plus_and_minus() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let card = CardInstance::new("bear-counters", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        // Add 3 +1/+1 counters and 2 -1/-1 counters
+        {
+            let state = game.permanent_state("bear-counters").unwrap().clone();
+            let new_state = state
+                .add_counters("PLUS_ONE_PLUS_ONE", 3)
+                .add_counters("MINUS_ONE_MINUS_ONE", 2);
+            game.set_permanent_state("bear-counters", new_state);
+        }
+
+        game.perform_state_based_actions();
+
+        // Should remove 2 pairs — 1 +1/+1 counter remains, 0 -1/-1 counters
+        let state = game.permanent_state("bear-counters").unwrap();
+        assert_eq!(state.get_counters("PLUS_ONE_PLUS_ONE"), 1);
+        assert_eq!(state.get_counters("MINUS_ONE_MINUS_ONE"), 0);
+    }
+
+    #[test]
+    fn counter_annihilation_removes_all_when_equal_counts() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let card = CardInstance::new("bear-eq", def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, card);
+
+        // Add 2 +1/+1 counters and 2 -1/-1 counters
+        {
+            let state = game.permanent_state("bear-eq").unwrap().clone();
+            let new_state = state
+                .add_counters("PLUS_ONE_PLUS_ONE", 2)
+                .add_counters("MINUS_ONE_MINUS_ONE", 2);
+            game.set_permanent_state("bear-eq", new_state);
+        }
+
+        game.perform_state_based_actions();
+
+        // All pairs removed — both counters at 0
+        let state = game.permanent_state("bear-eq").unwrap();
+        assert_eq!(state.get_counters("PLUS_ONE_PLUS_ONE"), 0);
+        assert_eq!(state.get_counters("MINUS_ONE_MINUS_ONE"), 0);
+    }
 
     #[test]
     fn legend_rule_removes_duplicate_legendary_permanent() {

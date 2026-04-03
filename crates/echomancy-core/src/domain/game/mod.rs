@@ -68,6 +68,8 @@ pub enum GameEndReason {
     SimultaneousLoss,
     /// CR 104.4b — infinite SBA loop (e.g. indestructible + lethal damage cycling).
     InfiniteLoop,
+    /// CR 704.5c — player accumulated 10 or more poison counters.
+    PoisonCounters,
 }
 
 /// The winner/draw result when a game finishes.
@@ -114,6 +116,8 @@ pub(crate) struct GamePlayerState {
     pub(crate) exile: Vec<CardInstance>,
     /// The player's current mana pool.
     pub(crate) mana_pool: ManaPool,
+    /// Poison counters on this player (CR 704.5c: 10+ = loss).
+    pub(crate) poison_counters: u32,
 }
 
 impl GamePlayerState {
@@ -128,6 +132,7 @@ impl GamePlayerState {
             library: Vec::new(),
             exile: Vec::new(),
             mana_pool: ManaPool::empty(),
+            poison_counters: 0,
         }
     }
 }
@@ -579,6 +584,32 @@ impl Game {
         Ok(())
     }
 
+    /// Add `amount` poison counters to a player (CR 704.5c).
+    ///
+    /// The SBA check will end the game if the player reaches 10 or more.
+    ///
+    /// # Errors
+    ///
+    /// Returns `GameError::PlayerNotFound` if `player_id` is unknown.
+    pub fn add_poison_counters(
+        &mut self,
+        player_id: &str,
+        amount: u32,
+    ) -> Result<(), GameError> {
+        let player = self.player_state_mut(player_id)?;
+        player.poison_counters += amount;
+        Ok(())
+    }
+
+    /// Returns the number of poison counters on a player.
+    ///
+    /// # Errors
+    ///
+    /// Returns `GameError::PlayerNotFound` if `player_id` is unknown.
+    pub fn player_poison_counters(&self, player_id: &str) -> Result<u32, GameError> {
+        self.player_state(player_id).map(|p| p.poison_counters)
+    }
+
     /// Scry N — look at the top N cards and put any number on the bottom
     /// of the library in any order, and the rest on top in any order.
     ///
@@ -674,6 +705,63 @@ impl Game {
         let n = amount.min(player.library.len());
         for _ in 0..n {
             let card = player.library.remove(0);
+            player.graveyard.push(card);
+        }
+    }
+
+    /// Surveil N — look at the top N cards, move chosen ones to graveyard (CR 701.37).
+    ///
+    /// MVP: auto-surveil sends all looked-at cards to the graveyard.
+    pub(crate) fn surveil(&mut self, player_id: &str, amount: usize) {
+        let top_ids: Vec<String> = self
+            .player_state(player_id)
+            .map(|p| {
+                let n = amount.min(p.library.len());
+                p.library.iter().take(n).map(|c| c.instance_id().to_owned()).collect()
+            })
+            .unwrap_or_default();
+        self.surveil_with_choices(player_id, amount, &top_ids.iter().map(String::as_str).collect::<Vec<_>>());
+    }
+
+    /// Surveil with explicit choices of which cards go to the graveyard.
+    ///
+    /// Cards not in `to_graveyard_ids` stay on top of the library in their
+    /// original relative order.
+    pub(crate) fn surveil_with_choices(
+        &mut self,
+        player_id: &str,
+        amount: usize,
+        to_graveyard_ids: &[&str],
+    ) {
+        let Ok(player) = self.player_state_mut(player_id) else {
+            return;
+        };
+
+        let n = amount.min(player.library.len());
+        if n == 0 {
+            return;
+        }
+
+        // Take the top N cards.
+        let top_n: Vec<CardInstance> = player.library.drain(..n).collect();
+
+        // Split into keep-on-top and go-to-graveyard.
+        let mut on_top = Vec::new();
+        let mut to_gy = Vec::new();
+        for card in top_n {
+            if to_graveyard_ids.contains(&card.instance_id()) {
+                to_gy.push(card);
+            } else {
+                on_top.push(card);
+            }
+        }
+
+        // Re-insert: top cards go back to front of library.
+        for (i, card) in on_top.into_iter().enumerate() {
+            player.library.insert(i, card);
+        }
+        // Surveiled-to-gy cards go to the graveyard.
+        for card in to_gy {
             player.graveyard.push(card);
         }
     }
@@ -1366,6 +1454,66 @@ mod tests {
 
         assert_eq!(game.hand(&p1).unwrap().len(), 0);
         assert_eq!(game.graveyard(&p1).unwrap().len(), 1);
+    }
+
+    // ---- Surveil (CR 701.37) -----------------------------------------------
+
+    #[test]
+    fn surveil_sends_all_to_graveyard_by_default() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        for i in 0..3 {
+            let card = CardInstance::new(
+                format!("card-{i}"),
+                CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+                &p1,
+            );
+            game.add_card_to_library_top(&p1, card).unwrap();
+        }
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 0);
+
+        game.surveil(&p1, 2);
+
+        assert_eq!(game.library_count(&p1).unwrap(), 1, "2 surveiled cards should leave library");
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 2, "2 cards should go to graveyard");
+    }
+
+    #[test]
+    fn surveil_with_choices_keeps_selected_on_top() {
+        use crate::domain::cards::card_definition::CardDefinition;
+        use crate::domain::cards::card_instance::CardInstance;
+        use crate::domain::enums::CardType;
+
+        let (mut game, p1, _p2) = make_started_game();
+        // Library (top to bottom): card-0, card-1, card-2
+        for i in (0..3).rev() {
+            let card = CardInstance::new(
+                format!("card-{i}"),
+                CardDefinition::new("forest", "Forest", vec![CardType::Land]),
+                &p1,
+            );
+            game.add_card_to_library_top(&p1, card).unwrap();
+        }
+
+        // Surveil 2: send card-1 to graveyard, keep card-0 on top
+        game.surveil_with_choices(&p1, 2, &["card-1"]);
+
+        assert_eq!(game.library_count(&p1).unwrap(), 2, "card-0 stays, card-2 untouched");
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 1);
+        assert_eq!(game.graveyard(&p1).unwrap()[0].instance_id(), "card-1");
+        // card-0 should remain on top
+        let player = game.player_state(&p1).unwrap();
+        assert_eq!(player.library[0].instance_id(), "card-0");
+    }
+
+    #[test]
+    fn surveil_zero_is_noop() {
+        let (mut game, p1, _p2) = make_started_game();
+        game.surveil(&p1, 0);
+        assert_eq!(game.graveyard(&p1).unwrap().len(), 0);
     }
 
     // ---- Token creation (CR 111) -------------------------------------------
