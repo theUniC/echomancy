@@ -320,12 +320,84 @@ Like Scry but cards go to graveyard instead of library bottom.
 
 ---
 
+### P10.17 — Treasure tokens
+
+- [x] Verified by unit tests (`cargo test -- treasure`)
+
+`RulesAction::CreateTreasure` creates an Artifact — Treasure token on the battlefield.
+
+---
+
+### P10.15 — Clue tokens (Investigate)
+
+- [x] Verified by unit tests (`cargo test -- clue`)
+
+`RulesAction::Investigate` creates an Artifact — Clue token on the battlefield.
+
+---
+
+### P10.16 — Food tokens
+
+- [x] Verified by unit tests (`cargo test -- food`)
+
+`RulesAction::CreateFood` creates an Artifact — Food token on the battlefield.
+
+---
+
+### P10.12 — Fight mechanic
+
+- [x] Verified by unit tests (`cargo test -- fight`)
+
+Each creature deals damage equal to its power to the other. SBA checked after.
+
+---
+
+### P15.6 — Bolster N
+
+- [x] Verified by unit tests (`cargo test -- bolster`)
+
+Put N +1/+1 counters on the creature you control with the least toughness.
+
+---
+
+### P15.7 — Adapt N
+
+- [x] Verified by unit tests (`cargo test -- adapt`)
+
+If creature has no +1/+1 counters, put N. Otherwise no-op.
+
+---
+
+### K11.14 — Toxic N
+
+- [x] Verified by unit tests (`cargo test -- toxic`)
+
+When a creature with Toxic N deals combat damage to a player, that player gets N poison counters.
+
+---
+
+### P12.15 — Kindred card type
+
+- [x] Verified by unit tests (`cargo test -- kindred`)
+
+`CardType::Kindred` added. Kindred cards have creature subtypes without being creatures.
+
+---
+
+### MA5 — Snow supertype
+
+- [x] Verified by unit tests (`cargo test -- snow`)
+
+`is_snow` flag on CardDefinition. Snow mana payment logic not yet implemented.
+
+---
+
 ## Quick unit test verification
 
 Run all unit tests for features without showcase cards:
 
 ```bash
-cargo test -- shroud changeling devoid fear skulk shadow horsemanship defender scry mill discard sba token poison surveil counter_annihilation return_permanent_to_hand
+cargo test -- shroud changeling devoid fear skulk shadow horsemanship defender scry mill discard sba token poison surveil counter_annihilation return_permanent_to_hand treasure clue food fight bolster adapt toxic kindred snow
 ```
 
 ---
