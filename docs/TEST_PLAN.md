@@ -62,7 +62,7 @@ Hover over any card to see its oracle text and mana cost in the detail panel.
 
 ### K5 — Shroud (unit tested only)
 
-- [ ] Verified by unit tests (`cargo test -- shroud`)
+- [x] Verified by unit tests (`cargo test -- shroud`)
 
 Shroud is implemented alongside Hexproof but no card in the decks uses it.
 
@@ -101,9 +101,9 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 - On your next turn it untaps normally and can produce {G}.
 
 **Verification**:
-- [ ] Land appears rotated immediately after playing it.
-- [ ] Cannot activate mana ability the turn it enters.
-- [ ] Untaps and works normally next turn.
+- [x] Land appears rotated immediately after playing it.
+- [x] Cannot activate mana ability the turn it enters.
+- [x] Untaps and works normally next turn.
 
 ---
 
@@ -223,7 +223,7 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 
 ### R9 — Tokens (unit tested only)
 
-- [ ] Verified by unit tests (`cargo test -- token`)
+- [x] Verified by unit tests (`cargo test -- token`)
 
 No card in the decks creates tokens. Feature verified at domain level.
 
