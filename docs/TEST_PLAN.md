@@ -30,11 +30,6 @@ Hover over any card to see its oracle text and mana cost in the detail panel.
 2. Cast Ancient Guardian from hand.
 3. Let the bot (P2) attack with Goblins or shoot it with Lightning Strike.
 
-**Expected behavior**:
-- Ancient Guardian survives Lightning Strike (3 damage does not destroy it).
-- Ancient Guardian survives lethal combat damage without being destroyed.
-- It remains on the battlefield after any "destroy" effect.
-
 **Verification**:
 - [ ] The creature stays on your battlefield regardless of damage taken.
 - [ ] Hover panel shows "Indestructible" in oracle text.
@@ -48,11 +43,6 @@ Hover over any card to see its oracle text and mana cost in the detail panel.
 **Steps**:
 1. Play 2 Forests and cast Oakshield Troll.
 2. Wait for P2's bot to cast Lightning Strike.
-3. Observe the targeting phase.
-
-**Expected behavior**:
-- P2's Lightning Strike cannot target Oakshield Troll.
-- The spell is forced to target another legal target (a different creature or P1 directly).
 
 **Verification**:
 - [ ] Lightning Strike never lands on Oakshield Troll.
@@ -60,11 +50,11 @@ Hover over any card to see its oracle text and mana cost in the detail panel.
 
 ---
 
-### K5 — Shroud (unit tested only)
+### K5 — Shroud
 
 - [x] Verified by unit tests (`cargo test -- shroud`)
 
-Shroud is implemented alongside Hexproof but no card in the decks uses it.
+No card in the decks uses Shroud. Implemented alongside Hexproof.
 
 ---
 
@@ -75,11 +65,6 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 **Steps**:
 1. Watch P2's bot play Frozen Sentinel.
 2. Observe the untap step at the start of P2's next turn.
-
-**Expected behavior**:
-- All other P2 permanents untap normally.
-- Frozen Sentinel remains tapped after P2's untap step.
-- It stays tapped for the rest of the game (it has Haste so it attacks once, then stays tapped).
 
 **Verification**:
 - [ ] Frozen Sentinel stays rotated (tapped) after P2's untap step.
@@ -95,11 +80,6 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 **Steps**:
 1. Play Thornwood Tapland from hand during your main phase.
 
-**Expected behavior**:
-- The land enters the battlefield already tapped (rotated).
-- You cannot tap it for mana on the same turn it was played.
-- On your next turn it untaps normally and can produce {G}.
-
 **Verification**:
 - [x] Land appears rotated immediately after playing it.
 - [x] Cannot activate mana ability the turn it enters.
@@ -107,17 +87,13 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 
 ---
 
-### K9 — CannotAttack
+### K9 — CannotAttack / Defender
 
 **Card**: Ironbark Wall (0/4 Creature — Plant Wall, {G}) — in the Green deck (P1)
 
 **Steps**:
 1. Play 1 Forest and cast Ironbark Wall.
 2. On your next turn, try to declare Ironbark Wall as an attacker.
-
-**Expected behavior**:
-- Ironbark Wall cannot be selected as an attacker.
-- It can still block normally.
 
 **Verification**:
 - [ ] Ironbark Wall is never highlighted as a possible attacker.
@@ -134,10 +110,6 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 1. Watch P2's bot play Reckless Berserker.
 2. Observe combat when P2 has it on the battlefield.
 
-**Expected behavior**:
-- Reckless Berserker attacks every combat if able.
-- The bot always declares it as an attacker.
-
 **Verification**:
 - [ ] Reckless Berserker attacks every turn it is untapped.
 - [ ] Hover shows "This creature attacks each combat if able."
@@ -152,14 +124,66 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 1. Allow Reckless Berserker to attack.
 2. Attempt to block it with only one creature.
 
-**Expected behavior**:
-- Blocking with only one creature is effectively ignored — the attacker hits you as if unblocked.
-- You need at least two blockers to actually block it.
-
 **Verification**:
 - [ ] Single blocker does not prevent damage to player.
 - [ ] Two blockers successfully block Reckless Berserker.
 - [ ] Hover shows "Menace" in the abilities.
+
+---
+
+### K11.1 — Defender
+
+- [x] Verified by unit tests (`cargo test -- defender`)
+
+Defender is the official keyword for CannotAttack. Ironbark Wall uses CannotAttack directly; both are checked in combat validation.
+
+---
+
+### K11.32 — Changeling
+
+- [x] Verified by unit tests (`cargo test -- changeling`)
+
+A creature with Changeling has all creature types. `has_subtype()` returns true for any query. No showcase card in decks.
+
+---
+
+### K11.33 — Devoid
+
+- [x] Verified by unit tests (`cargo test -- devoid`)
+
+A card with Devoid is colorless regardless of mana cost. `colors()` returns empty. No showcase card in decks.
+
+---
+
+### K11.5 — Fear
+
+- [x] Verified by unit tests (`cargo test -- fear`)
+
+Can't be blocked except by artifact creatures and/or black creatures. No showcase card in decks.
+
+---
+
+### K11.7 — Skulk
+
+- [x] Verified by unit tests (`cargo test -- skulk`)
+
+Can't be blocked by creatures with greater power. No showcase card in decks.
+
+---
+
+### K11.8 — Shadow
+
+- [x] Verified by unit tests (`cargo test -- shadow`)
+
+Can only block or be blocked by creatures with Shadow. No showcase card in decks.
+
+---
+
+### K11.9 — Horsemanship
+
+- [x] Verified by unit tests (`cargo test -- horsemanship`)
+
+Like Flying but only Horsemanship blocks Horsemanship. No showcase card in decks.
 
 ---
 
@@ -169,10 +193,6 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 
 **Steps**:
 1. Hover over any creature on the battlefield or in hand.
-
-**Expected behavior**:
-- Type line shows subtypes with em-dash separator: "Creature — Bear", "Creature — Troll", etc.
-- Lands show "Land — Forest", "Land — Mountain".
 
 **Verification**:
 - [x] Bear shows "Creature — Bear"
@@ -191,10 +211,6 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 1. Cast Thalia, Forest Keeper.
 2. If you draw a second copy, cast it too.
 
-**Expected behavior**:
-- First Thalia enters normally.
-- When the second Thalia enters, the Legend rule (CR 704.5j) triggers as SBA: the duplicate goes to graveyard (oldest kept).
-
 **Verification**:
 - [ ] First Thalia enters and stays on battlefield.
 - [ ] Second Thalia causes one to go to graveyard (only 1 Thalia remains).
@@ -210,10 +226,6 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 1. Cast Sol Ring (costs {1}).
 2. Tap it for mana: click Sol Ring on battlefield.
 
-**Expected behavior**:
-- Tapping Sol Ring adds 2 colorless mana to your mana pool.
-- The mana pool counter in the HUD increases.
-
 **Verification**:
 - [ ] Sol Ring taps and adds {C}{C} to mana pool.
 - [ ] HUD mana pool reflects the added mana.
@@ -221,7 +233,7 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 
 ---
 
-### R9 — Tokens (unit tested only)
+### R9 — Tokens
 
 - [x] Verified by unit tests (`cargo test -- token`)
 
@@ -237,10 +249,6 @@ No card in the decks creates tokens. Feature verified at domain level.
 1. Cast Wild Bounty.
 2. Watch the stack as it resolves.
 
-**Expected behavior**:
-- When Wild Bounty enters the battlefield, an ETB triggered ability goes on the stack.
-- After the triggered ability resolves, P1 draws a card.
-
 **Verification**:
 - [ ] Stack panel shows the triggered ability after Wild Bounty enters.
 - [ ] Hand size increases by 1 after the trigger resolves.
@@ -248,25 +256,65 @@ No card in the decks creates tokens. Feature verified at domain level.
 
 ---
 
-### MM1 — Scry (unit tested only)
+### P10.1 — Poison counters
+
+- [x] Verified by unit tests (`cargo test -- poison`)
+
+Player with 10+ poison counters loses. No card in decks inflicts poison (needs Toxic/Infect).
+
+---
+
+### P10.2 — -1/-1 counters
+
+- [x] Verified by unit tests (`cargo test -- minus_one`)
+
+-1/-1 counters reduce P/T. Counter annihilation SBA removes +1/+1 and -1/-1 pairs.
+
+---
+
+### P10.6 — Counter annihilation SBA
+
+- [x] Verified by unit tests (`cargo test -- counter_annihilation`)
+
+When a permanent has both +1/+1 and -1/-1 counters, pairs are removed as SBA.
+
+---
+
+### P10.10 — Bounce (Return to Hand)
+
+- [x] Verified by unit tests (`cargo test -- return_permanent_to_hand`)
+
+`RulesAction::ReturnToHand` moves a permanent from battlefield to owner's hand.
+
+---
+
+### P15.1 — Surveil
+
+- [x] Verified by unit tests (`cargo test -- surveil`)
+
+Like Scry but cards go to graveyard instead of library bottom.
+
+---
+
+### MM1 — Scry
 
 - [x] Verified by unit tests (`cargo test -- scry`)
 
 ---
 
-### MM2 — Mill (unit tested only)
+### MM2 — Mill
 
 - [x] Verified by unit tests (`cargo test -- mill`)
 
 ---
 
-### MM3 — Discard (unit tested only)
+### MM3 — Discard
 
 - [x] Verified by unit tests (`cargo test -- discard`)
 
 ---
 
-### C5b — SBA infinite loop declares draw (unit tested only)
+### C5b — SBA infinite loop declares draw
 
 - [x] Verified by unit tests (`cargo test -- sba`)
 
@@ -277,7 +325,7 @@ No card in the decks creates tokens. Feature verified at domain level.
 Run all unit tests for features without showcase cards:
 
 ```bash
-cargo test -- shroud scry mill discard sba token
+cargo test -- shroud changeling devoid fear skulk shadow horsemanship defender scry mill discard sba token poison surveil counter_annihilation return_permanent_to_hand
 ```
 
 ---
@@ -293,7 +341,7 @@ cargo test -- shroud scry mill discard sba token
 | 16 | Bear (2/2) | Vanilla creature |
 | 2 | Oakshield Troll (3/3 Hexproof) | K4 Hexproof |
 | 2 | Ancient Guardian (4/5 Indestructible) | K3 Indestructible |
-| 2 | Ironbark Wall (0/4 CannotAttack) | K9 CannotAttack |
+| 2 | Ironbark Wall (0/4 CannotAttack) | K9 CannotAttack/Defender |
 | 2 | Thalia, Forest Keeper (2/2 Legendary First Strike) | R3 Legendary |
 | 12 | Giant Growth (instant +3/+3) | Combat trick |
 | 4 | Sol Ring (artifact) | R5/R15 Mana ability |
