@@ -175,11 +175,11 @@ Shroud is implemented alongside Hexproof but no card in the decks uses it.
 - Lands show "Land — Forest", "Land — Mountain".
 
 **Verification**:
-- [ ] Bear shows "Creature — Bear"
-- [ ] Goblin shows "Creature — Goblin"
-- [ ] Thalia shows "Creature — Human Druid"
-- [ ] Forest shows "Land — Forest"
-- [ ] Thornwood Tapland shows "Land — Forest"
+- [x] Bear shows "Creature — Bear"
+- [x] Goblin shows "Creature — Goblin"
+- [x] Thalia shows "Creature — Human Druid"
+- [x] Forest shows "Land — Forest"
+- [x] Thornwood Tapland shows "Land — Forest"
 
 ---
 
@@ -250,25 +250,25 @@ No card in the decks creates tokens. Feature verified at domain level.
 
 ### MM1 — Scry (unit tested only)
 
-- [ ] Verified by unit tests (`cargo test -- scry`)
+- [x] Verified by unit tests (`cargo test -- scry`)
 
 ---
 
 ### MM2 — Mill (unit tested only)
 
-- [ ] Verified by unit tests (`cargo test -- mill`)
+- [x] Verified by unit tests (`cargo test -- mill`)
 
 ---
 
 ### MM3 — Discard (unit tested only)
 
-- [ ] Verified by unit tests (`cargo test -- discard`)
+- [x] Verified by unit tests (`cargo test -- discard`)
 
 ---
 
 ### C5b — SBA infinite loop declares draw (unit tested only)
 
-- [ ] Verified by unit tests (`cargo test -- sba`)
+- [x] Verified by unit tests (`cargo test -- sba`)
 
 ---
 
