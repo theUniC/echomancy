@@ -171,6 +171,7 @@ fn cast_creature_auto_resolves_and_player_keeps_turn() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("bear-1"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Bear with {1}{G}");
 
@@ -279,6 +280,7 @@ fn opponent_with_instant_and_mana_gets_priority_window() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("bear-1"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should cast Bear");
 
@@ -407,6 +409,7 @@ fn perspective_follows_priority_holder() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("bear-1"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should cast Bear");
 

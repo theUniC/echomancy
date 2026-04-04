@@ -440,6 +440,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("goblin-test"),
             targets: vec![],
+            x_value: 0,
         }).unwrap();
 
         // Goblin on stack, P1 has priority (CR 117.3c)
@@ -521,6 +522,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("bear-test"),
             targets: vec![],
+            x_value: 0,
         }).unwrap();
 
         // P1 has priority (CR 117.3c), P1 auto-passes (no instants)
@@ -597,6 +599,7 @@ mod tests {
             player_id: PlayerId::new(&p2),
             card_id: CardInstanceId::new("goblin-test"),
             targets: vec![],
+            x_value: 0,
         })
         .unwrap();
 
@@ -671,6 +674,7 @@ mod tests {
             player_id: PlayerId::new(&p2),
             card_id: CardInstanceId::new("goblin-test"),
             targets: vec![],
+            x_value: 0,
         })
         .unwrap();
 

@@ -43,6 +43,11 @@ pub struct CardDefinition {
     /// that player gets N poison counters. 0 means no Toxic ability.
     #[serde(default, skip_serializing_if = "crate::domain::cards::card_definition::is_zero")]
     toxic: u32,
+    /// CR 702.21 — Ward N: when this permanent becomes the target of a spell or
+    /// ability controlled by an opponent, that player must pay N generic mana or
+    /// the spell/ability is countered. 0 means no Ward ability.
+    #[serde(default, skip_serializing_if = "crate::domain::cards::card_definition::is_zero")]
+    ward_cost: u32,
     /// Subtypes (creature types, land types, etc.) per CR 205.3.
     /// Examples: "Human", "Warrior", "Forest", "Plains", "Equipment".
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -92,6 +97,7 @@ impl CardDefinition {
             is_legendary: false,
             is_snow: false,
             toxic: 0,
+            ward_cost: 0,
             subtypes: Vec::new(),
             mana_cost: None,
             power: None,
@@ -138,6 +144,14 @@ impl CardDefinition {
     /// Returns 0 if the card does not have Toxic.
     pub fn toxic(&self) -> u32 {
         self.toxic
+    }
+
+    /// The Ward cost for this card (CR 702.21).
+    ///
+    /// Returns 0 if the card does not have Ward.
+    /// When non-zero, opponents must pay this many generic mana to target this permanent.
+    pub fn ward_cost(&self) -> u32 {
+        self.ward_cost
     }
 
     /// The card's subtypes (creature types, land types, etc.).
@@ -253,6 +267,13 @@ impl CardDefinition {
         self.types.contains(&CardType::Kindred)
     }
 
+    /// Returns the mana value (converted mana cost) of this card (CR 202.3).
+    ///
+    /// Lands and tokens have no mana cost, so their mana value is 0.
+    pub fn mana_value(&self) -> u32 {
+        self.mana_cost.as_ref().map(|c| c.mana_value()).unwrap_or(0)
+    }
+
     /// Returns `true` if this card has the given static ability.
     pub fn has_static_ability(&self, ability: StaticAbility) -> bool {
         self.static_abilities.contains(&ability)
@@ -316,6 +337,15 @@ impl CardDefinition {
     /// A value of 0 means the card does not have Toxic.
     pub fn with_toxic(mut self, n: u32) -> Self {
         self.toxic = n;
+        self
+    }
+
+    /// Set the Ward cost for this card (CR 702.21).
+    ///
+    /// When an opponent targets this permanent, they must pay `cost` generic mana.
+    /// A value of 0 means the card does not have Ward.
+    pub fn with_ward(mut self, cost: u32) -> Self {
+        self.ward_cost = cost;
         self
     }
 
@@ -683,6 +713,40 @@ mod tests {
         assert!(card.has_subtype("Wizard"), "Changeling should have Wizard subtype");
         assert!(card.has_subtype("Dragon"), "Changeling should have Dragon subtype");
         assert!(card.has_subtype("Human"), "Changeling should have Human subtype");
+    }
+
+    // ---- mana_value (P16.17) -----------------------------------------------
+
+    #[test]
+    fn bear_has_mana_value_two() {
+        // 1G = 2
+        let card = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_mana_cost(ManaCost::parse("1G").unwrap())
+            .with_power_toughness(2, 2);
+        assert_eq!(card.mana_value(), 2);
+    }
+
+    #[test]
+    fn lightning_strike_has_mana_value_two() {
+        // 1R = 2
+        let card = CardDefinition::new("lightning-strike", "Lightning Strike", vec![CardType::Instant])
+            .with_mana_cost(ManaCost::parse("1R").unwrap());
+        assert_eq!(card.mana_value(), 2);
+    }
+
+    #[test]
+    fn sol_ring_has_mana_value_one() {
+        // {1} = 1
+        let card = CardDefinition::new("sol-ring", "Sol Ring", vec![CardType::Artifact])
+            .with_mana_cost(ManaCost::parse("1").unwrap());
+        assert_eq!(card.mana_value(), 1);
+    }
+
+    #[test]
+    fn forest_land_has_mana_value_zero() {
+        // Lands have no mana cost → mana value 0
+        let card = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
+        assert_eq!(card.mana_value(), 0);
     }
 
     // ---- Devoid (CR 702.114) -----------------------------------------------

@@ -959,6 +959,7 @@ pub(crate) fn handle_target_opponent_click(
             player_id: PlayerId::new(&active_player.player_id),
             card_id: CardInstanceId::new(&pending.card_instance_id),
             targets: vec![Target::player(opp_id)],
+            x_value: 0,
         }));
     }
 }

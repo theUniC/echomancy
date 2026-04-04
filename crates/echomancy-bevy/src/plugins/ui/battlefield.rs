@@ -484,6 +484,7 @@ pub(crate) fn handle_valid_target_click(
                 player_id: PlayerId::new(&active_player.player_id),
                 card_id: CardInstanceId::new(&pending.card_instance_id),
                 targets: vec![valid_target.target.clone()],
+                x_value: 0,
             }));
         }
     }

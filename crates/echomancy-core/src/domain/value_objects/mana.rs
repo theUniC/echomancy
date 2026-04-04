@@ -2,6 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::enums::ManaColor;
 
+/// Helper for `#[serde(skip_serializing_if)]` — returns `true` when `n == 0`.
+fn is_zero_u32(n: &u32) -> bool {
+    *n == 0
+}
+
 // ============================================================================
 // ManaPool
 // ============================================================================
@@ -238,6 +243,10 @@ pub struct ManaCost {
     pub green: u32,
     /// Colorless mana — must be paid with colorless specifically.
     pub colorless: u32,
+    /// Number of X symbols in the cost (CR 107.3). Usually 0 or 1; some cards have XX (2).
+    /// X counts as 0 for mana value calculations when not on the stack.
+    #[serde(default, skip_serializing_if = "crate::domain::value_objects::mana::is_zero_u32")]
+    pub x: u32,
 }
 
 impl ManaCost {
@@ -251,6 +260,7 @@ impl ManaCost {
             red: 0,
             green: 0,
             colorless: 0,
+            x: 0,
         }
     }
 
@@ -286,6 +296,8 @@ impl ManaCost {
                     'R' => cost.red += 1,
                     'G' => cost.green += 1,
                     'C' => cost.colorless += 1,
+                    // CR 107.3: X is a variable chosen at cast time; counted separately.
+                    'X' => cost.x += 1,
                     _ => {
                         return Err(format!(
                             "Invalid mana cost format: '{cost_string}'"
@@ -306,6 +318,45 @@ impl ManaCost {
 
     /// Returns the total converted mana cost (CMC).
     pub fn total(&self) -> u32 {
+        self.generic + self.white + self.blue + self.black + self.red + self.green + self.colorless
+    }
+
+    /// Returns `true` if this cost contains at least one X symbol (CR 107.3).
+    pub fn has_x(&self) -> bool {
+        self.x > 0
+    }
+
+    /// Returns the number of X symbols in this cost (0, 1, or 2 for XX).
+    pub fn x_count(&self) -> u32 {
+        self.x
+    }
+
+    /// Returns a new `ManaCost` with X replaced by generic mana for a chosen value.
+    ///
+    /// The chosen `x_value` is multiplied by the number of X symbols and added
+    /// to the generic component. The resulting cost no longer has X symbols.
+    ///
+    /// Example: `"XR".with_x_value(3)` → `ManaCost { generic: 3, red: 1, x: 0, ... }`
+    /// Example: `"XXR".with_x_value(2)` → `ManaCost { generic: 4, red: 1, x: 0, ... }`
+    pub fn with_x_value(&self, x_value: u32) -> ManaCost {
+        ManaCost {
+            generic: self.generic + self.x * x_value,
+            white: self.white,
+            blue: self.blue,
+            black: self.black,
+            red: self.red,
+            green: self.green,
+            colorless: self.colorless,
+            x: 0, // X has been resolved to a concrete value
+        }
+    }
+
+    /// Returns the mana value (converted mana cost) of this cost (CR 202.3).
+    ///
+    /// The mana value is the total amount of mana in the cost, regardless of
+    /// color. For X costs, X is treated as 0 when not on the stack (CR 202.3b).
+    pub fn mana_value(&self) -> u32 {
+        // X does not contribute to mana value (treated as 0).
         self.generic + self.white + self.blue + self.black + self.red + self.green + self.colorless
     }
 
@@ -584,7 +635,7 @@ mod tests {
 
     #[test]
     fn parse_invalid_character_returns_err() {
-        let result = ManaCost::parse("2XU");
+        let result = ManaCost::parse("2YU");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid mana cost format"));
     }
@@ -624,6 +675,95 @@ mod tests {
     fn spend_zero_amount_returns_err() {
         let pool = ManaPool::empty().add(ManaColor::Red, 1).unwrap();
         assert!(pool.spend(ManaColor::Red, 0).is_err());
+    }
+
+    // ---- ManaCost X costs (MA1) --------------------------------------------
+
+    #[test]
+    fn parse_x_r_has_x_and_red() {
+        let cost = ManaCost::parse("XR").unwrap();
+        assert!(cost.has_x());
+        assert_eq!(cost.x_count(), 1);
+        assert_eq!(cost.red, 1);
+        assert_eq!(cost.generic, 0);
+    }
+
+    #[test]
+    fn parse_xx_g_has_two_x_and_green() {
+        let cost = ManaCost::parse("XXG").unwrap();
+        assert!(cost.has_x());
+        assert_eq!(cost.x_count(), 2);
+        assert_eq!(cost.green, 1);
+    }
+
+    #[test]
+    fn parse_no_x_has_x_false() {
+        let cost = ManaCost::parse("2R").unwrap();
+        assert!(!cost.has_x());
+        assert_eq!(cost.x_count(), 0);
+    }
+
+    #[test]
+    fn mana_value_of_x_spell_treats_x_as_zero() {
+        // XR: X=0, R=1 → mana value = 1
+        let cost = ManaCost::parse("XR").unwrap();
+        assert_eq!(cost.mana_value(), 1);
+    }
+
+    #[test]
+    fn with_x_value_expands_x_to_generic() {
+        // XR with x_value=3 → generic=3, red=1
+        let cost = ManaCost::parse("XR").unwrap();
+        let effective = cost.with_x_value(3);
+        assert_eq!(effective.generic, 3);
+        assert_eq!(effective.red, 1);
+        assert_eq!(effective.total(), 4);
+    }
+
+    #[test]
+    fn with_x_value_xx_expands_to_double_generic() {
+        // XXR with x_value=2 → generic=4, red=1
+        let cost = ManaCost::parse("XXR").unwrap();
+        let effective = cost.with_x_value(2);
+        assert_eq!(effective.generic, 4);
+        assert_eq!(effective.red, 1);
+        assert_eq!(effective.total(), 5);
+    }
+
+    #[test]
+    fn with_x_value_zero_leaves_cost_unchanged_for_non_x_spell() {
+        let cost = ManaCost::parse("2R").unwrap();
+        let effective = cost.with_x_value(5); // x_count=0, so no change
+        assert_eq!(effective.generic, 2);
+        assert_eq!(effective.red, 1);
+    }
+
+    // ---- ManaCost::mana_value (P16.17) ------------------------------------
+
+    #[test]
+    fn mana_value_of_bear_is_two() {
+        // 1G = generic 1 + green 1 = 2
+        let cost = ManaCost::parse("1G").unwrap();
+        assert_eq!(cost.mana_value(), 2);
+    }
+
+    #[test]
+    fn mana_value_of_lightning_strike_is_two() {
+        // 1R = generic 1 + red 1 = 2
+        let cost = ManaCost::parse("1R").unwrap();
+        assert_eq!(cost.mana_value(), 2);
+    }
+
+    #[test]
+    fn mana_value_of_sol_ring_is_one() {
+        // {1} = generic 1
+        let cost = ManaCost::parse("1").unwrap();
+        assert_eq!(cost.mana_value(), 1);
+    }
+
+    #[test]
+    fn mana_value_of_zero_cost_is_zero() {
+        assert_eq!(ManaCost::zero().mana_value(), 0);
     }
 
     // ---- ManaCost::to_text -------------------------------------------------
@@ -680,6 +820,7 @@ mod tests {
             red: 1,
             green: 1,
             colorless: 0,
+            x: 0,
         };
         assert_eq!(cost.to_text(), "{1}{W}{U}{B}{R}{G}");
     }

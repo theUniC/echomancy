@@ -291,6 +291,7 @@ pub(crate) fn handle_castable_spell_clicks(
                 player_id: PlayerId::new(&active_player.player_id),
                 card_id: CardInstanceId::new(&castable.instance_id),
                 targets: vec![],
+                x_value: 0,
             }));
         }
     }

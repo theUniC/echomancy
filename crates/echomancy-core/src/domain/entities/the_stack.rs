@@ -22,6 +22,9 @@ pub struct SpellOnStack {
     pub controller_id: String,
     /// Target players or permanents (MVP: usually empty).
     pub targets: Vec<Target>,
+    /// Chosen value of X for spells with X in their mana cost (CR 107.3).
+    /// Defaults to 0 for non-X spells.
+    pub x_value: u32,
 }
 
 /// Distinguishes how an ability was placed on the stack.
@@ -177,6 +180,7 @@ mod tests {
             card: make_creature(&format!("card-{controller_id}"), controller_id),
             controller_id: controller_id.to_owned(),
             targets: Vec::new(),
+            x_value: 0,
         })
     }
 

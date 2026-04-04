@@ -44,6 +44,10 @@ pub enum Action {
         /// still deserialize correctly (backward compatibility).
         #[serde(default)]
         targets: Vec<Target>,
+        /// Chosen value of X for spells with X in their mana cost (CR 107.3).
+        /// Defaults to 0 for backward compatibility and non-X spells.
+        #[serde(default, rename = "xValue")]
+        x_value: u32,
     },
 
     /// Pass priority to the next player.
@@ -151,6 +155,7 @@ mod tests {
             player_id: PlayerId::new("player-1"),
             card_id: CardInstanceId::new("card-abc"),
             targets: vec![],
+            x_value: 0,
         };
         let json = serde_json::to_string(&action).unwrap();
         let decoded: Action = serde_json::from_str(&json).unwrap();
@@ -164,6 +169,7 @@ mod tests {
             player_id: PlayerId::new("player-1"),
             card_id: CardInstanceId::new("card-abc"),
             targets: vec![Target::player("player-2")],
+            x_value: 0,
         };
         let json = serde_json::to_string(&action).unwrap();
         let decoded: Action = serde_json::from_str(&json).unwrap();
@@ -177,6 +183,7 @@ mod tests {
             player_id: PlayerId::new("player-1"),
             card_id: CardInstanceId::new("card-abc"),
             targets: vec![Target::creature("perm-42")],
+            x_value: 0,
         };
         let json = serde_json::to_string(&action).unwrap();
         let decoded: Action = serde_json::from_str(&json).unwrap();
@@ -195,6 +202,36 @@ mod tests {
                 player_id: PlayerId::new("p1"),
                 card_id: CardInstanceId::new("c1"),
                 targets: vec![],
+                x_value: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn cast_spell_x_value_serde_roundtrip() {
+        let action = Action::CastSpell {
+            player_id: PlayerId::new("player-1"),
+            card_id: CardInstanceId::new("fireball"),
+            targets: vec![],
+            x_value: 5,
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        let decoded: Action = serde_json::from_str(&json).unwrap();
+        assert_eq!(action, decoded);
+    }
+
+    #[test]
+    fn cast_spell_old_json_without_x_value_deserializes_to_zero() {
+        // Backward compatibility: JSON without xValue field defaults to 0.
+        let old_json = r#"{"type":"CAST_SPELL","playerId":"p1","cardId":"c1","targets":[]}"#;
+        let decoded: Action = serde_json::from_str(old_json).unwrap();
+        assert_eq!(
+            decoded,
+            Action::CastSpell {
+                player_id: PlayerId::new("p1"),
+                card_id: CardInstanceId::new("c1"),
+                targets: vec![],
+                x_value: 0,
             }
         );
     }

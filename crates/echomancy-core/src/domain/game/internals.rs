@@ -162,20 +162,29 @@ impl Game {
         }
     }
 
-    /// Pay the mana cost for a spell.
+    /// Pay the mana cost for a spell, resolving X to the chosen value (CR 107.3).
     ///
-    /// Uses the auto-pay algorithm from `ManaPaymentService`.
+    /// If the spell has X in its cost, the effective cost is computed by replacing
+    /// each X with `x_value` generic mana before payment.
     ///
     /// # Errors
     ///
     /// Returns `GameError::InsufficientManaForSpell` if the cost cannot be paid.
-    pub(crate) fn pay_mana_cost_for_spell(
+    pub(crate) fn pay_mana_cost_for_spell_with_x(
         &mut self,
         player_id: &str,
         card: &CardInstance,
+        x_value: u32,
     ) -> Result<(), GameError> {
         let mana_cost = match card.definition().mana_cost() {
-            Some(cost) => cost.clone(),
+            Some(cost) => {
+                // Resolve X to a concrete generic cost for payment.
+                if cost.has_x() {
+                    cost.with_x_value(x_value)
+                } else {
+                    cost.clone()
+                }
+            }
             None => return Ok(()), // Free spell
         };
 

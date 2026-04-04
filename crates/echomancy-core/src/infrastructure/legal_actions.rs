@@ -875,6 +875,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: crate::domain::types::CardInstanceId::new("bear-1"),
             targets: vec![],
+            x_value: 0,
         })
         .unwrap();
 
@@ -943,6 +944,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: crate::domain::types::CardInstanceId::new("bear-1"),
             targets: vec![],
+            x_value: 0,
         })
         .unwrap();
 

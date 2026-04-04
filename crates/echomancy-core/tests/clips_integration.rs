@@ -111,6 +111,7 @@ fn lightning_strike_kills_creature() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("strike-1"),
         targets: vec![Target::creature("bear-1")],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Lightning Strike targeting a creature");
 
@@ -168,6 +169,7 @@ fn lightning_strike_damages_player() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("strike-2"),
         targets: vec![Target::player(&p2)],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Lightning Strike targeting a player");
 
@@ -223,6 +225,7 @@ fn divination_draws_two_cards() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("div-1"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Divination");
 
@@ -273,6 +276,7 @@ fn vanilla_creature_resolves_to_battlefield() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("bear-cast-1"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should be able to cast a Bear");
 
@@ -330,6 +334,7 @@ fn spell_without_clips_rule_is_noop() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("bear-target"),
         targets: vec![],
+        x_value: 0,
     }).unwrap();
     auto_resolve_stack(&mut game);
     assert!(game.battlefield(&p1).unwrap().iter().any(|c| c.instance_id() == "bear-target"));
@@ -348,6 +353,7 @@ fn spell_without_clips_rule_is_noop() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("growth-1"),
         targets: vec![Target::creature("bear-target")],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Giant Growth");
 
@@ -409,6 +415,7 @@ fn sol_ring_resolves_to_battlefield() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("sol-ring-1"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Sol Ring");
 
@@ -504,6 +511,7 @@ fn wild_bounty_resolves_to_battlefield() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("wild-bounty-1"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Arcane Sanctum");
 
@@ -561,6 +569,7 @@ fn wild_bounty_draws_a_card_on_etb() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("wild-bounty-2"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Arcane Sanctum");
 
@@ -606,6 +615,7 @@ fn triggered_ability_goes_on_the_stack() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("wild-bounty-r10"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Wild Bounty");
 
@@ -663,6 +673,7 @@ fn triggered_ability_resolves_when_stack_resolves() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("wild-bounty-r10b"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Wild Bounty");
 
@@ -718,6 +729,7 @@ fn player_can_respond_to_triggered_ability_with_instant() {
         player_id: PlayerId::new(&p1),
         card_id: CardInstanceId::new("wild-bounty-r10c"),
         targets: vec![],
+        x_value: 0,
     })
     .expect("P1 should be able to cast Wild Bounty");
 
@@ -735,6 +747,7 @@ fn player_can_respond_to_triggered_ability_with_instant() {
         player_id: PlayerId::new(&p2),
         card_id: CardInstanceId::new("strike-r10c"),
         targets: vec![Target::creature("bear-r10c")],
+        x_value: 0,
     })
     .expect("P2 should be able to cast Lightning Strike in response to the triggered ability");
 

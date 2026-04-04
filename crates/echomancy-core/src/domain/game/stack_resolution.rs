@@ -505,6 +505,7 @@ mod tests {
             player_id: PlayerId::new(player_id),
             card_id: CardInstanceId::new(card_id),
             targets: vec![],
+            x_value: 0,
         })
         .expect("cast should succeed");
 

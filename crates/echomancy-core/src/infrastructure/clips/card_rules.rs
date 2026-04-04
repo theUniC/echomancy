@@ -184,6 +184,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("strike-1"),
             targets: vec![Target::player(&p2)],
+            x_value: 0,
         })
         .expect("cast should succeed");
 
@@ -425,6 +426,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("gg-1"),
             targets: vec![Target::creature("bear-1")],
+            x_value: 0,
         })
         .expect("cast should succeed");
 
@@ -481,6 +483,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("gg-1"),
             targets: vec![Target::creature("bear-1")],
+            x_value: 0,
         })
         .expect("cast should succeed");
 
@@ -558,6 +561,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("strike-1"),
             targets: vec![crate::domain::targets::Target::player(&p2)],
+            x_value: 0,
         })
         .expect("p1 should be able to cast Lightning Strike");
 
@@ -613,6 +617,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new("div-1"),
             targets: vec![],
+            x_value: 0,
         })
         .expect("cast should succeed");
 

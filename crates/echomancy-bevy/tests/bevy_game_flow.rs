@@ -191,6 +191,7 @@ fn cast_creature_resolves_still_first_main() {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new(&bear_id),
             targets: vec![],
+            x_value: 0,
         },
     )
     .unwrap();
@@ -304,6 +305,7 @@ fn opponent_with_instant_gets_priority_window() {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new(&bear_id),
             targets: vec![],
+            x_value: 0,
         },
     )
     .unwrap();

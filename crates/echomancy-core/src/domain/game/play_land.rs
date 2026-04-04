@@ -113,6 +113,7 @@ mod tests {
             card: dummy_card,
             controller_id: p1.clone(),
             targets: Vec::new(),
+            x_value: 0,
         }));
 
         let err = game

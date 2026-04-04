@@ -140,7 +140,7 @@ Static abilities and keywords not yet implemented.
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| MA1 | X costs in mana (Fireball, etc.) | TODO | 107.3 | High | - | Player chooses X at cast time |
+| MA1 | X costs in mana (Fireball, etc.) | DONE | 107.3 | High | - | Player chooses X at cast time; x field on ManaCost, x_value on Action::CastSpell and SpellOnStack |
 | MA2 | Hybrid mana costs ({W/U}) | TODO | 107.4e | Medium | - | |
 | MA3 | Phyrexian mana (pay life instead) | TODO | 107.4f | Medium | - | |
 | MA4 | Convoke (tap creatures to pay) | TODO | 702.50 | High | - | |
@@ -249,7 +249,7 @@ Full migration from TypeScript/Next.js to Rust/Bevy.
 | No hand size enforcement | Missing from Cleanup | R13 |
 | No card subtypes | Not implemented | R2 |
 | Auto-pass stops for potential plays without valid targets | Conservative heuristic | Future (auto-yield) |
-| No Ward keyword | Not implemented | K11.2 |
+| Ward MVP: checked at targeting time, not as triggered ability | Simplified vs CR 702.21 | K11.2 |
 | No replacement effects (CR 614) | R11 TODO | R11 |
 | No prevention effects (CR 615) | R12 TODO | R12 |
 | Continuous effects only cover temporary P/T mods | No layers 1-6, no static auras/lords | P10.4 |
@@ -305,7 +305,7 @@ Keywords from CR 702 not yet tracked. Grouped by frequency in Standard/Modern pl
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
 | K11.1 | Defender | DONE | 702.3 | Low | - | "This creature can't attack." Functionally equivalent to CannotAttack but is the official keyword. Should be StaticAbility variant |
-| K11.2 | Ward {N} | TODO | 702.21 | Medium | - | Triggered ability: when targeted by opponent, counter unless they pay cost. Very common since 2021 |
+| K11.2 | Ward {N} | DONE | 702.21 | Medium | - | Simplified MVP: checked at targeting time. ward_cost field on CardDefinition; opponent must have enough mana |
 | K11.3 | Prowess | TODO | 702.108 | Medium | P10.9 | Triggered: whenever you cast a noncreature spell, this gets +1/+1 until EOT. Needs "spell cast" trigger event |
 | K11.4 | Protection from X | TODO | 702.16 | Very High | C6, R1 | DEBT: Damage prevented, Enchanting/Equipping falls off, Blocking prevented, Targeting prevented. Already tracked as K6 |
 | K11.5 | Fear | DONE | 702.36 | Low | - | Can't be blocked except by artifact creatures and/or black creatures. Legacy keyword |
@@ -483,7 +483,7 @@ Card sets (expansions), format legality, and collection/deck management.
 | P16.14 | Collection import from MTGJSON | TODO | - | Medium | P16.13, M6 | Import cards from MTGJSON AtomicCards.json with set/rarity data |
 | P16.15 | Deck building with format validation | TODO | - | High | G4, P16.12, P16.13 | Build decks from collection, validate against format rules in real-time |
 | P16.16 | Set browsing / card search | TODO | - | Medium | P16.1, P16.2 | Browse cards by set, search by name/type/text/color/rarity/format |
-| P16.17 | Mana value (converted mana cost) | TODO | 202.3 | Low | - | Sum of mana cost components. Used by many mechanics (Cascade, Emerge, Discover) and format rules |
+| P16.17 | Mana value (converted mana cost) | DONE | 202.3 | Low | - | mana_value() on ManaCost and CardDefinition; X counts as 0 for CMC |
 | P16.18 | Rarity system | TODO | - | Low | P16.2 | Common, Uncommon, Rare, Mythic Rare, Special. Affects Pauper legality and draft |
 | P16.19 | Draft / Sealed format support | TODO | - | Very High | P16.1, P16.2 | Open packs, pick cards, build deck. Needs booster pack generation |
 | P16.20 | Sideboard support | TODO | - | Medium | P16.12 | 15-card sideboard. Swap between games in best-of-3. Format-dependent rules |

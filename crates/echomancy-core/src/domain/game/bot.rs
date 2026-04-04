@@ -111,6 +111,7 @@ pub fn run_bot_turn(game: &mut Game, bot_player_id: &str) -> u32 {
                 player_id: PlayerId::new(bot_player_id),
                 card_id: CardInstanceId::new(&spell_id),
                 targets,
+                x_value: 0, // Bot does not choose X values
             }) {
                 warn!(iteration, %err, "bot: CastSpell failed");
             } else {

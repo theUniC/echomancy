@@ -114,6 +114,7 @@ mod tests {
             card: spell,
             controller_id: "p1".to_owned(),
             targets: Vec::new(),
+            x_value: 0,
         }))
     }
 

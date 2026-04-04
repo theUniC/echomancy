@@ -425,6 +425,7 @@ mod tests {
             player_id: PlayerId::new(&p1),
             card_id: CardInstanceId::new(&bear_id),
             targets: vec![],
+            x_value: 0,
         });
 
         let game = &app.world().resource::<GameState>().game;
