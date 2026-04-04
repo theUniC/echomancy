@@ -461,6 +461,33 @@ Keyword actions from CR 701 not yet implemented (beyond scry, mill, discard, sac
 | P15.16 | Collect Evidence N | TODO | 701.59 | Low | - | Exile cards from graveyard with total mana value N+. Murders at Karlov Manor mechanic |
 | P15.17 | Discover N | TODO | 701.57 | High | P13.13 | Like cascade but with a mana value limit. Cast or put into hand. Recent keyword action |
 
+### Phase 16: Sets, Formats & Collection Management
+
+Card sets (expansions), format legality, and collection/deck management.
+
+| # | Description | Status | CR Ref | Complexity | Dependency | Notes |
+|---|-------------|--------|--------|------------|------------|-------|
+| P16.1 | Card set/expansion data model | TODO | - | Medium | M6 | Set code, name, release date, set type (expansion, core, masters, etc.). MTGJSON provides this data |
+| P16.2 | Card-to-set mapping (printings) | TODO | - | Medium | P16.1 | A card can appear in multiple sets. Collector number, rarity (common/uncommon/rare/mythic), art variations |
+| P16.3 | Format definition system | TODO | - | Medium | - | Define formats: Standard, Pioneer, Modern, Legacy, Vintage, Pauper, Commander. Each format has rules (deck size, copies allowed, card pool) |
+| P16.4 | Standard format (rotating sets) | TODO | - | Medium | P16.1, P16.3 | Last 2-3 years of sets. Rotation schedule. Banned list |
+| P16.5 | Pioneer format | TODO | - | Low | P16.3 | Return to Ravnica forward. Banned list |
+| P16.6 | Modern format | TODO | - | Low | P16.3 | 8th Edition forward. Banned list |
+| P16.7 | Legacy format | TODO | - | Low | P16.3 | All sets. Banned list |
+| P16.8 | Vintage format | TODO | - | Low | P16.3 | All sets. Restricted list (1 copy) + banned list |
+| P16.9 | Pauper format | TODO | - | Low | P16.2, P16.3 | Only commons. Banned list |
+| P16.10 | Commander format rules | TODO | - | High | P14.2, P16.3 | 100-card singleton, color identity, commander zone. Already tracked in P14.2 |
+| P16.11 | Banned/restricted list system | TODO | - | Medium | P16.3 | Per-format lists. Source from MTGJSON or manual. Validate decks against them |
+| P16.12 | Deck legality validation | TODO | - | Medium | P16.3, P16.11 | Check: correct deck size, max copies (4 or 1 for singleton), all cards legal in format, sideboard rules |
+| P16.13 | Player collection (card inventory) | TODO | - | High | P16.2 | Track which cards a player owns. Quantities per printing. Import/export |
+| P16.14 | Collection import from MTGJSON | TODO | - | Medium | P16.13, M6 | Import cards from MTGJSON AtomicCards.json with set/rarity data |
+| P16.15 | Deck building with format validation | TODO | - | High | G4, P16.12, P16.13 | Build decks from collection, validate against format rules in real-time |
+| P16.16 | Set browsing / card search | TODO | - | Medium | P16.1, P16.2 | Browse cards by set, search by name/type/text/color/rarity/format |
+| P16.17 | Mana value (converted mana cost) | TODO | 202.3 | Low | - | Sum of mana cost components. Used by many mechanics (Cascade, Emerge, Discover) and format rules |
+| P16.18 | Rarity system | TODO | - | Low | P16.2 | Common, Uncommon, Rare, Mythic Rare, Special. Affects Pauper legality and draft |
+| P16.19 | Draft / Sealed format support | TODO | - | Very High | P16.1, P16.2 | Open packs, pick cards, build deck. Needs booster pack generation |
+| P16.20 | Sideboard support | TODO | - | Medium | P16.12 | 15-card sideboard. Swap between games in best-of-3. Format-dependent rules |
+
 ---
 
 ## Design Philosophy
