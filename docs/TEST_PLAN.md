@@ -31,8 +31,8 @@ Hover over any card to see its oracle text and mana cost in the detail panel.
 3. Let the bot (P2) attack with Goblins or shoot it with Lightning Strike.
 
 **Verification**:
-- [ ] The creature stays on your battlefield regardless of damage taken.
-- [ ] Hover panel shows "Indestructible" in oracle text.
+- [x] The creature stays on your battlefield regardless of damage taken.
+- [x] Hover panel shows "Indestructible" in oracle text.
 
 ---
 
@@ -45,8 +45,8 @@ Hover over any card to see its oracle text and mana cost in the detail panel.
 2. Wait for P2's bot to cast Lightning Strike.
 
 **Verification**:
-- [ ] Lightning Strike never lands on Oakshield Troll.
-- [ ] Hover panel shows "Hexproof" in oracle text.
+- [x] Lightning Strike never lands on Oakshield Troll.
+- [x] Hover panel shows "Hexproof" in oracle text.
 
 ---
 
@@ -67,9 +67,9 @@ No card in the decks uses Shroud. Implemented alongside Hexproof.
 2. Observe the untap step at the start of P2's next turn.
 
 **Verification**:
-- [ ] Frozen Sentinel stays rotated (tapped) after P2's untap step.
-- [ ] Other P2 permanents untap normally.
-- [ ] Hover shows "Frozen Sentinel doesn't untap during your untap step."
+- [x] Frozen Sentinel stays rotated (tapped) after P2's untap step.
+- [x] Other P2 permanents untap normally.
+- [x] Hover shows "Frozen Sentinel doesn't untap during your untap step."
 
 ---
 
@@ -96,9 +96,9 @@ No card in the decks uses Shroud. Implemented alongside Hexproof.
 2. On your next turn, try to declare Ironbark Wall as an attacker.
 
 **Verification**:
-- [ ] Ironbark Wall is never highlighted as a possible attacker.
-- [ ] Ironbark Wall can block opponent creatures.
-- [ ] Hover shows "This creature can't attack."
+- [x] Ironbark Wall is never highlighted as a possible attacker.
+- [x] Ironbark Wall can block opponent creatures.
+- [x] Hover shows "This creature can't attack."
 
 ---
 
@@ -111,8 +111,8 @@ No card in the decks uses Shroud. Implemented alongside Hexproof.
 2. Observe combat when P2 has it on the battlefield.
 
 **Verification**:
-- [ ] Reckless Berserker attacks every turn it is untapped.
-- [ ] Hover shows "This creature attacks each combat if able."
+- [x] Reckless Berserker attacks every turn it is untapped.
+- [x] Hover shows "This creature attacks each combat if able."
 
 ---
 
@@ -125,9 +125,9 @@ No card in the decks uses Shroud. Implemented alongside Hexproof.
 2. Attempt to block it with only one creature.
 
 **Verification**:
-- [ ] Single blocker does not prevent damage to player.
-- [ ] Two blockers successfully block Reckless Berserker.
-- [ ] Hover shows "Menace" in the abilities.
+- [x] Single blocker does not prevent damage to player.
+- [x] Two blockers successfully block Reckless Berserker.
+- [x] Hover shows "Menace" in the abilities.
 
 ---
 
@@ -212,9 +212,9 @@ Like Flying but only Horsemanship blocks Horsemanship. No showcase card in decks
 2. If you draw a second copy, cast it too.
 
 **Verification**:
-- [ ] First Thalia enters and stays on battlefield.
-- [ ] Second Thalia causes one to go to graveyard (only 1 Thalia remains).
-- [ ] Hover shows "Legendary" somewhere in the card info.
+- [x] First Thalia enters and stays on battlefield.
+- [x] Second Thalia causes one to go to graveyard (only 1 Thalia remains).
+- [x] Hover shows "Legendary" somewhere in the card info.
 
 ---
 
@@ -227,9 +227,9 @@ Like Flying but only Horsemanship blocks Horsemanship. No showcase card in decks
 2. Tap it for mana: click Sol Ring on battlefield.
 
 **Verification**:
-- [ ] Sol Ring taps and adds {C}{C} to mana pool.
-- [ ] HUD mana pool reflects the added mana.
-- [ ] Can use Sol Ring mana to cast creatures or spells.
+- [x] Sol Ring taps and adds {C}{C} to mana pool.
+- [x] HUD mana pool reflects the added mana.
+- [x] Can use Sol Ring mana to cast creatures or spells.
 
 ---
 
@@ -250,9 +250,9 @@ No card in the decks creates tokens. Feature verified at domain level.
 2. Watch the stack as it resolves.
 
 **Verification**:
-- [ ] Stack panel shows the triggered ability after Wild Bounty enters.
-- [ ] Hand size increases by 1 after the trigger resolves.
-- [ ] There is a priority window between the trigger going on stack and resolving.
+- [x] Stack panel shows the triggered ability after Wild Bounty enters.
+- [x] Hand size increases by 1 after the trigger resolves.
+- [x] There is a priority window between the trigger going on stack and resolving.
 
 ---
 
