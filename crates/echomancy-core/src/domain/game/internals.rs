@@ -29,19 +29,20 @@ use crate::domain::value_objects::permanent_state::{EffectDuration, PermanentSta
 
 use super::Game;
 
-/// Tuple representation of a single combat creature entry.
-///
-/// Fields (in order):
-/// 1. `instance_id` — the permanent's instance ID.
-/// 2. `controller_id` — the controlling player's ID.
-/// 3. `state` — the permanent's full `PermanentState`.
-/// 4. `effective_power` — layer-evaluated power, or `None` if not a creature.
-/// 5. `effective_toughness` — layer-evaluated toughness, or `None` if not a creature.
-/// 6. `has_trample`
-/// 7. `has_deathtouch`
-/// 8. `has_lifelink`
-/// 9. `has_menace`
-type CombatCreatureTuple = (String, String, PermanentState, Option<i32>, Option<i32>, bool, bool, bool, bool);
+/// Data for a single creature in combat, collected by `collect_combat_creatures`.
+struct CombatCreatureData {
+    instance_id: String,
+    controller_id: String,
+    state: PermanentState,
+    /// Layer-evaluated power, or `None` if not a creature.
+    effective_power: Option<i32>,
+    /// Layer-evaluated toughness, or `None` if not a creature.
+    effective_toughness: Option<i32>,
+    has_trample: bool,
+    has_deathtouch: bool,
+    has_lifelink: bool,
+    has_menace: bool,
+}
 
 impl Game {
     // =========================================================================
@@ -530,13 +531,9 @@ impl Game {
 
     /// Collect all creatures currently in combat (attacking or blocking).
     ///
-    /// Returns a list of
-    /// `(instance_id, controller_id, PermanentState, effective_power, effective_toughness,
-    ///   has_trample, has_deathtouch, has_lifelink, has_menace)` tuples.
-    ///
     /// `effective_power` and `effective_toughness` are computed via the layer pipeline so
     /// that Layer 7b (set P/T) and Layer 7c (modify P/T) effects are applied to combat.
-    fn collect_combat_creatures(&self) -> Vec<CombatCreatureTuple> {
+    fn collect_combat_creatures(&self) -> Vec<CombatCreatureData> {
         let mut result = Vec::new();
 
         for player in &self.players {
@@ -566,11 +563,17 @@ impl Game {
                     .effective_abilities(&id)
                     .unwrap_or_default();
 
-                let has_trample = effective_abilities.contains(&StaticAbility::Trample);
-                let has_deathtouch = effective_abilities.contains(&StaticAbility::Deathtouch);
-                let has_lifelink = effective_abilities.contains(&StaticAbility::Lifelink);
-                let has_menace = effective_abilities.contains(&StaticAbility::Menace);
-                result.push((id, controller.clone(), state, effective_power, effective_toughness, has_trample, has_deathtouch, has_lifelink, has_menace));
+                result.push(CombatCreatureData {
+                    instance_id: id,
+                    controller_id: controller.clone(),
+                    state,
+                    effective_power,
+                    effective_toughness,
+                    has_trample: effective_abilities.contains(&StaticAbility::Trample),
+                    has_deathtouch: effective_abilities.contains(&StaticAbility::Deathtouch),
+                    has_lifelink: effective_abilities.contains(&StaticAbility::Lifelink),
+                    has_menace: effective_abilities.contains(&StaticAbility::Menace),
+                });
             }
         }
 
@@ -631,10 +634,9 @@ impl Game {
         let all_combat = self.collect_combat_creatures();
 
         // Determine which combat creatures have FirstStrike.
-        let first_strikers: Vec<CombatCreatureTuple> = all_combat
+        let first_strikers: Vec<&CombatCreatureData> = all_combat
             .iter()
-            .filter(|(id, _, _, _, _, _, _, _, _)| self.creature_has_first_strike(id))
-            .cloned()
+            .filter(|c| self.creature_has_first_strike(&c.instance_id))
             .collect();
 
         // If no first strikers, nothing to do.
@@ -645,38 +647,38 @@ impl Game {
         // Collect IDs that have first strike (both attackers and blockers).
         let first_striker_ids: Vec<String> = first_strikers
             .iter()
-            .map(|(id, _, _, _, _, _, _, _, _)| id.clone())
+            .map(|c| c.instance_id.clone())
             .collect();
 
         // Build snapshots for the full combat pool (needed for blocker lookups) and for
         // first strikers only (the damage sources in this step).
         let all_entries: Vec<CreatureCombatEntry<'_>> = all_combat
             .iter()
-            .map(|(id, controller, state, eff_power, eff_toughness, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
-                instance_id: id.as_str(),
-                controller_id: controller.as_str(),
-                state,
-                effective_power: *eff_power,
-                effective_toughness: *eff_toughness,
-                has_trample: *has_trample,
-                has_deathtouch: *has_deathtouch,
-                has_lifelink: *has_lifelink,
-                has_menace: *has_menace,
+            .map(|c| CreatureCombatEntry {
+                instance_id: c.instance_id.as_str(),
+                controller_id: c.controller_id.as_str(),
+                state: &c.state,
+                effective_power: c.effective_power,
+                effective_toughness: c.effective_toughness,
+                has_trample: c.has_trample,
+                has_deathtouch: c.has_deathtouch,
+                has_lifelink: c.has_lifelink,
+                has_menace: c.has_menace,
             })
             .collect();
 
         let fs_entries: Vec<CreatureCombatEntry<'_>> = first_strikers
             .iter()
-            .map(|(id, controller, state, eff_power, eff_toughness, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
-                instance_id: id.as_str(),
-                controller_id: controller.as_str(),
-                state,
-                effective_power: *eff_power,
-                effective_toughness: *eff_toughness,
-                has_trample: *has_trample,
-                has_deathtouch: *has_deathtouch,
-                has_lifelink: *has_lifelink,
-                has_menace: *has_menace,
+            .map(|c| CreatureCombatEntry {
+                instance_id: c.instance_id.as_str(),
+                controller_id: c.controller_id.as_str(),
+                state: &c.state,
+                effective_power: c.effective_power,
+                effective_toughness: c.effective_toughness,
+                has_trample: c.has_trample,
+                has_deathtouch: c.has_deathtouch,
+                has_lifelink: c.has_lifelink,
+                has_menace: c.has_menace,
             })
             .collect();
 
@@ -750,10 +752,10 @@ impl Game {
 
         // Filter out creatures that already dealt first strike damage,
         // UNLESS they have Double Strike (CR 702.4: deal damage in both steps).
-        let regular_combat: Vec<CombatCreatureTuple> = all_combat
+        let regular_combat: Vec<CombatCreatureData> = all_combat
             .into_iter()
-            .filter(|(id, _, state, _, _, _, _, _, _)| {
-                let dealt_fs = state
+            .filter(|c| {
+                let dealt_fs = c.state
                     .creature_state()
                     .map(|cs| cs.dealt_first_strike_damage())
                     .unwrap_or(false);
@@ -761,22 +763,22 @@ impl Game {
                     return true; // Didn't deal first strike damage → participates
                 }
                 // Dealt first strike damage but has Double Strike → still participates
-                self.creature_has_double_strike(id)
+                self.creature_has_double_strike(&c.instance_id)
             })
             .collect();
 
         let combat_entries: Vec<CreatureCombatEntry<'_>> = regular_combat
             .iter()
-            .map(|(id, controller, state, eff_power, eff_toughness, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
-                instance_id: id.as_str(),
-                controller_id: controller.as_str(),
-                state,
-                effective_power: *eff_power,
-                effective_toughness: *eff_toughness,
-                has_trample: *has_trample,
-                has_deathtouch: *has_deathtouch,
-                has_lifelink: *has_lifelink,
-                has_menace: *has_menace,
+            .map(|c| CreatureCombatEntry {
+                instance_id: c.instance_id.as_str(),
+                controller_id: c.controller_id.as_str(),
+                state: &c.state,
+                effective_power: c.effective_power,
+                effective_toughness: c.effective_toughness,
+                has_trample: c.has_trample,
+                has_deathtouch: c.has_deathtouch,
+                has_lifelink: c.has_lifelink,
+                has_menace: c.has_menace,
             })
             .collect();
 

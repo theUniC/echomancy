@@ -13,6 +13,24 @@ use crate::domain::value_objects::permanent_state::{EffectDuration, PermanentSta
 use super::Game;
 
 impl Game {
+    /// Find which player controls a permanent and at what battlefield index.
+    ///
+    /// Returns `(controller_id, card_index)` or `GameError::PermanentNotFound`.
+    fn find_permanent_on_battlefield(&self, permanent_id: &str) -> Result<(String, usize), GameError> {
+        for player in &self.players {
+            if let Some(idx) = player
+                .battlefield
+                .iter()
+                .position(|c| c.instance_id() == permanent_id)
+            {
+                return Ok((player.player_id.as_str().to_owned(), idx));
+            }
+        }
+        Err(GameError::PermanentNotFound {
+            permanent_id: CardInstanceId::new(permanent_id),
+        })
+    }
+
     /// Enter a permanent onto a player's battlefield and initialize its state.
     ///
     /// This is the single entry point for ALL permanents entering the battlefield.
@@ -87,22 +105,7 @@ impl Game {
         // Find which player controls this permanent and build the snapshot
         // before removing it so we have all card data available for event
         // construction and trigger collection.
-        let (controller_id, card_idx) = {
-            let mut found = None;
-            for player in &self.players {
-                if let Some(idx) = player
-                    .battlefield
-                    .iter()
-                    .position(|c| c.instance_id() == permanent_id)
-                {
-                    found = Some((player.player_id.as_str().to_owned(), idx));
-                    break;
-                }
-            }
-            found.ok_or_else(|| GameError::PermanentNotFound {
-                permanent_id: CardInstanceId::new(permanent_id),
-            })?
-        };
+        let (controller_id, card_idx) = self.find_permanent_on_battlefield(permanent_id)?;
 
         // Build the event snapshot while the card is still on the battlefield.
         let (snapshot, owner_id) = {
@@ -170,22 +173,7 @@ impl Game {
         permanent_id: &str,
     ) -> Result<Vec<GameEvent>, GameError> {
         // Find which player controls this permanent.
-        let (controller_id, card_idx) = {
-            let mut found = None;
-            for player in &self.players {
-                if let Some(idx) = player
-                    .battlefield
-                    .iter()
-                    .position(|c| c.instance_id() == permanent_id)
-                {
-                    found = Some((player.player_id.as_str().to_owned(), idx));
-                    break;
-                }
-            }
-            found.ok_or_else(|| GameError::PermanentNotFound {
-                permanent_id: CardInstanceId::new(permanent_id),
-            })?
-        };
+        let (controller_id, card_idx) = self.find_permanent_on_battlefield(permanent_id)?;
 
         // Build the event snapshot while the card is still on the battlefield.
         let (snapshot, owner_id) = {
@@ -246,22 +234,7 @@ impl Game {
         permanent_id: &str,
     ) -> Result<Vec<GameEvent>, GameError> {
         // Find which player controls this permanent.
-        let (controller_id, card_idx) = {
-            let mut found = None;
-            for player in &self.players {
-                if let Some(idx) = player
-                    .battlefield
-                    .iter()
-                    .position(|c| c.instance_id() == permanent_id)
-                {
-                    found = Some((player.player_id.as_str().to_owned(), idx));
-                    break;
-                }
-            }
-            found.ok_or_else(|| GameError::PermanentNotFound {
-                permanent_id: CardInstanceId::new(permanent_id),
-            })?
-        };
+        let (controller_id, card_idx) = self.find_permanent_on_battlefield(permanent_id)?;
 
         // Build the event snapshot while the card is still on the battlefield.
         let (snapshot, owner_id) = {

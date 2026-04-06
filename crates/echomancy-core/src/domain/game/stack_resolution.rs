@@ -178,7 +178,9 @@ impl Game {
                 if let Ok(player) = self.player_state_mut(target) {
                     player.life_total -= *amount as i32;
                 } else if let Some(pstate) = self.permanent_states.get(target).cloned() {
-                    // Creature damage: accumulate damage on the permanent
+                    // Creature damage: accumulate damage on the permanent.
+                    // SBA (lethal damage check) runs once after all actions are applied
+                    // via the `perform_state_based_actions()` call in `resolve_spell`.
                     let current_damage = pstate
                         .creature_state()
                         .map(|cs| cs.damage_marked_this_turn())
@@ -186,8 +188,6 @@ impl Game {
                     if let Ok(damaged) = pstate.with_damage(current_damage + *amount as i32) {
                         self.permanent_states.insert(target.clone(), damaged);
                     }
-                    // SBA checks lethal damage and destroys the creature
-                    self.perform_state_based_actions();
                 }
             }
             RulesAction::DrawCards { player, amount } => {
@@ -244,30 +244,15 @@ impl Game {
                 }
             }
             RulesAction::ModifyPowerToughness { target, power, toughness, duration, source } => {
-                // Layer-system path (LS1): add a GlobalContinuousEffect in Layer 7c.
-                // Spell-resolution effects use a game-level timestamp (CR 613.7b).
-                // Only proceed if the target permanent exists on the battlefield.
-                if self.permanent_states.contains_key(target.as_str()) {
-                    let effect_duration = parse_effect_duration(duration);
-                    let timestamp = self.next_timestamp();
-                    let controller_id = self.players.iter()
-                        .find(|p| p.battlefield.iter().any(|c| c.instance_id() == target.as_str()))
-                        .map(|p| p.player_id.as_str().to_owned())
-                        .unwrap_or_default();
-                    let global_effect = GlobalContinuousEffect {
-                        layer: EffectLayer::Layer7c,
-                        payload: EffectPayload::ModifyPowerToughness(*power, *toughness),
-                        duration: effect_duration,
-                        timestamp,
-                        source_id: source.clone(),
-                        controller_id,
-                        is_cda: false,
-                        // Spell-resolution effect: target set locked at resolution time (CR 611.2c).
-                        targeting: EffectTargeting::LockedSet(vec![target.clone()]),
-                        locked_target_set: None,
-                    };
-                    self.add_global_continuous_effect(global_effect);
-                }
+                // Layer-system path (LS1): Layer 7c, spell-resolution effect (CR 613.7b).
+                // Target set is locked at resolution time (CR 611.2c).
+                self.add_layer_effect(
+                    target,
+                    EffectLayer::Layer7c,
+                    EffectPayload::ModifyPowerToughness(*power, *toughness),
+                    duration,
+                    source,
+                );
             }
             RulesAction::Scry { player, amount } => {
                 self.scry(player, *amount as usize);
@@ -310,70 +295,31 @@ impl Game {
                 let _ = self.adapt(target, *amount);
             }
             RulesAction::SetPowerToughness { target, power, toughness, duration, source } => {
-                if self.permanent_states.contains_key(target.as_str()) {
-                    let effect_duration = parse_effect_duration(duration);
-                    let timestamp = self.next_timestamp();
-                    let controller_id = self.players.iter()
-                        .find(|p| p.battlefield.iter().any(|c| c.instance_id() == target.as_str()))
-                        .map(|p| p.player_id.as_str().to_owned())
-                        .unwrap_or_default();
-                    let global_effect = GlobalContinuousEffect {
-                        layer: EffectLayer::Layer7b,
-                        payload: EffectPayload::SetPowerToughness(*power, *toughness),
-                        duration: effect_duration,
-                        timestamp,
-                        source_id: source.clone(),
-                        controller_id,
-                        is_cda: false,
-                        targeting: EffectTargeting::LockedSet(vec![target.clone()]),
-                        locked_target_set: None,
-                    };
-                    self.add_global_continuous_effect(global_effect);
-                }
+                self.add_layer_effect(
+                    target,
+                    EffectLayer::Layer7b,
+                    EffectPayload::SetPowerToughness(*power, *toughness),
+                    duration,
+                    source,
+                );
             }
             RulesAction::SwitchPowerToughness { target, duration, source } => {
-                if self.permanent_states.contains_key(target.as_str()) {
-                    let effect_duration = parse_effect_duration(duration);
-                    let timestamp = self.next_timestamp();
-                    let controller_id = self.players.iter()
-                        .find(|p| p.battlefield.iter().any(|c| c.instance_id() == target.as_str()))
-                        .map(|p| p.player_id.as_str().to_owned())
-                        .unwrap_or_default();
-                    let global_effect = GlobalContinuousEffect {
-                        layer: EffectLayer::Layer7d,
-                        payload: EffectPayload::SwitchPowerToughness,
-                        duration: effect_duration,
-                        timestamp,
-                        source_id: source.clone(),
-                        controller_id,
-                        is_cda: false,
-                        targeting: EffectTargeting::LockedSet(vec![target.clone()]),
-                        locked_target_set: None,
-                    };
-                    self.add_global_continuous_effect(global_effect);
-                }
+                self.add_layer_effect(
+                    target,
+                    EffectLayer::Layer7d,
+                    EffectPayload::SwitchPowerToughness,
+                    duration,
+                    source,
+                );
             }
             RulesAction::RemoveAllAbilities { target, duration, source } => {
-                if self.permanent_states.contains_key(target.as_str()) {
-                    let effect_duration = parse_effect_duration(duration);
-                    let timestamp = self.next_timestamp();
-                    let controller_id = self.players.iter()
-                        .find(|p| p.battlefield.iter().any(|c| c.instance_id() == target.as_str()))
-                        .map(|p| p.player_id.as_str().to_owned())
-                        .unwrap_or_default();
-                    let global_effect = GlobalContinuousEffect {
-                        layer: EffectLayer::Layer6Ability,
-                        payload: EffectPayload::RemoveAllAbilities,
-                        duration: effect_duration,
-                        timestamp,
-                        source_id: source.clone(),
-                        controller_id,
-                        is_cda: false,
-                        targeting: EffectTargeting::LockedSet(vec![target.clone()]),
-                        locked_target_set: None,
-                    };
-                    self.add_global_continuous_effect(global_effect);
-                }
+                self.add_layer_effect(
+                    target,
+                    EffectLayer::Layer6Ability,
+                    EffectPayload::RemoveAllAbilities,
+                    duration,
+                    source,
+                );
             }
             // Stubs for M3: log but don't crash
             RulesAction::MoveZone { .. } | RulesAction::AddCounter { .. } => {
@@ -439,6 +385,49 @@ impl Game {
         }
     }
 
+    /// Return the controller ID of a permanent on any battlefield, or an empty
+    /// string if the permanent is not found (matches the `.unwrap_or_default()`
+    /// pattern used for layer-effect construction).
+    fn find_controller_of(&self, permanent_id: &str) -> String {
+        self.players
+            .iter()
+            .find(|p| p.battlefield.iter().any(|c| c.instance_id() == permanent_id))
+            .map(|p| p.player_id.as_str().to_owned())
+            .unwrap_or_default()
+    }
+
+    /// Add a `GlobalContinuousEffect` for a layer-system action originating from a
+    /// spell resolution.
+    ///
+    /// Does nothing if the target permanent is not on the battlefield.
+    fn add_layer_effect(
+        &mut self,
+        target: &str,
+        layer: EffectLayer,
+        payload: EffectPayload,
+        duration: &str,
+        source: &str,
+    ) {
+        if !self.permanent_states.contains_key(target) {
+            return;
+        }
+        let effect_duration = parse_effect_duration(duration);
+        let timestamp = self.next_timestamp();
+        let controller_id = self.find_controller_of(target);
+        let global_effect = GlobalContinuousEffect {
+            layer,
+            payload,
+            duration: effect_duration,
+            timestamp,
+            source_id: source.to_owned(),
+            controller_id,
+            is_cda: false,
+            targeting: EffectTargeting::LockedSet(vec![target.to_owned()]),
+            locked_target_set: None,
+        };
+        self.add_global_continuous_effect(global_effect);
+    }
+
     /// Check if at least one target in the list is still legal.
     ///
     /// Per CR 608.2b, a spell fizzles only if ALL targets are illegal.
@@ -493,7 +482,10 @@ fn trigger_type_string(event_type: &TriggerEventType) -> String {
 fn parse_effect_duration(duration: &str) -> EffectDuration {
     match duration.to_ascii_lowercase().as_str() {
         "until_end_of_turn" | "until-end-of-turn" | "eot" => EffectDuration::UntilEndOfTurn,
-        _ => EffectDuration::UntilEndOfTurn,
+        _ => {
+            tracing::warn!(duration_str = %duration, "Unknown effect duration string, defaulting to UntilEndOfTurn");
+            EffectDuration::UntilEndOfTurn
+        }
     }
 }
 
