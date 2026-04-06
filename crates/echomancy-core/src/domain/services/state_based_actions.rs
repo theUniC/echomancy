@@ -4,8 +4,6 @@
 //! Stateless service: all functions take slices / references and return lists
 //! of IDs. The caller (Game aggregate) applies the actual mutations.
 //!
-//! Mirrors `StateBasedActions.ts`.
-//!
 //! MVP coverage:
 //! - Creatures with lethal damage (damage >= toughness).
 //! - Creatures with 0 or less toughness.

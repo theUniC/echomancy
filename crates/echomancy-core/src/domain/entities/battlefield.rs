@@ -3,11 +3,7 @@
 //! Battlefield zone entity.
 //!
 //! The battlefield holds all permanents currently in play.
-//! Ownership semantics mirror the TS immutable-class pattern:
-//! every mutating method returns a new `Battlefield`.
-//!
-//! Mirrors the TypeScript `Battlefield` class from
-//! `game/entities/Battlefield.ts`.
+//! Every mutating method returns a new `Battlefield`.
 
 use crate::domain::cards::card_instance::CardInstance;
 

@@ -20,7 +20,6 @@ pub struct CardInstanceSnapshot {
 
 /// All domain events that can be emitted during a game.
 ///
-/// Mirrors the TypeScript `GameEvent` discriminated union from `GameEvents.ts`.
 /// Events are produced by the rules engine and consumed by triggers, UI, and
 /// any external observers.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

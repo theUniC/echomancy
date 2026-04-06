@@ -60,8 +60,6 @@ pub struct PermanentStateSnapshot {
 /// Supports all permanent types (creatures, artifacts, enchantments, lands,
 /// planeswalkers). All mutating operations return **new** instances.
 ///
-/// Mirrors the TypeScript `PermanentState` class from `PermanentState.ts`.
-///
 /// # Examples
 ///
 /// ```

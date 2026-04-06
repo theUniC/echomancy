@@ -2,9 +2,6 @@
 //!
 //! The stack follows LIFO order: the most recently added item resolves first.
 //! Named `TheStack` to distinguish it from Rust's standard data structures.
-//!
-//! Mirrors the TypeScript `TheStack` class and `StackTypes.ts` from
-//! `game/entities/TheStack.ts` and `game/StackTypes.ts`.
 
 use crate::domain::cards::card_instance::CardInstance;
 use crate::domain::effects::Effect;
@@ -12,8 +9,6 @@ use crate::domain::targets::Target;
 use crate::domain::triggers::TriggerEventType;
 
 /// A spell on the stack — a card waiting to resolve.
-///
-/// Mirrors the TypeScript `SpellOnStack` type from `StackTypes.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpellOnStack {
     /// The card being cast.
@@ -45,8 +40,6 @@ pub enum AbilityKind {
 }
 
 /// An activated or triggered ability on the stack.
-///
-/// Mirrors the TypeScript `AbilityOnStack` type from `StackTypes.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbilityOnStack {
     /// The permanent whose ability fired.
@@ -64,10 +57,7 @@ pub struct AbilityOnStack {
 /// Items that can be on the stack.
 ///
 /// MVP scope: only spells and activated abilities.
-/// `TriggeredAbilityOnStack` is defined in the TS source but triggers execute
-/// immediately in the MVP — so it is omitted here for now.
-///
-/// Mirrors the TypeScript `StackItem` union from `StackTypes.ts`.
+/// Triggers execute immediately in the MVP rather than being put on the stack.
 #[derive(Debug, Clone, PartialEq, Eq)]
 // SpellOnStack carries a CardInstance (which owns the CardDefinition) making the
 // Spell variant significantly larger than the Ability variant. Boxing would

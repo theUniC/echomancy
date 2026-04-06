@@ -1,7 +1,6 @@
 //! SpellTiming — determine when a spell can legally be cast.
 //!
 //! Stateless service that checks timing rules without mutating game state.
-//! Mirrors `SpellTiming.ts`.
 
 use crate::domain::cards::card_instance::CardInstance;
 use crate::domain::entities::the_stack::TheStack;

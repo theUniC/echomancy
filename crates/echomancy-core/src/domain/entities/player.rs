@@ -2,8 +2,6 @@
 
 //! Player entity and player state.
 //!
-//! Mirrors the TypeScript `Player` class from `game/Player.ts` and the
-//! `PlayerState` type from `game/PlayerState.ts`.
 
 use crate::domain::entities::battlefield::Battlefield;
 use crate::domain::entities::graveyard::Graveyard;
@@ -16,8 +14,6 @@ const DEFAULT_LIFE_TOTAL: i32 = 20;
 ///
 /// The `Player` entity holds the player's identity and current life total.
 /// Zone state is tracked separately in `PlayerState`.
-///
-/// Mirrors the TypeScript `Player` class from `game/Player.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Player {
     id: String,
@@ -85,8 +81,6 @@ impl Player {
 }
 
 /// All zone state for a single player.
-///
-/// Mirrors the TypeScript `PlayerState` type from `game/PlayerState.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerState {
     /// Cards in the player's hand.

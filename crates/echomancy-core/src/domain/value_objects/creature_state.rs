@@ -9,7 +9,6 @@ use crate::domain::types::CardInstanceId;
 /// Creature-specific state: combat flags, base stats, and damage.
 ///
 /// Only present on permanents that are creatures.
-/// Mirrors the TypeScript `CreatureSubState` type from `PermanentState.ts`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatureSubState {
     pub(crate) base_power: i32,

@@ -9,9 +9,6 @@
 //! Note: this specification does not check priority (use `HasPriority` for
 //! that) and does not check that the player has a land in hand (that check
 //! is the responsibility of the action handler).
-//!
-//! Mirrors the TypeScript `CanPlayLand` class from
-//! `game/specifications/CanPlayLand.ts`.
 
 use crate::domain::enums::Step;
 use crate::domain::errors::GameError;

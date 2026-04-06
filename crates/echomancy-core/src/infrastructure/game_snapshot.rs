@@ -6,7 +6,6 @@
 //! - Battlefield, graveyard, stack: visible to all.
 //! - Library contents: hidden (only the count is exposed).
 //!
-//! Mirrors the TypeScript `GameSnapshot.ts` and `createGameSnapshot()`.
 //!
 //! # Design principles
 //!

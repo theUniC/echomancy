@@ -4,15 +4,11 @@
 //! because the MVP has a finite, known set of effects. This avoids trait-object
 //! complexity and makes exhaustive matching possible.
 //!
-//! Mirrors the TypeScript `Effect` interface and its implementations from
-//! `effects/Effect.ts`, `effects/impl/DrawCardsEffect.ts`, etc.
 
 use crate::domain::enums::ManaColor;
 use crate::domain::targets::Target;
 
 /// Context carried with every effect resolution.
-///
-/// Mirrors the TypeScript `EffectContext` from `effects/EffectContext.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectContext {
     /// The ID of the card that sourced this effect (Last Known Information).
@@ -57,11 +53,6 @@ impl EffectContext {
 /// Choosing an enum (closed set) over `Box<dyn Effect>` (open set) is an
 /// intentional design decision: every effect in the MVP is known at compile
 /// time, making exhaustive matching both possible and safe.
-///
-/// Mirrors:
-/// - `DrawCardsEffect`   → `DrawCards { amount }`
-/// - `DrawTargetPlayerEffect` → `DrawTargetPlayer { amount }`
-/// - `NoOpEffect`        → `NoOp`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Effect {
     /// Draw `amount` cards for the controller of the ability.

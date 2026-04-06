@@ -3,8 +3,6 @@
 //! All cards are read-only functions returning a `CardDefinition`.
 //! Using functions rather than `static` items avoids `lazy_static` or
 //! `once_cell` dependencies while still being cheap (definitions are small).
-//!
-//! Mirrors the TypeScript `CardCatalog` from `cards/CardCatalog.ts`.
 
 use crate::domain::abilities::{ActivatedAbility, ActivationCost};
 use crate::domain::cards::card_definition::CardDefinition;

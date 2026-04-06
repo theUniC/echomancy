@@ -2,8 +2,6 @@
 //!
 //! Stateless service that validates declarations and returns the state changes
 //! to be applied by the caller (Game aggregate in Phase 6).
-//!
-//! Mirrors `CombatDeclarations.ts`.
 
 use crate::domain::cards::card_instance::CardInstance;
 use crate::domain::enums::{StaticAbility, Step};

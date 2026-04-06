@@ -8,7 +8,6 @@ pub type DrawAmount = u32;
 
 /// All actions a player can perform during a game.
 ///
-/// Mirrors the TypeScript `Actions` discriminated union from `GameActions.ts`.
 /// Each variant carries the data required to process that action.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]

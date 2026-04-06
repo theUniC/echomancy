@@ -1,12 +1,7 @@
 //! Ability system — activated and triggered abilities.
 //!
-//! Mirrors the TypeScript `Ability`, `ActivatedAbility` from
-//! `abilities/Ability.ts` and `abilities/ActivatedAbility.ts`.
-//!
-//! The TS `ActivationCost` was a struct `{ type: "TAP" }`.
 //! In MVP only TAP cost is supported for activated abilities.
-//! We express this as a unit struct `ActivationCost` rather than a full enum,
-//! matching the TS scope.
+//! We express this as a unit struct `ActivationCost` rather than a full enum.
 
 use crate::domain::effects::Effect;
 use crate::domain::triggers::Trigger;
@@ -27,8 +22,6 @@ pub enum ActivationCost {
 }
 
 /// An ability that a player can activate by paying a cost.
-///
-/// Mirrors the TypeScript `ActivatedAbility` from `abilities/ActivatedAbility.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActivatedAbility {
     /// The cost to activate this ability.
@@ -64,8 +57,6 @@ impl ActivatedAbility {
 }
 
 /// Union type for all ability types on a card.
-///
-/// Mirrors the TypeScript `Ability = ActivatedAbility | Trigger`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Ability {
     /// An ability the player explicitly activates.

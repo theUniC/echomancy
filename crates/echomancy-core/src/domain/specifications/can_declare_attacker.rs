@@ -10,9 +10,6 @@
 //! 1. The current step is `DeclareAttackers`.
 //! 2. The player is the active (current) player.
 //! 3. At least one creature they control can legally be declared as attacker.
-//!
-//! Mirrors the TypeScript `CanDeclareAttacker` class from
-//! `game/specifications/CanDeclareAttacker.ts`.
 
 use crate::domain::enums::Step;
 use crate::domain::errors::GameError;

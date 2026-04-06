@@ -2,9 +2,6 @@
 //!
 //! In Magic, the player with priority may cast spells, activate abilities,
 //! or pass priority. This is the most fundamental action-window gate.
-//!
-//! Mirrors the TypeScript `HasPriority` class from
-//! `game/specifications/HasPriority.ts`.
 
 use crate::domain::errors::GameError;
 use crate::domain::types::PlayerId;

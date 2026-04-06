@@ -52,7 +52,6 @@ pub enum ManaAddError {
 /// Immutable representation of a player's mana pool.
 ///
 /// All mutating operations return a **new** instance; the original is unchanged.
-/// This mirrors the TypeScript `ManaPool` value object in `ManaPool.ts`.
 ///
 /// # Examples
 ///
@@ -215,8 +214,6 @@ impl ManaPool {
 // ============================================================================
 
 /// The mana cost of a spell or ability.
-///
-/// Mirrors the TypeScript `ManaCost` type from `ManaCost.ts`.
 ///
 /// A cost has:
 /// - `generic`: any mana (e.g. the "2" in "2UU")

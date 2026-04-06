@@ -52,15 +52,6 @@ pub fn auto_advance_through_non_interactive(game: &mut Game, player_id: &str) {
     }
 }
 
-/// Advance through non-interactive steps (Untap, Upkeep, Draw) to reach
-/// FirstMain where the player can actually take actions.
-///
-/// This is called both at startup (for P1) and whenever the active player
-/// changes (for P2, P1 again, etc.). Without this, the player would need
-/// to manually click "Pass Priority" through steps where nothing happens.
-pub fn auto_advance_to_main_phase(game: &mut Game, player_id: &str) {
-    auto_advance_through_non_interactive(game, player_id);
-}
 
 /// Auto-pass priority for both players until the stack empties.
 ///
@@ -309,16 +300,15 @@ mod tests {
         assert_eq!(game.current_step(), Step::FirstMain);
     }
 
-    // ---- auto_advance_to_main_phase ----------------------------------------
+    // ---- auto_advance_through_non_interactive (upkeep boundary) ---------------
 
     #[test]
-    fn auto_advance_to_main_phase_lands_on_upkeep() {
-        // After Fix 2 (CR 117.3a), Upkeep is interactive so auto-advance stops there.
-        // The function name is kept for API compatibility but the behavior is correct.
+    fn auto_advance_through_non_interactive_stops_at_upkeep() {
+        // Upkeep is interactive (CR 117.3a), so auto-advance stops there.
         let (mut game, p1, _) = make_started_game();
         assert_eq!(game.current_step(), Step::Untap);
 
-        auto_advance_to_main_phase(&mut game, &p1);
+        auto_advance_through_non_interactive(&mut game, &p1);
 
         assert_eq!(game.current_step(), Step::Upkeep);
     }
@@ -702,7 +692,7 @@ mod tests {
     fn auto_resolve_stack_is_no_op_when_stack_empty() {
         let (mut game, p1, _) = make_started_game();
         // Advance to Upkeep (first interactive step after Untap).
-        auto_advance_to_main_phase(&mut game, &p1);
+        auto_advance_through_non_interactive(&mut game, &p1);
         assert!(!game.stack_has_items());
         assert_eq!(game.current_step(), Step::Upkeep);
 

@@ -3,9 +3,6 @@ use thiserror::Error;
 use crate::domain::types::{CardInstanceId, PlayerId};
 
 /// All errors that can occur during game processing.
-///
-/// Mirrors the TypeScript error classes from `GameErrors.ts`, grouped by
-/// the sub-system that can raise them.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum GameError {
     // ========================================================================
@@ -211,8 +208,7 @@ pub enum GameError {
 }
 
 impl GameError {
-    /// Convenience constructor for `NotYourTurn` that mirrors the TypeScript
-    /// `NotYourTurnError(isCreature)` overload.
+    /// Convenience constructor for `NotYourTurn`.
     pub fn not_your_turn(is_creature: bool) -> Self {
         let hint = if is_creature {
             " (unless they have Flash)".to_owned()
@@ -222,8 +218,7 @@ impl GameError {
         GameError::NotYourTurn { hint }
     }
 
-    /// Convenience constructor for `NotMainPhase` that mirrors the TypeScript
-    /// `NotMainPhaseError(isCreature)` overload.
+    /// Convenience constructor for `NotMainPhase`.
     pub fn not_main_phase(is_creature: bool) -> Self {
         let hint = if is_creature {
             " (unless they have Flash)".to_owned()
@@ -233,8 +228,7 @@ impl GameError {
         GameError::NotMainPhase { hint }
     }
 
-    /// Convenience constructor for `StackNotEmpty` that mirrors the TypeScript
-    /// `StackNotEmptyError(isCreature)` overload.
+    /// Convenience constructor for `StackNotEmpty`.
     pub fn stack_not_empty(is_creature: bool) -> Self {
         let hint = if is_creature {
             " (unless they have Flash)".to_owned()

@@ -22,8 +22,6 @@ pub struct TurnStateSnapshot {
 
 /// Immutable value object that tracks turn-related game state.
 ///
-/// Mirrors the TypeScript `TurnState` class from `TurnState.ts`.
-///
 /// All mutating operations return **new** instances; the original is unchanged.
 ///
 /// # Examples

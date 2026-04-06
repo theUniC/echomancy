@@ -4,7 +4,6 @@
 //! context trait to `GameStateExport`.  The Game aggregate (Phase 6) will
 //! implement `ExportableGameContext` to produce snapshots.
 //!
-//! Mirrors `GameStateExport.ts` and `GameStateExporter.ts`.
 //!
 //! Design notes:
 //! - The export is neutral (not UI-oriented).
@@ -201,7 +200,6 @@ pub struct GameStateExport {
 /// The Game aggregate (Phase 6) will implement this trait. In tests, minimal
 /// structs can implement it.
 ///
-/// Mirrors the shape of `GameStateExporter.ts`.
 pub(crate) trait ExportableGameContext {
     /// The unique identifier for this game.
     fn game_id(&self) -> &str;

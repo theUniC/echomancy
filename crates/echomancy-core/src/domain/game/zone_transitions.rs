@@ -294,7 +294,6 @@ impl Game {
     }
 
     /// Untap a permanent.
-    #[allow(dead_code)]
     pub(crate) fn untap_permanent(&mut self, permanent_id: &str) -> Result<(), GameError> {
         let state = self.permanent_states.get(permanent_id).ok_or_else(|| {
             GameError::PermanentNotFound {

@@ -1,6 +1,4 @@
 //! Card instance — a unique copy of a card definition in a game.
-//!
-//! Mirrors the TypeScript `CardInstance` type from `cards/CardInstance.ts`.
 
 use serde::{Deserialize, Serialize};
 
@@ -15,8 +13,6 @@ use crate::domain::cards::card_definition::CardDefinition;
 /// Equality is determined solely by `instance_id`, following MTG Rule 109.1
 /// (each object has its own individual identity). Two instances with the same
 /// definition but different IDs are never equal.
-///
-/// Mirrors the TypeScript `CardInstance` type from `cards/CardInstance.ts`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CardInstance {
     /// Globally unique ID for this copy of the card in the game.

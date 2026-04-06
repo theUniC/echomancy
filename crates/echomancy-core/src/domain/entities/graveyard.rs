@@ -4,8 +4,6 @@
 //!
 //! The graveyard is ordered — cards are stored bottom-to-top.
 //! The most recently added card is at the end of the internal `Vec`.
-//!
-//! Mirrors the TypeScript `Graveyard` class from `game/entities/Graveyard.ts`.
 
 use crate::domain::cards::card_instance::CardInstance;
 

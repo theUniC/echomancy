@@ -4,8 +4,6 @@
 //!
 //! The library is an ordered zone. Cards are drawn from the top (index 0).
 //! Shuffling uses `rand::SeedableRng` for deterministic tests.
-//!
-//! Mirrors the TypeScript `Library` class from `game/entities/Library.ts`.
 
 use rand::seq::SliceRandom;
 use rand::SeedableRng;

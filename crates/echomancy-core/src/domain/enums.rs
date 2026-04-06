@@ -6,8 +6,6 @@ use std::fmt;
 // ============================================================================
 
 /// The type of a Magic: The Gathering card.
-///
-/// Mirrors the TypeScript `CardType` union from `CardDefinition.ts`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CardType {
@@ -84,7 +82,6 @@ impl fmt::Display for ManaColor {
 /// Static ability keywords supported by the game engine.
 ///
 /// Always-on abilities that affect rule checks only. Does not go on the stack.
-/// Mirrors the TypeScript `StaticAbility` type from `CardDefinition.ts`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum StaticAbility {
@@ -171,8 +168,6 @@ impl fmt::Display for StaticAbility {
 // ============================================================================
 
 /// The named zones in a Magic: The Gathering game.
-///
-/// Mirrors the TypeScript `ZoneName` type from `Zone.ts`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ZoneName {
@@ -203,8 +198,6 @@ impl fmt::Display for ZoneName {
 // ============================================================================
 
 /// All phases and steps in a Magic: The Gathering turn.
-///
-/// Mirrors the TypeScript `Step` const object from `Steps.ts`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Step {
@@ -252,8 +245,6 @@ impl fmt::Display for Step {
 
 /// Describes the current lifecycle phase of a game instance.
 ///
-/// Mirrors the TypeScript `GameLifecycleState` enum from `Game.ts`.
-///
 /// - `Created`: Game instance exists; rules engine is not yet active.
 /// - `Started`: Rules engine is active; game is in progress.
 /// - `Finished`: Game has concluded.
@@ -281,8 +272,6 @@ impl fmt::Display for GameLifecycleState {
 // ============================================================================
 
 /// The reason a permanent was moved to the graveyard.
-///
-/// Mirrors the TypeScript `GraveyardReason` enum from `Game.ts`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum GraveyardReason {

@@ -5,8 +5,6 @@
 //!   1. Pay colored requirements first (exact color match)
 //!   2. Pay colorless requirements (C) — can only be paid with colorless mana
 //!   3. Pay generic cost with remaining mana (prefer colorless, then colored)
-//!
-//! Mirrors `ManaPaymentService.ts`.
 
 use crate::domain::enums::ManaColor;
 use crate::domain::errors::GameError;

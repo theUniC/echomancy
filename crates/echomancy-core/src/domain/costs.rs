@@ -3,14 +3,10 @@
 //! Costs are represented as a closed-set enum for the same reason as effects:
 //! the MVP has a finite, known set of cost types.
 //!
-//! Mirrors the TypeScript `Cost` interface and its implementations from
-//! `costs/Cost.ts`, `costs/impl/ManaCost.ts`, etc.
 
 use crate::domain::value_objects::mana::ManaCost as ManaValue;
 
 /// Context provided when validating or paying a cost.
-///
-/// Mirrors the TypeScript `CostContext` from `costs/Cost.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CostContext {
     /// The player who is paying the cost.
@@ -33,11 +29,6 @@ impl CostContext {
 ///
 /// Using an enum (closed set) over `Box<dyn Cost>` (open set) avoids
 /// trait-object complexity and enables exhaustive matching.
-///
-/// Mirrors:
-/// - `ManaCost`         → `Mana { cost }`
-/// - `TapSelfCost`      → `TapSelf`
-/// - `SacrificeSelfCost`→ `SacrificeSelf`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cost {
     /// Pay mana from the player's pool.

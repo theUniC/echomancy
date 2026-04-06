@@ -1,8 +1,7 @@
 //! Prebuilt 60-card starter decks.
 //!
 //! Each factory function generates a new set of `CardInstance` objects with
-//! unique UUIDs for the given player. Mirrors the TypeScript `PrebuiltDecks`
-//! from `cards/PrebuiltDecks.ts`.
+//! unique UUIDs for the given player.
 
 use uuid::Uuid;
 

@@ -254,21 +254,9 @@ impl Game {
             })
     }
 
-    /// Whether a player has passed priority in the current window.
-    #[allow(dead_code)]
-    pub(crate) fn has_passed_priority(&self, player_id: &str) -> bool {
-        self.players_who_passed_priority.contains(player_id)
-    }
-
     /// Whether all players have passed priority.
     pub(crate) fn both_players_have_passed(&self) -> bool {
         self.players_who_passed_priority.len() >= self.players.len()
-    }
-
-    /// Whether a player is in auto-pass mode.
-    #[allow(dead_code)]
-    pub(crate) fn is_auto_pass(&self, player_id: &str) -> bool {
-        self.auto_pass_players.contains(player_id)
     }
 
     /// Whether the current player holds priority.

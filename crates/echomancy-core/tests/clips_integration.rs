@@ -7,7 +7,7 @@
 //! Only the public API of `echomancy-core` is used.
 
 use echomancy_core::prelude::*;
-use echomancy_core::domain::game::automation::{auto_advance_to_main_phase, auto_resolve_stack};
+use echomancy_core::domain::game::automation::{auto_advance_through_non_interactive, auto_resolve_stack};
 use echomancy_core::domain::targets::Target;
 
 // ============================================================================
@@ -55,13 +55,12 @@ fn make_test_game() -> (Game, String, String) {
     .expect("CLIPS engine should initialise");
     game.set_rules_engine(engine);
 
-    // Advance through non-interactive steps (Untap) to reach the first
-    // interactive step. Per CR 117.3a, Upkeep is now interactive so
-    // auto_advance_to_main_phase stops there. Advance manually to FirstMain.
-    auto_advance_to_main_phase(&mut game, &p1);
-
+    // Advance through non-interactive steps (Untap) to reach Upkeep.
+    // Upkeep is interactive (CR 117.3a), so auto-advance stops there.
     // Manually advance through Upkeep and Draw to reach FirstMain.
-    // (Both are interactive but the integration tests need to start at FirstMain.)
+    auto_advance_through_non_interactive(&mut game, &p1);
+
+    // Both Upkeep and Draw are interactive; advance past them to FirstMain.
     while game.current_step() != echomancy_core::prelude::Step::FirstMain {
         let current = game.current_player_id().to_owned();
         game.apply(Action::AdvanceStep {

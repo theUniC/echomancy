@@ -1,7 +1,6 @@
 //! Step Machine — pure turn-step sequencing.
 //!
 //! Advances from one `Step` to the next in the standard MTG turn order.
-//! Mirrors `StepMachine.ts`.
 
 use crate::domain::enums::Step;
 

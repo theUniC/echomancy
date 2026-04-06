@@ -1,6 +1,4 @@
 //! Card definition — the template/blueprint for a card.
-//!
-//! Mirrors the TypeScript `CardDefinition` type from `cards/CardDefinition.ts`.
 
 use serde::{Deserialize, Serialize};
 
@@ -20,8 +18,6 @@ use crate::domain::value_objects::mana::ManaCost;
 /// `CardDefinition` is value-object style: it describes _what_ a card is,
 /// not a specific copy of it in a game. Two cards with the same `id` are
 /// the same card.
-///
-/// Mirrors the TypeScript `CardDefinition` type from `cards/CardDefinition.ts`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CardDefinition {
     /// Unique identifier for the card type (e.g. `"forest"`, `"lightning-bolt"`).

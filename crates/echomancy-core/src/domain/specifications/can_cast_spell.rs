@@ -6,9 +6,6 @@
 //! castable spell?", which is what the action-window query needs.
 //!
 //! Note: priority is NOT checked here — use `HasPriority` separately.
-//!
-//! Mirrors the TypeScript `CanCastSpell` class from
-//! `game/specifications/CanCastSpell.ts`.
 
 use crate::domain::cards::card_instance::CardInstance;
 use crate::domain::entities::the_stack::TheStack;

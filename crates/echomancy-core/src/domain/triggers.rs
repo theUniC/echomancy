@@ -1,15 +1,10 @@
 //! Triggered ability system.
 //!
 //! Triggers are conditions that fire automatically when a game event occurs.
-//! In the TS codebase, `Trigger` was a struct with function fields (closures).
-//! In Rust, closures stored in structs require complex lifetime management.
-//!
 //! MVP approach: triggers are represented as a closed-set enum of named
 //! trigger patterns. This keeps the type system clean and avoids `dyn Fn`
 //! complexity. For user-defined or data-driven triggers, this can be
 //! extended when needed.
-//!
-//! Mirrors the TypeScript `Trigger` type from `triggers/Trigger.ts`.
 
 use crate::domain::effects::Effect;
 

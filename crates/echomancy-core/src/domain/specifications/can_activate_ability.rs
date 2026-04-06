@@ -5,9 +5,6 @@
 //! - `Tap`: permanent must be untapped, and no summoning sickness for creatures.
 //! - `TapAndMana`: same tap checks plus the mana pool must be able to pay the cost.
 //! - `Mana`: mana pool must be able to pay the cost (no tap required).
-//!
-//! Mirrors the TypeScript `CanActivateAbility` class from
-//! `game/specifications/CanActivateAbility.ts`.
 
 use crate::domain::abilities::{ActivatedAbility, ActivationCost};
 use crate::domain::cards::card_instance::CardInstance;
