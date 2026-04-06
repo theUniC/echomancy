@@ -1,7 +1,8 @@
 //! Stack and spell resolution helpers for the `Game` aggregate.
 
 use crate::domain::entities::the_stack::{AbilityKind, AbilityOnStack, SpellOnStack, StackItem};
-use crate::domain::enums::{GraveyardReason, ManaColor, ZoneName};
+use crate::domain::enums::{ManaColor, ZoneName};
+use crate::domain::game::replacement_effects::DestroyReason;
 use crate::domain::events::{CardInstanceSnapshot, GameEvent};
 use crate::domain::rules_engine::RulesAction;
 use crate::domain::services::trigger_evaluation::{PermanentOnBattlefield, TriggeredAbilityInfo};
@@ -173,20 +174,33 @@ impl Game {
     /// were removed before the action was applied).
     pub(crate) fn apply_rules_action(&mut self, action: &RulesAction) {
         match action {
-            RulesAction::DealDamage { source: _, target, amount } => {
-                // Try as player damage first
-                if let Ok(player) = self.player_state_mut(target) {
-                    player.life_total -= *amount as i32;
-                } else if let Some(pstate) = self.permanent_states.get(target).cloned() {
-                    // Creature damage: accumulate damage on the permanent.
-                    // SBA (lethal damage check) runs once after all actions are applied
-                    // via the `perform_state_based_actions()` call in `resolve_spell`.
-                    let current_damage = pstate
-                        .creature_state()
-                        .map(|cs| cs.damage_marked_this_turn())
-                        .unwrap_or(0);
-                    if let Ok(damaged) = pstate.with_damage(current_damage + *amount as i32) {
-                        self.permanent_states.insert(target.clone(), damaged);
+            RulesAction::DealDamage { source, target, amount } => {
+                // Determine if target is a player or creature for replacement framework.
+                let target_is_player = self.player_state(target).is_ok();
+                // Run damage through the replacement framework (R11).
+                let final_amount = self.apply_damage_with_replacement(
+                    source,
+                    target,
+                    *amount as i32,
+                    false, // DealDamage from CLIPS doesn't carry deathtouch
+                    target_is_player,
+                );
+                if final_amount > 0 {
+                    if target_is_player {
+                        if let Ok(player) = self.player_state_mut(target) {
+                            player.life_total -= final_amount;
+                        }
+                    } else if let Some(pstate) = self.permanent_states.get(target).cloned() {
+                        // Creature damage: accumulate damage on the permanent.
+                        // SBA (lethal damage check) runs once after all actions are applied
+                        // via the `perform_state_based_actions()` call in `resolve_spell`.
+                        let current_damage = pstate
+                            .creature_state()
+                            .map(|cs| cs.damage_marked_this_turn())
+                            .unwrap_or(0);
+                        if let Ok(damaged) = pstate.with_damage(current_damage + final_amount) {
+                            self.permanent_states.insert(target.clone(), damaged);
+                        }
                     }
                 }
             }
@@ -194,8 +208,8 @@ impl Game {
                 self.draw_cards_internal(player, *amount);
             }
             RulesAction::DestroyPermanent { target } => {
-                // Ignore if the permanent no longer exists
-                let _ = self.move_permanent_to_graveyard(target, GraveyardReason::Destroy);
+                // Use the replacement framework — this is a destroy effect (CR 614).
+                let _ = self.move_permanent_to_graveyard_with_reason(target, DestroyReason::DestroyEffect);
             }
             RulesAction::GainLife { player, amount } => {
                 if let Ok(p) = self.player_state_mut(player) {
@@ -321,6 +335,58 @@ impl Game {
                     source,
                 );
             }
+            RulesAction::RegisterPreventionShield { target, amount, duration, source } => {
+                use crate::domain::game::replacement_effects::{
+                    ReplacementDuration, ReplacementEffect, ReplacementEventFilter,
+                    ReplacementOutcome,
+                };
+                let controller_id = match self.find_controller_of(target) {
+                    Some(id) => id,
+                    None => return, // target not on battlefield
+                };
+                let ts = self.next_timestamp();
+                // Determine if target is a player or permanent.
+                let event_filter = if self.player_state(target).is_ok() {
+                    ReplacementEventFilter::DamageToPlayer { player_id: target.clone() }
+                } else {
+                    ReplacementEventFilter::DamageToPermanent { permanent_id: target.clone() }
+                };
+                let replacement_duration = match duration.to_ascii_lowercase().as_str() {
+                    "next-occurrence" | "next_occurrence" => ReplacementDuration::NextOccurrence,
+                    _ => ReplacementDuration::UntilDepleted { remaining: *amount as i32 },
+                };
+                let effect = ReplacementEffect::new(
+                    format!("prevention-{ts}"),
+                    source.clone(),
+                    controller_id,
+                    event_filter,
+                    ReplacementOutcome::PreventDamage { amount: *amount as i32 },
+                    replacement_duration,
+                    ts,
+                );
+                self.register_replacement_effect(effect);
+            }
+            RulesAction::RegisterRegenerationShield { target, source } => {
+                use crate::domain::game::replacement_effects::{
+                    ReplacementDuration, ReplacementEffect, ReplacementEventFilter,
+                    ReplacementOutcome,
+                };
+                let controller_id = match self.find_controller_of(target) {
+                    Some(id) => id,
+                    None => return, // target not on battlefield
+                };
+                let ts = self.next_timestamp();
+                let effect = ReplacementEffect::new(
+                    format!("regen-{ts}"),
+                    source.clone(),
+                    controller_id,
+                    ReplacementEventFilter::DestroyPermanent { permanent_id: target.clone() },
+                    ReplacementOutcome::Regenerate,
+                    ReplacementDuration::NextOccurrence,
+                    ts,
+                );
+                self.register_replacement_effect(effect);
+            }
             // Stubs for M3: log but don't crash
             RulesAction::MoveZone { .. } | RulesAction::AddCounter { .. } => {
                 // TODO(M4): implement these actions
@@ -388,12 +454,11 @@ impl Game {
     /// Return the controller ID of a permanent on any battlefield, or an empty
     /// string if the permanent is not found (matches the `.unwrap_or_default()`
     /// pattern used for layer-effect construction).
-    fn find_controller_of(&self, permanent_id: &str) -> String {
+    fn find_controller_of(&self, permanent_id: &str) -> Option<String> {
         self.players
             .iter()
             .find(|p| p.battlefield.iter().any(|c| c.instance_id() == permanent_id))
             .map(|p| p.player_id.as_str().to_owned())
-            .unwrap_or_default()
     }
 
     /// Add a `GlobalContinuousEffect` for a layer-system action originating from a
@@ -413,7 +478,10 @@ impl Game {
         }
         let effect_duration = parse_effect_duration(duration);
         let timestamp = self.next_timestamp();
-        let controller_id = self.find_controller_of(target);
+        let controller_id = match self.find_controller_of(target) {
+            Some(id) => id,
+            None => return,
+        };
         let global_effect = GlobalContinuousEffect {
             layer,
             payload,

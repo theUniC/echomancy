@@ -78,6 +78,10 @@ impl Game {
             );
         }
 
+        // Apply ETB replacement effects (R11): e.g. "enters with N +1/+1 counters".
+        // This runs after state initialization so the baseline state exists.
+        self.apply_etb_replacements(permanent.instance_id());
+
         // Add to battlefield
         if let Ok(player) = self.player_state_mut(controller_id) {
             player.battlefield.push(permanent);
@@ -152,6 +156,9 @@ impl Game {
         // CR 613.7a: when a permanent leaves the battlefield, effects it generated end.
         self.remove_effects_for_source(permanent_id);
 
+        // Remove all WhileSourceOnBattlefield replacement effects for this permanent (R11).
+        self.remove_replacement_effects_for_source(permanent_id);
+
         // Add to owner's graveyard.
         if let Ok(owner) = self.player_state_mut(&owner_id) {
             owner.graveyard.push(card);
@@ -215,6 +222,9 @@ impl Game {
         // Remove all WhileSourceOnBattlefield global effects whose source was this permanent (LS1).
         self.remove_effects_for_source(permanent_id);
 
+        // Remove all WhileSourceOnBattlefield replacement effects for this permanent (R11).
+        self.remove_replacement_effects_for_source(permanent_id);
+
         // Add to owner's exile zone.
         if let Ok(owner) = self.player_state_mut(&owner_id) {
             owner.exile.push(card);
@@ -272,6 +282,9 @@ impl Game {
 
         // Remove all WhileSourceOnBattlefield global effects whose source was this permanent (LS1).
         self.remove_effects_for_source(permanent_id);
+
+        // Remove all WhileSourceOnBattlefield replacement effects for this permanent (R11).
+        self.remove_replacement_effects_for_source(permanent_id);
 
         // Add to owner's hand.
         if let Ok(owner) = self.player_state_mut(&owner_id) {

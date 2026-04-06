@@ -114,7 +114,7 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 | R8 | Planeswalker mechanics (loyalty, abilities, attackable) | TODO | 306 | Very High | - | Loyalty counters, +N/-N abilities |
 | R9 | Token creation | DONE | 111 | High | - | Game::create_token() + RulesAction::CreateToken wired |
 | R10 | Triggered abilities should use the stack | DONE | 603.3 | High | - | AbilityKind::Triggered + resolve_ability calls CLIPS at resolution time |
-| R11 | Replacement effects ("instead" effects) | TODO | 614-615 | Very High | - | Fundamental to many cards |
+| R11 | Replacement effects ("instead" effects) | IN PROGRESS | 614-615 | Very High | - | Spec at docs/specs/active/R11-replacement-effects.md. MVP: damage, destroy, ETB |
 | R12 | Prevention effects (prevent damage) | TODO | 615 | High | R11 | Often implemented together |
 | R13 | Hand size enforcement at Cleanup (discard to 7) | DONE | 514.1 | Low | - | Auto-discard last cards (MVP) |
 | R14 | Color identity on cards (derived from mana cost) | DONE | 105 | Low | - | colors() and is_colorless() on CardDefinition |

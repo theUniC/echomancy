@@ -177,11 +177,20 @@ impl Game {
 
         // Apply damage; also handle Lifelink life gain and Toxic poison counters.
         for assignment in &assignments {
+            // Run damage through the replacement framework (R11).
+            let final_damage = self.apply_damage_with_replacement(
+                &assignment.source_id,
+                &assignment.target_id,
+                assignment.amount,
+                assignment.is_deathtouch,
+                assignment.is_player,
+            );
+
             if assignment.is_player {
-                self.deal_damage_to_player(&assignment.target_id, assignment.amount);
-                // CR 702.164: Toxic — if source deals combat damage to a player,
-                // that player gets N poison counters (where N = toxic value on the card).
-                if assignment.amount > 0 {
+                if final_damage > 0 {
+                    self.deal_damage_to_player(&assignment.target_id, final_damage);
+                    // CR 702.164: Toxic — if source deals combat damage to a player,
+                    // that player gets N poison counters (where N = toxic value on the card).
                     let toxic_n = self.players.iter()
                         .flat_map(|p| p.battlefield.iter())
                         .find(|c| c.instance_id() == assignment.source_id)
@@ -191,16 +200,16 @@ impl Game {
                         let _ = self.add_poison_counters(&assignment.target_id, toxic_n);
                     }
                 }
-            } else {
+            } else if final_damage > 0 {
                 self.mark_damage_on_creature(
                     &assignment.target_id,
-                    assignment.amount,
+                    final_damage,
                     assignment.is_deathtouch,
                 );
             }
             // Lifelink: source controller gains life equal to damage dealt.
-            if assignment.has_lifelink && assignment.amount > 0 {
-                self.gain_life(&assignment.source_controller_id, assignment.amount);
+            if assignment.has_lifelink && final_damage > 0 {
+                self.gain_life(&assignment.source_controller_id, final_damage);
             }
         }
 
@@ -267,11 +276,20 @@ impl Game {
 
         // Apply all damage; also handle Lifelink life gain and Toxic poison counters.
         for assignment in &assignments {
+            // Run damage through the replacement framework (R11).
+            let final_damage = self.apply_damage_with_replacement(
+                &assignment.source_id,
+                &assignment.target_id,
+                assignment.amount,
+                assignment.is_deathtouch,
+                assignment.is_player,
+            );
+
             if assignment.is_player {
-                self.deal_damage_to_player(&assignment.target_id, assignment.amount);
-                // CR 702.164: Toxic — if source deals combat damage to a player,
-                // that player gets N poison counters (where N = toxic value on the card).
-                if assignment.amount > 0 {
+                if final_damage > 0 {
+                    self.deal_damage_to_player(&assignment.target_id, final_damage);
+                    // CR 702.164: Toxic — if source deals combat damage to a player,
+                    // that player gets N poison counters (where N = toxic value on the card).
                     let toxic_n = self.players.iter()
                         .flat_map(|p| p.battlefield.iter())
                         .find(|c| c.instance_id() == assignment.source_id)
@@ -281,16 +299,16 @@ impl Game {
                         let _ = self.add_poison_counters(&assignment.target_id, toxic_n);
                     }
                 }
-            } else {
+            } else if final_damage > 0 {
                 self.mark_damage_on_creature(
                     &assignment.target_id,
-                    assignment.amount,
+                    final_damage,
                     assignment.is_deathtouch,
                 );
             }
             // Lifelink: source controller gains life equal to damage dealt.
-            if assignment.has_lifelink && assignment.amount > 0 {
-                self.gain_life(&assignment.source_controller_id, assignment.amount);
+            if assignment.has_lifelink && final_damage > 0 {
+                self.gain_life(&assignment.source_controller_id, final_damage);
             }
         }
     }

@@ -39,6 +39,7 @@ mod mechanics;
 mod pass_priority;
 mod play_land;
 mod priority;
+pub(crate) mod replacement_effects;
 mod sacrifice;
 mod sba;
 mod stack_resolution;
@@ -54,6 +55,7 @@ use crate::domain::errors::GameError;
 use crate::domain::events::GameEvent;
 use crate::domain::entities::the_stack::StackItem;
 use crate::domain::game::layer_system::GlobalContinuousEffect;
+use crate::domain::game::replacement_effects::ReplacementEffect;
 use crate::domain::rules_engine::RulesEngine;
 use crate::domain::types::PlayerId;
 use crate::domain::value_objects::mana::ManaPool;
@@ -227,6 +229,27 @@ pub struct Game {
     /// Incremented every time a permanent enters the battlefield (ETB timestamp)
     /// or a spell-resolution effect is created.
     pub(crate) next_effect_timestamp: u64,
+
+    // =========================================================================
+    // Replacement Effects Framework (R11)
+    // =========================================================================
+
+    /// Game-wide list of active replacement effects (CR 614).
+    ///
+    /// Replacement effects intercept game events (damage, destroy, ETB) BEFORE
+    /// they occur and modify them. Each effect carries a filter (what it
+    /// watches for), an outcome (what happens instead), and a duration.
+    ///
+    /// This registry is checked at each interception point. Effects are removed
+    /// when their duration expires or they are consumed.
+    pub(crate) replacement_effects: Vec<ReplacementEffect>,
+
+    /// Monotonically increasing counter for assigning event instance IDs.
+    ///
+    /// Each damage/destroy/ETB event gets a unique ID so the apply-once rule
+    /// (CR 614.6) can be enforced: a replacement effect records event IDs it
+    /// has already been applied to.
+    pub(crate) next_event_instance_id: u64,
 }
 
 impl Game {
@@ -260,6 +283,8 @@ impl Game {
             mulligan_state: None,
             global_continuous_effects: Vec::new(),
             next_effect_timestamp: 1,
+            replacement_effects: Vec::new(),
+            next_event_instance_id: 1,
         }
     }
 
@@ -632,6 +657,164 @@ impl Game {
     /// Returns `GameError::PlayerNotFound` if `player_id` is unknown.
     pub fn player_poison_counters(&self, player_id: &str) -> Result<u32, GameError> {
         self.player_state(player_id).map(|p| p.poison_counters)
+    }
+
+    // =========================================================================
+    // Replacement Effects test utilities (pub to allow cross-crate test setup)
+    // =========================================================================
+
+    /// Register a prevention shield on `target_id` (creature or player).
+    ///
+    /// Prevents up to `amount` damage. Decrements on each use; removed when
+    /// depleted. This is a test-only helper — in a real game, shields are
+    /// registered through CLIPS spell resolution.
+    pub fn register_prevention_shield(&mut self, target_id: &str, amount: i32) {
+        use crate::domain::game::replacement_effects::{
+            ReplacementDuration, ReplacementEffect, ReplacementEventFilter, ReplacementOutcome,
+        };
+        let ts = self.next_effect_timestamp;
+        self.next_effect_timestamp += 1;
+        let effect = ReplacementEffect::new(
+            format!("prevention-shield-{target_id}"),
+            format!("source-{target_id}"),
+            "test",
+            ReplacementEventFilter::DamageToPermanent {
+                permanent_id: target_id.to_owned(),
+            },
+            ReplacementOutcome::PreventDamage { amount },
+            ReplacementDuration::UntilDepleted { remaining: amount },
+            ts,
+        );
+        self.replacement_effects.push(effect);
+    }
+
+    /// Register a regeneration shield on `creature_id`.
+    ///
+    /// The next time the creature would be destroyed by lethal damage or a
+    /// destroy effect, it is instead tapped, cleared of damage, and removed
+    /// from combat. The shield is consumed on first use (`NextOccurrence`).
+    ///
+    /// This is a test-only helper — in a real game, shields come from activated
+    /// abilities resolved through CLIPS.
+    pub fn register_regeneration_shield(&mut self, creature_id: &str, controller_id: &str) {
+        use crate::domain::game::replacement_effects::{
+            ReplacementDuration, ReplacementEffect, ReplacementEventFilter, ReplacementOutcome,
+        };
+        let ts = self.next_effect_timestamp;
+        self.next_effect_timestamp += 1;
+        let effect = ReplacementEffect::new(
+            format!("regen-shield-{creature_id}"),
+            creature_id,
+            controller_id,
+            ReplacementEventFilter::DestroyPermanent {
+                permanent_id: creature_id.to_owned(),
+            },
+            ReplacementOutcome::Regenerate,
+            ReplacementDuration::NextOccurrence,
+            ts,
+        );
+        self.replacement_effects.push(effect);
+    }
+
+    /// Deal `amount` damage to creature `target_id`, going through the
+    /// replacement effects framework.
+    ///
+    /// The final (possibly reduced) damage is marked on the creature's state.
+    /// Returns the final damage amount after all replacements were applied.
+    ///
+    /// This is a test-only helper — in a real game, damage comes from spell
+    /// resolution or combat, both of which call `apply_damage_with_replacement`
+    /// and `mark_damage_on_creature` internally.
+    pub fn deal_damage_to_creature(&mut self, target_id: &str, amount: i32) -> i32 {
+        let final_damage =
+            self.apply_damage_with_replacement("test-source", target_id, amount, false, false);
+        if final_damage > 0 {
+            self.mark_damage_on_creature(target_id, final_damage, false);
+        }
+        final_damage
+    }
+
+    /// Run state-based actions.
+    ///
+    /// Checks for creatures with lethal damage or zero toughness and moves
+    /// them to the graveyard. This is a test-only helper — in production, SBA
+    /// is run automatically after every game action.
+    pub fn run_sba(&mut self) {
+        self.perform_state_based_actions();
+    }
+
+    /// Return the number of replacement effects currently active in the registry.
+    ///
+    /// Useful in tests to verify that an effect has been consumed or is still
+    /// present after an event.
+    pub fn replacement_effect_count(&self) -> usize {
+        self.replacement_effects.len()
+    }
+
+    /// Return the remaining damage budget of the first prevention shield on
+    /// `target_id`, or `None` if no prevention shield is registered for it.
+    ///
+    /// This is a test-only helper to verify partial shield depletion.
+    pub fn prevention_shield_remaining(&self, target_id: &str) -> Option<i32> {
+        use crate::domain::game::replacement_effects::{
+            ReplacementDuration, ReplacementEventFilter,
+        };
+        self.replacement_effects.iter().find_map(|e| {
+            let matches_target = matches!(
+                &e.event_filter,
+                ReplacementEventFilter::DamageToPermanent { permanent_id }
+                    if permanent_id == target_id
+            );
+            if matches_target {
+                if let ReplacementDuration::UntilDepleted { remaining } = &e.duration {
+                    return Some(*remaining);
+                }
+            }
+            None
+        })
+    }
+
+    /// Return `true` if a regeneration shield is registered for `creature_id`.
+    ///
+    /// This is a test-only helper to verify that a shield has or has not been
+    /// consumed.
+    pub fn has_regeneration_shield(&self, creature_id: &str) -> bool {
+        use crate::domain::game::replacement_effects::{
+            ReplacementEventFilter, ReplacementOutcome,
+        };
+        self.replacement_effects.iter().any(|e| {
+            matches!(
+                &e.event_filter,
+                ReplacementEventFilter::DestroyPermanent { permanent_id }
+                    if permanent_id == creature_id
+            ) && matches!(&e.replacement, ReplacementOutcome::Regenerate)
+        })
+    }
+
+    /// Inject a Layer 7b "set P/T to (power, toughness)" effect on `creature_id`
+    /// that lasts until end of turn.
+    ///
+    /// This is a test-only helper. In real gameplay, such effects come from
+    /// spell resolution (e.g. "Turn to Frog" sets P/T to 1/1 until end of turn).
+    pub fn inject_set_pt_effect(&mut self, creature_id: &str, power: i32, toughness: i32) {
+        use crate::domain::game::layer_system::{
+            EffectFilter, EffectLayer, EffectPayload, EffectTargeting, GlobalContinuousEffect,
+        };
+        use crate::domain::value_objects::permanent_state::EffectDuration;
+
+        let ts = self.next_effect_timestamp;
+        self.next_effect_timestamp += 1;
+        self.global_continuous_effects.push(GlobalContinuousEffect {
+            layer: EffectLayer::Layer7b,
+            payload: EffectPayload::SetPowerToughness(power, toughness),
+            duration: EffectDuration::UntilEndOfTurn,
+            timestamp: ts,
+            source_id: "test-inject".to_owned(),
+            controller_id: "test".to_owned(),
+            is_cda: false,
+            targeting: EffectTargeting::Filter(EffectFilter::Permanent(creature_id.to_owned())),
+            locked_target_set: None,
+        });
     }
 
 }

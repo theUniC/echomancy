@@ -384,6 +384,8 @@ impl Game {
         self.clear_all_mana_pools();
         self.clear_damage_on_all_creatures();
         self.expire_continuous_effects(EffectDuration::UntilEndOfTurn);
+        // R11: Expire UntilEndOfTurn replacement effects.
+        self.cleanup_expired_replacement_effects();
         self.enforce_hand_size_limit();
         Vec::new()
     }

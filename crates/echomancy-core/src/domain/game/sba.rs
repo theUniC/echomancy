@@ -7,6 +7,7 @@ use std::collections::HashSet;
 
 use crate::domain::enums::GraveyardReason;
 use crate::domain::events::GameEvent;
+use crate::domain::game::replacement_effects::DestroyReason;
 use crate::domain::services::state_based_actions::{
     CreatureSbaEntry, PlayerSbaEntry, find_creatures_to_destroy,
     find_players_who_attempted_empty_library_draw, find_players_with_zero_or_less_life,
@@ -69,10 +70,34 @@ impl Game {
                 .collect();
 
             let to_destroy = find_creatures_to_destroy(&sba_entries);
-            for creature_id in &to_destroy {
-                if let Ok(evts) =
-                    self.move_permanent_to_graveyard(creature_id, GraveyardReason::StateBased)
-                {
+            // Determine the destroy reason for each creature before mutable borrows.
+            let destroy_reasons: Vec<(String, DestroyReason)> = to_destroy
+                .iter()
+                .map(|creature_id| {
+                    // Determine if this is zero-toughness (CR 704.5f, not interceptable)
+                    // or lethal damage / deathtouch (CR 704.5g, interceptable).
+                    let effective_toughness = sba_entries
+                        .iter()
+                        .find(|e| e.instance_id == creature_id.as_str())
+                        .and_then(|e| e.effective_toughness)
+                        .or_else(|| {
+                            creature_entries
+                                .iter()
+                                .find(|(id, _)| id == creature_id)
+                                .and_then(|(_, s)| s.current_toughness().ok())
+                        })
+                        .unwrap_or(0);
+                    let reason = if effective_toughness <= 0 {
+                        DestroyReason::ZeroToughness
+                    } else {
+                        DestroyReason::LethalDamage
+                    };
+                    (creature_id.clone(), reason)
+                })
+                .collect();
+
+            for (creature_id, reason) in &destroy_reasons {
+                if let Ok(evts) = self.move_permanent_to_graveyard_with_reason(creature_id, *reason) {
                     events.extend(evts);
                     any_action = true;
                 }
@@ -82,6 +107,8 @@ impl Game {
             //    legendary permanents with the same name, keep one and sacrifice the rest.
             let legend_victims = self.find_legend_rule_victims();
             for victim_id in &legend_victims {
+                // Legend rule is a "put into graveyard" SBA, not a destroy event.
+                // Replacement effects for destroy do not apply (CR 704.5j).
                 if let Ok(evts) =
                     self.move_permanent_to_graveyard(victim_id, GraveyardReason::StateBased)
                 {
