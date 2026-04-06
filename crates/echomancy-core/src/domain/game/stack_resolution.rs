@@ -153,6 +153,13 @@ impl Game {
             self.rules_engine = Some(engine);
         }
 
+        // CR 704.3: check state-based actions after all spell effects are applied.
+        // This handles cases where a Layer 7 effect (e.g. SwitchPowerToughness via
+        // Twisted Image) causes a creature's effective toughness to become 0 or less.
+        // SBA must run before priority is re-assigned so the creature dies immediately.
+        let sba_events = self.perform_state_based_actions();
+        events.extend(sba_events);
+
         let triggered = self.collect_triggered_abilities(&event);
         self.execute_triggered_abilities(triggered);
 

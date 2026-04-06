@@ -819,11 +819,14 @@ mod tests {
 
         assert_eq!(game.stack().len(), 0, "stack should be empty");
 
-        // Layer system: 7d switch. Wall base is 0/4 → effective is 4/0.
-        let eff_power = game.effective_power("wall-1").expect("should have effective power");
-        let eff_toughness = game.effective_toughness("wall-1").expect("should have effective toughness");
-        assert_eq!(eff_power, 4, "Twisted Image should switch power from 0 to 4");
-        assert_eq!(eff_toughness, 0, "Twisted Image should switch toughness from 4 to 0");
+        // Layer 7d switch: Ironbark Wall (0/4) → effective 4/0.
+        // SBA (CR 704.5f): effective toughness ≤ 0 → wall is immediately moved to graveyard.
+        // Verify the wall is in the graveyard, not on the battlefield.
+        let wall_on_bf = game.battlefield(&p1).unwrap().iter().any(|c| c.instance_id() == "wall-1");
+        assert!(!wall_on_bf, "Wall should be in graveyard, not on battlefield (SBA: 0 effective toughness)");
+
+        let wall_in_gy = game.graveyard(&p1).unwrap().iter().any(|c| c.instance_id() == "wall-1");
+        assert!(wall_in_gy, "Wall should be in graveyard after SBA killed it (effective toughness = 0)");
     }
 
     // =========================================================================
