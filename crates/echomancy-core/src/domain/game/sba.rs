@@ -39,11 +39,9 @@ impl Game {
                 .iter()
                 .flat_map(|p| p.battlefield.iter())
                 .filter(|c| {
-                    if let Some(abilities) = self.effective_abilities(c.instance_id()) {
-                        abilities.contains(&StaticAbility::Indestructible)
-                    } else {
-                        c.definition().has_static_ability(StaticAbility::Indestructible)
-                    }
+                    self.effective_abilities(c.instance_id())
+                        .map(|a| a.contains(&StaticAbility::Indestructible))
+                        .unwrap_or(false)
                 })
                 .map(|c| c.instance_id().to_owned())
                 .collect();

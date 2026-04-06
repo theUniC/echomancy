@@ -264,7 +264,7 @@ impl Game {
                 self.mill(player, *amount as usize);
             }
             RulesAction::Discard { player, amount } => {
-                self.discard_random(player, *amount as usize);
+                self.discard_from_end(player, *amount as usize);
             }
             RulesAction::CreateToken {
                 controller,

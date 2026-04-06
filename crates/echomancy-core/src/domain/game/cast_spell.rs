@@ -302,11 +302,10 @@ fn validate_permanent_target_with_type(
                 }
                 // CR 702.18: Shroud — can't be targeted by anyone.
                 // Use the layer pipeline so Layer 6 effects (e.g. RemoveAllAbilities) are respected.
-                let has_shroud = if let Some(abilities) = game.effective_abilities(card.instance_id()) {
-                    abilities.contains(&StaticAbility::Shroud)
-                } else {
-                    card.definition().has_static_ability(StaticAbility::Shroud)
-                };
+                let has_shroud = game
+                    .effective_abilities(card.instance_id())
+                    .map(|a| a.contains(&StaticAbility::Shroud))
+                    .unwrap_or(false);
                 if has_shroud {
                     return Err(GameError::InvalidTarget {
                         reason: format!(
@@ -316,11 +315,10 @@ fn validate_permanent_target_with_type(
                 }
                 // CR 702.11: Hexproof — can't be targeted by opponents.
                 // Use the layer pipeline so Layer 6 effects (e.g. RemoveAllAbilities) are respected.
-                let has_hexproof = if let Some(abilities) = game.effective_abilities(card.instance_id()) {
-                    abilities.contains(&StaticAbility::Hexproof)
-                } else {
-                    card.definition().has_static_ability(StaticAbility::Hexproof)
-                };
+                let has_hexproof = game
+                    .effective_abilities(card.instance_id())
+                    .map(|a| a.contains(&StaticAbility::Hexproof))
+                    .unwrap_or(false);
                 if has_hexproof && pid != caster_id
                 {
                     return Err(GameError::InvalidTarget {

@@ -338,52 +338,14 @@ impl Game {
     }
 
     fn on_enter_step(&mut self, step: Step) -> Vec<GameEvent> {
-        let mut events = Vec::new();
-
-        // Clear ALL auto-pass flags at Untap (new turn = fresh start).
-        if step == Step::Untap {
-            self.auto_pass_players.clear();
-            self.auto_untap_for_current_player();
-        }
-
-        // Automatic draw during DRAW step (MTG 504.1 — not using stack).
-        // MTG Rule 103.7a: only the STARTING player skips their draw on the very
-        // first Draw step of the game. All other players (including P2 on turn 1)
-        // draw normally.
-        if step == Step::Draw {
-            let is_starting_player_first_turn = self.turn_state.turn_number() == 1
-                && self.turn_state.current_player_id().as_str() == self.starting_player_id;
-
-            if !is_starting_player_first_turn {
-                let current_player = self.turn_state.current_player_id().as_str().to_owned();
-                let draw_events = self.draw_cards_internal(&current_player, 1);
-                events.extend(draw_events);
-                events.extend(self.perform_state_based_actions());
-            }
-        }
-
-        // First strike damage resolution at FIRST_STRIKE_DAMAGE step.
-        // Only creatures with FirstStrike deal damage in this step.
-        if step == Step::FirstStrikeDamage {
-            events.extend(self.resolve_first_strike_damage());
-            events.extend(self.perform_state_based_actions());
-        }
-
-        // Combat damage resolution at COMBAT_DAMAGE step.
-        // Only creatures that have NOT already dealt first strike damage deal damage here.
-        if step == Step::CombatDamage {
-            events.extend(self.resolve_regular_combat_damage());
-            events.extend(self.perform_state_based_actions());
-        }
-
-        // Clear mana pools and damage at CLEANUP, and expire timed effects.
-        // CR 514.1: discard down to maximum hand size (7).
-        if step == Step::Cleanup {
-            self.clear_all_mana_pools();
-            self.clear_damage_on_all_creatures();
-            self.expire_continuous_effects(EffectDuration::UntilEndOfTurn);
-            self.enforce_hand_size_limit();
-        }
+        let mut events = match step {
+            Step::Untap => self.on_enter_untap_step(),
+            Step::Draw => self.on_enter_draw_step(),
+            Step::FirstStrikeDamage => self.on_enter_first_strike_damage(),
+            Step::CombatDamage => self.on_enter_combat_damage(),
+            Step::Cleanup => self.on_enter_cleanup_step(),
+            _ => Vec::new(),
+        };
 
         // Emit step started event and evaluate triggers
         let active_player = self.turn_state.current_player_id().clone();
@@ -396,6 +358,52 @@ impl Game {
         self.execute_triggered_abilities(triggered);
 
         events
+    }
+
+    /// CR 502.2: Untap step — clear auto-pass flags and untap all permanents.
+    fn on_enter_untap_step(&mut self) -> Vec<GameEvent> {
+        self.auto_pass_players.clear();
+        self.auto_untap_for_current_player();
+        Vec::new()
+    }
+
+    /// CR 504.1: Draw step — active player draws one card (except starting player on turn 1).
+    fn on_enter_draw_step(&mut self) -> Vec<GameEvent> {
+        // MTG Rule 103.7a: only the STARTING player skips their draw on the very
+        // first Draw step of the game. All other players (including P2 on turn 1)
+        // draw normally.
+        let is_starting_player_first_turn = self.turn_state.turn_number() == 1
+            && self.turn_state.current_player_id().as_str() == self.starting_player_id;
+
+        if is_starting_player_first_turn {
+            return Vec::new();
+        }
+
+        let current_player = self.turn_state.current_player_id().as_str().to_owned();
+        let mut events = self.draw_cards_internal(&current_player, 1);
+        events.extend(self.perform_state_based_actions());
+        events
+    }
+
+    /// CR 510.1: First strike damage step — only creatures with FirstStrike deal damage.
+    fn on_enter_first_strike_damage(&mut self) -> Vec<GameEvent> {
+        self.resolve_first_strike_damage();
+        self.perform_state_based_actions()
+    }
+
+    /// CR 510.2: Combat damage step — creatures that have not already dealt first strike damage.
+    fn on_enter_combat_damage(&mut self) -> Vec<GameEvent> {
+        self.resolve_regular_combat_damage();
+        self.perform_state_based_actions()
+    }
+
+    /// CR 514.1–514.3: Cleanup step — clear mana, damage, expire effects, enforce hand size.
+    fn on_enter_cleanup_step(&mut self) -> Vec<GameEvent> {
+        self.clear_all_mana_pools();
+        self.clear_damage_on_all_creatures();
+        self.expire_continuous_effects(EffectDuration::UntilEndOfTurn);
+        self.enforce_hand_size_limit();
+        Vec::new()
     }
 
     fn auto_untap_for_current_player(&mut self) {
@@ -421,17 +429,10 @@ impl Game {
         let card_instances: Vec<(String, bool, bool)> = card_base_info
             .into_iter()
             .map(|(instance_id, is_creature)| {
-                let does_not_untap = if let Some(abilities) = self.effective_abilities(&instance_id) {
-                    abilities.contains(&StaticAbility::DoesNotUntap)
-                } else {
-                    // Fallback: look up card definition on the battlefield.
-                    self.players
-                        .iter()
-                        .flat_map(|p| p.battlefield.iter())
-                        .find(|c| c.instance_id() == instance_id)
-                        .map(|c| c.definition().has_static_ability(StaticAbility::DoesNotUntap))
-                        .unwrap_or(false)
-                };
+                let does_not_untap = self
+                    .effective_abilities(&instance_id)
+                    .map(|a| a.contains(&StaticAbility::DoesNotUntap))
+                    .unwrap_or(false);
                 (instance_id, is_creature, does_not_untap)
             })
             .collect();
@@ -585,44 +586,24 @@ impl Game {
     /// Consults the layer pipeline first (CR 613.1f — Layer 6 can add/remove abilities)
     /// so that effects like "Turn to Frog" (RemoveAllAbilities) are respected.
     fn creature_has_first_strike(&self, instance_id: &str) -> bool {
-        if let Some(abilities) = self.effective_abilities(instance_id) {
-            return abilities.contains(&StaticAbility::FirstStrike)
-                || abilities.contains(&StaticAbility::DoubleStrike);
-        }
-        // Fallback to card definition when layer system has no data for this permanent.
-        self.players.iter().any(|player| {
-            player
-                .battlefield
-                .iter()
-                .any(|card| {
-                    card.instance_id() == instance_id
-                        && (card.definition().has_static_ability(StaticAbility::FirstStrike)
-                            || card.definition().has_static_ability(StaticAbility::DoubleStrike))
-                })
-        })
+        self.effective_abilities(instance_id)
+            .map(|a| {
+                a.contains(&StaticAbility::FirstStrike) || a.contains(&StaticAbility::DoubleStrike)
+            })
+            .unwrap_or(false)
     }
 
     fn creature_has_double_strike(&self, instance_id: &str) -> bool {
-        if let Some(abilities) = self.effective_abilities(instance_id) {
-            return abilities.contains(&StaticAbility::DoubleStrike);
-        }
-        // Fallback to card definition when layer system has no data for this permanent.
-        self.players.iter().any(|player| {
-            player
-                .battlefield
-                .iter()
-                .any(|card| {
-                    card.instance_id() == instance_id
-                        && card.definition().has_static_ability(StaticAbility::DoubleStrike)
-                })
-        })
+        self.effective_abilities(instance_id)
+            .map(|a| a.contains(&StaticAbility::DoubleStrike))
+            .unwrap_or(false)
     }
 
     /// Resolve damage for the `FirstStrikeDamage` step.
     ///
     /// Only creatures with `FirstStrike` deal damage in this step.
     /// Each creature that deals damage gets `dealt_first_strike_damage = true`.
-    fn resolve_first_strike_damage(&mut self) -> Vec<GameEvent> {
+    fn resolve_first_strike_damage(&mut self) {
         let active_player = self.turn_state.current_player_id().as_str().to_owned();
         let defending_player_id = self
             .players
@@ -641,7 +622,7 @@ impl Game {
 
         // If no first strikers, nothing to do.
         if first_strikers.is_empty() {
-            return Vec::new();
+            return;
         }
 
         // Collect IDs that have first strike (both attackers and blockers).
@@ -732,13 +713,12 @@ impl Game {
             }
         }
 
-        Vec::new()
     }
 
     /// Resolve damage for the regular `CombatDamage` step.
     ///
     /// Only creatures that have NOT already dealt first strike damage participate.
-    fn resolve_regular_combat_damage(&mut self) -> Vec<GameEvent> {
+    fn resolve_regular_combat_damage(&mut self) {
         let active_player = self.turn_state.current_player_id().as_str().to_owned();
 
         let defending_player_id = self
@@ -812,8 +792,6 @@ impl Game {
                 self.gain_life(&assignment.source_controller_id, assignment.amount);
             }
         }
-
-        Vec::new()
     }
 
     fn clear_damage_on_all_creatures(&mut self) {

@@ -100,11 +100,8 @@ pub enum GameOutcome {
 /// adding accessor methods is a future encapsulation improvement.
 #[derive(Debug, Clone)]
 pub(crate) struct GamePlayerState {
-    /// The player's basic info (id, name, life total).
+    /// The player's basic info (id, life total).
     pub(crate) player_id: PlayerId,
-    // Reserved for export / display — will be used when state export is wired up.
-    #[allow(dead_code)]
-    pub(crate) name: String,
     pub(crate) life_total: i32,
     /// Cards in hand (ordered).
     pub(crate) hand: Vec<CardInstance>,
@@ -123,10 +120,9 @@ pub(crate) struct GamePlayerState {
 }
 
 impl GamePlayerState {
-    fn new(player_id: PlayerId, name: String) -> Self {
+    fn new(player_id: PlayerId) -> Self {
         Self {
             player_id,
-            name,
             life_total: 20,
             hand: Vec::new(),
             battlefield: Vec::new(),
@@ -287,7 +283,7 @@ impl Game {
     pub fn add_player(
         &mut self,
         id: impl Into<String>,
-        name: impl Into<String>,
+        _name: impl Into<String>,
     ) -> Result<(), GameError> {
         if self.lifecycle != GameLifecycleState::Created {
             return Err(GameError::CannotAddPlayerAfterStart);
@@ -299,7 +295,7 @@ impl Game {
             });
         }
         self.turn_order_ids.push(player_id.as_str().to_owned());
-        self.players.push(GamePlayerState::new(player_id, name.into()));
+        self.players.push(GamePlayerState::new(player_id));
         Ok(())
     }
 
@@ -701,11 +697,11 @@ impl Game {
         }
     }
 
-    /// Discard N random cards from a player's hand.
+    /// Discard the last N cards from a player's hand (LIFO order).
     ///
-    /// For MVP, discards the last N cards (no random selection).
+    /// Discards deterministically from the end of the hand vector.
     /// Used by effects like "discard 2 cards".
-    pub(crate) fn discard_random(&mut self, player_id: &str, amount: usize) {
+    pub(crate) fn discard_from_end(&mut self, player_id: &str, amount: usize) {
         // Collect IDs of the last N cards (MVP: no random, just last cards)
         let ids: Vec<String> = self
             .player_state(player_id)
@@ -941,26 +937,14 @@ impl Game {
 
         // Get deathtouch flags via the layer pipeline so Layer 6 effects
         // (e.g. RemoveAllAbilities) are respected (CR 613.1f).
-        let a_has_deathtouch = if let Some(abilities) = self.effective_abilities(creature_a_id) {
-            abilities.contains(&crate::domain::enums::StaticAbility::Deathtouch)
-        } else {
-            self.players.iter().any(|p| {
-                p.battlefield.iter().any(|c| {
-                    c.instance_id() == creature_a_id
-                        && c.definition().has_static_ability(crate::domain::enums::StaticAbility::Deathtouch)
-                })
-            })
-        };
-        let b_has_deathtouch = if let Some(abilities) = self.effective_abilities(creature_b_id) {
-            abilities.contains(&crate::domain::enums::StaticAbility::Deathtouch)
-        } else {
-            self.players.iter().any(|p| {
-                p.battlefield.iter().any(|c| {
-                    c.instance_id() == creature_b_id
-                        && c.definition().has_static_ability(crate::domain::enums::StaticAbility::Deathtouch)
-                })
-            })
-        };
+        let a_has_deathtouch = self
+            .effective_abilities(creature_a_id)
+            .map(|a| a.contains(&crate::domain::enums::StaticAbility::Deathtouch))
+            .unwrap_or(false);
+        let b_has_deathtouch = self
+            .effective_abilities(creature_b_id)
+            .map(|a| a.contains(&crate::domain::enums::StaticAbility::Deathtouch))
+            .unwrap_or(false);
 
         // Deal damage simultaneously.
         self.mark_damage_on_creature(creature_b_id, power_a, a_has_deathtouch);
@@ -1655,7 +1639,7 @@ mod tests {
     }
 
     #[test]
-    fn discard_random_removes_n_cards() {
+    fn discard_from_end_removes_n_cards() {
         use crate::domain::cards::card_definition::CardDefinition;
         use crate::domain::cards::card_instance::CardInstance;
         use crate::domain::enums::CardType;
@@ -1670,14 +1654,14 @@ mod tests {
             add_card_to_hand(&mut game, &p1, card);
         }
 
-        game.discard_random(&p1, 2);
+        game.discard_from_end(&p1, 2);
 
         assert_eq!(game.hand(&p1).unwrap().len(), 1);
         assert_eq!(game.graveyard(&p1).unwrap().len(), 2);
     }
 
     #[test]
-    fn discard_random_more_than_hand_discards_all() {
+    fn discard_from_end_more_than_hand_discards_all() {
         use crate::domain::cards::card_definition::CardDefinition;
         use crate::domain::cards::card_instance::CardInstance;
         use crate::domain::enums::CardType;
@@ -1690,7 +1674,7 @@ mod tests {
         );
         add_card_to_hand(&mut game, &p1, card);
 
-        game.discard_random(&p1, 5);
+        game.discard_from_end(&p1, 5);
 
         assert_eq!(game.hand(&p1).unwrap().len(), 0);
         assert_eq!(game.graveyard(&p1).unwrap().len(), 1);
