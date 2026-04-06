@@ -62,12 +62,10 @@ pub(crate) fn setup_game(mut commands: Commands) {
     game.start_with_mulligan(&p1_id, None).expect("start game");
 
     // Wire up the CLIPS rules engine so spells have real effects.
-    // Load rules for all card types that appear in either deck.
-    let card_ids = ["lightning-strike", "giant-growth", "divination",
-                    "bear", "goblin", "forest", "mountain",
-                    "sol-ring", "wild-bounty",
-                    "turn-to-frog", "twisted-image", "titanic-growth"];
-    match create_rules_engine(&card_ids) {
+    // Collect all unique card definition IDs from both players' decks.
+    let card_ids: Vec<String> = game.all_card_definition_ids();
+    let card_id_refs: Vec<&str> = card_ids.iter().map(|s| s.as_str()).collect();
+    match create_rules_engine(&card_id_refs) {
         Ok(engine) => {
             game.set_rules_engine(engine);
             info!("CLIPS rules engine loaded");

@@ -86,6 +86,23 @@ impl Game {
         &self.id
     }
 
+    /// Returns all unique card definition IDs across all players' zones
+    /// (library, hand, battlefield, graveyard, exile).
+    pub fn all_card_definition_ids(&self) -> Vec<String> {
+        let mut ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for player in &self.players {
+            for card in player.library.iter()
+                .chain(player.hand.iter())
+                .chain(player.battlefield.iter())
+                .chain(player.graveyard.iter())
+                .chain(player.exile.iter())
+            {
+                ids.insert(card.definition().id().to_owned());
+            }
+        }
+        ids.into_iter().collect()
+    }
+
     /// Current lifecycle state.
     pub fn lifecycle(&self) -> GameLifecycleState {
         self.lifecycle

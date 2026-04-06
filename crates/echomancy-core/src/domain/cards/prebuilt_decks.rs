@@ -344,69 +344,6 @@ pub fn layer_system_test_deck(owner_id: &str) -> Vec<CardInstance> {
     deck
 }
 
-/// LS1.4 focused deck: heavy on Ancient Guardians + Turn to Frog + lands.
-///
-/// Ancient Guardian costs {2}{G}, Turn to Frog costs {1}{U}.
-/// With 20 Islands, 16 Forests, 12 Ancient Guardians, and 12 Turn to Frogs,
-/// opening hand almost always has both + lands.
-pub fn ls1_indestructible_test_deck(owner_id: &str) -> Vec<CardInstance> {
-    let mut deck = Vec::with_capacity(60);
-    for _ in 0..20 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::island(), owner_id));
-    }
-    for _ in 0..16 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::forest(), owner_id));
-    }
-    for _ in 0..12 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::ancient_guardian(), owner_id));
-    }
-    for _ in 0..12 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::turn_to_frog(), owner_id));
-    }
-    deck
-}
-
-/// LS1.5 focused deck: Bears + Titanic Growth + Forests.
-///
-/// Bear costs {1}{G}, Titanic Growth costs {1}{G}.
-pub fn ls1_titanic_test_deck(owner_id: &str) -> Vec<CardInstance> {
-    let mut deck = Vec::with_capacity(60);
-    for _ in 0..24 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::forest(), owner_id));
-    }
-    for _ in 0..18 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::bear(), owner_id));
-    }
-    for _ in 0..18 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::titanic_growth(), owner_id));
-    }
-    deck
-}
-
-/// LS1.6 focused deck: Ironbark Wall + Titanic Growth + Twisted Image + lands.
-///
-/// Wall costs {G}, Titanic Growth costs {1}{G}, Twisted Image costs {U}.
-/// Needs: Forest + Island + Wall + Titanic Growth + Twisted Image in hand.
-pub fn ls1_stacked_test_deck(owner_id: &str) -> Vec<CardInstance> {
-    let mut deck = Vec::with_capacity(60);
-    for _ in 0..14 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::forest(), owner_id));
-    }
-    for _ in 0..14 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::island(), owner_id));
-    }
-    for _ in 0..12 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::ironbark_wall(), owner_id));
-    }
-    for _ in 0..10 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::titanic_growth(), owner_id));
-    }
-    for _ in 0..10 {
-        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::twisted_image(), owner_id));
-    }
-    deck
-}
-
 /// Selects a P1 test deck by feature name (from TEST_DECK env var).
 pub fn p1_test_deck(feature: &str, owner_id: &str) -> Vec<CardInstance> {
     match feature {
@@ -417,9 +354,6 @@ pub fn p1_test_deck(feature: &str, owner_id: &str) -> Vec<CardInstance> {
         "r5" => sol_ring_test_deck(owner_id),
         "r10" => wild_bounty_test_deck(owner_id),
         "ls1" => layer_system_test_deck(owner_id),
-        "ls1-4" => ls1_indestructible_test_deck(owner_id),
-        "ls1-5" => ls1_titanic_test_deck(owner_id),
-        "ls1-6" => ls1_stacked_test_deck(owner_id),
         _ => green_deck(owner_id),
     }
 }

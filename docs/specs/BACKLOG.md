@@ -164,7 +164,7 @@ Fundamental rules infrastructure missing from the engine. Most card interactions
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| LS1 | Layer system (continuous effects ordering) | IN PROGRESS | 613 | Very High | - | Spec at docs/specs/active/LS1-layer-system.md. Layers 4-7 in scope. |
+| LS1 | Layer system (continuous effects ordering) | DONE | 613 | Very High | - | Layers 4-7. Pure-function pipeline, all ability/P/T reads migrated |
 | CP1 | Copy effects (copy spell / copy permanent) | TODO | 706 | Very High | LS1 | Fork, Twincast, Clone, etc. Copies use the layer system |
 | MD1 | Modal spells (choose one / choose two / choose all) | TODO | 700.2 | Medium | - | Very common. Needs choice UI and cost system hook |
 | SC1 | Split cards (two spells on one card) | TODO | 708 | Medium | MD1 | Fuse support optional |

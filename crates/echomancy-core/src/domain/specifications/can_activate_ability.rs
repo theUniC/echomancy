@@ -175,6 +175,7 @@ mod tests {
             }
         }
 
+        #[allow(dead_code)]
         fn with_mana_pool(mut self, player_id: &str, pool: ManaPool) -> Self {
             self.mana_pools.insert(player_id.to_owned(), pool);
             self
@@ -197,6 +198,7 @@ mod tests {
             self
         }
 
+        #[allow(dead_code)]
         fn with_static_ability(mut self, instance_id: &str, ability: StaticAbility) -> Self {
             self.static_abilities
                 .entry(instance_id.to_owned())
