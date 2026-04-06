@@ -243,6 +243,80 @@ pub(crate) fn parse_action_facts(engine: &ClipsEngine) -> Result<Vec<RulesAction
         ));
     }
 
+    // action-set-pt
+    for row in engine.collect_facts_by_template(
+        "action-set-pt",
+        &["priority", "source", "target", "power", "toughness", "duration"],
+    ) {
+        let priority = extract_integer(&row, "priority").unwrap_or(0);
+        let source = match extract_string(&row, "source") {
+            Some(s) => s,
+            None => continue,
+        };
+        let target = match extract_string(&row, "target") {
+            Some(s) => s,
+            None => continue,
+        };
+        let power = match extract_integer(&row, "power") {
+            Some(n) => n as i32,
+            None => continue,
+        };
+        let toughness = match extract_integer(&row, "toughness") {
+            Some(n) => n as i32,
+            None => continue,
+        };
+        let duration = extract_symbol(&row, "duration")
+            .unwrap_or_else(|| "until-end-of-turn".to_owned());
+        actions.push((
+            priority,
+            RulesAction::SetPowerToughness { source, target, power, toughness, duration },
+        ));
+    }
+
+    // action-switch-pt
+    for row in engine.collect_facts_by_template(
+        "action-switch-pt",
+        &["priority", "source", "target", "duration"],
+    ) {
+        let priority = extract_integer(&row, "priority").unwrap_or(0);
+        let source = match extract_string(&row, "source") {
+            Some(s) => s,
+            None => continue,
+        };
+        let target = match extract_string(&row, "target") {
+            Some(s) => s,
+            None => continue,
+        };
+        let duration = extract_symbol(&row, "duration")
+            .unwrap_or_else(|| "until-end-of-turn".to_owned());
+        actions.push((
+            priority,
+            RulesAction::SwitchPowerToughness { source, target, duration },
+        ));
+    }
+
+    // action-remove-all-abilities
+    for row in engine.collect_facts_by_template(
+        "action-remove-all-abilities",
+        &["priority", "source", "target", "duration"],
+    ) {
+        let priority = extract_integer(&row, "priority").unwrap_or(0);
+        let source = match extract_string(&row, "source") {
+            Some(s) => s,
+            None => continue,
+        };
+        let target = match extract_string(&row, "target") {
+            Some(s) => s,
+            None => continue,
+        };
+        let duration = extract_symbol(&row, "duration")
+            .unwrap_or_else(|| "until-end-of-turn".to_owned());
+        actions.push((
+            priority,
+            RulesAction::RemoveAllAbilities { source, target, duration },
+        ));
+    }
+
     // action-create-token (multislot fields read as Void — skipped in M2)
     for row in engine.collect_facts_by_template(
         "action-create-token",

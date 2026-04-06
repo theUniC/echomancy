@@ -48,6 +48,16 @@ pub(crate) struct CreatureCombatEntry<'a> {
     pub controller_id: &'a str,
     /// The permanent state for this creature.
     pub state: &'a PermanentState,
+    /// Layer-evaluated effective power (overrides `state.current_power()`).
+    ///
+    /// When `Some`, this value is used for all damage calculations. When `None`,
+    /// the code falls back to `state.current_power()` for backward compatibility.
+    pub effective_power: Option<i32>,
+    /// Layer-evaluated effective toughness (overrides `state.current_toughness()`).
+    ///
+    /// When `Some`, this value is used for lethal-damage calculations. When `None`,
+    /// the code falls back to `state.current_toughness()` for backward compatibility.
+    pub effective_toughness: Option<i32>,
     /// `true` if this creature has Trample.
     pub has_trample: bool,
     /// `true` if this creature has Deathtouch.
@@ -88,9 +98,9 @@ pub(crate) fn calculate_all_combat_damage(
             _ => continue,
         };
 
-        let attacker_power = match entry.state.current_power() {
-            Ok(p) => p,
-            Err(_) => continue,
+        let attacker_power = match entry.effective_power.or_else(|| entry.state.current_power().ok()) {
+            Some(p) => p,
+            None => continue,
         };
 
         let blocker_ids = cs.blocked_by();
@@ -136,8 +146,12 @@ pub(crate) fn calculate_all_combat_damage(
                     });
                 }
             } else {
-                // Sort blockers by current toughness ascending so smallest die first.
-                present_blockers.sort_by_key(|b| b.state.current_toughness().unwrap_or(0));
+                // Sort blockers by effective toughness ascending so smallest die first.
+                present_blockers.sort_by_key(|b| {
+                    b.effective_toughness
+                        .or_else(|| b.state.current_toughness().ok())
+                        .unwrap_or(0)
+                });
 
                 // Assign attacker damage to blockers in order.
                 //
@@ -156,9 +170,12 @@ pub(crate) fn calculate_all_combat_damage(
 
                     let is_last = i == n - 1;
 
-                    let blocker_toughness = match blocker.state.current_toughness() {
-                        Ok(t) => t,
-                        Err(_) => continue,
+                    let blocker_toughness = match blocker
+                        .effective_toughness
+                        .or_else(|| blocker.state.current_toughness().ok())
+                    {
+                        Some(t) => t,
+                        None => continue,
                     };
                     let blocker_damage_already = blocker
                         .state
@@ -216,9 +233,12 @@ pub(crate) fn calculate_all_combat_damage(
 
                 // Each blocker deals its power as damage back to the attacker.
                 for blocker in &present_blockers {
-                    let blocker_power = match blocker.state.current_power() {
-                        Ok(p) => p,
-                        Err(_) => continue,
+                    let blocker_power = match blocker
+                        .effective_power
+                        .or_else(|| blocker.state.current_power().ok())
+                    {
+                        Some(p) => p,
+                        None => continue,
                     };
                     if blocker_power > 0 {
                         assignments.push(DamageAssignment {
@@ -261,8 +281,11 @@ pub(crate) fn calculate_first_strike_combat_damage(
             None => continue,
         };
 
-        let power = match entry.state.current_power() {
-            Ok(p) if p > 0 => p,
+        let power = match entry
+            .effective_power
+            .or_else(|| entry.state.current_power().ok())
+        {
+            Some(p) if p > 0 => p,
             _ => continue,
         };
 
@@ -302,7 +325,11 @@ pub(crate) fn calculate_first_strike_combat_damage(
                         });
                     }
                 } else {
-                    present_blockers.sort_by_key(|b| b.state.current_toughness().unwrap_or(0));
+                    present_blockers.sort_by_key(|b| {
+                        b.effective_toughness
+                            .or_else(|| b.state.current_toughness().ok())
+                            .unwrap_or(0)
+                    });
 
                     let n = present_blockers.len();
                     let mut remaining = power;
@@ -311,9 +338,12 @@ pub(crate) fn calculate_first_strike_combat_damage(
                             break;
                         }
                         let is_last = i == n - 1;
-                        let blocker_toughness = match blocker.state.current_toughness() {
-                            Ok(t) => t,
-                            Err(_) => continue,
+                        let blocker_toughness = match blocker
+                            .effective_toughness
+                            .or_else(|| blocker.state.current_toughness().ok())
+                        {
+                            Some(t) => t,
+                            None => continue,
                         };
                         let blocker_damage_already = blocker
                             .state
@@ -441,6 +471,8 @@ mod tests {
             instance_id,
             controller_id,
             state,
+            effective_power: None,
+            effective_toughness: None,
             has_trample: false,
             has_deathtouch: false,
             has_lifelink: false,
@@ -453,6 +485,8 @@ mod tests {
             instance_id,
             controller_id,
             state,
+            effective_power: None,
+            effective_toughness: None,
             has_trample: true,
             has_deathtouch: false,
             has_lifelink: false,
@@ -465,6 +499,8 @@ mod tests {
             instance_id,
             controller_id,
             state,
+            effective_power: None,
+            effective_toughness: None,
             has_trample: false,
             has_deathtouch: true,
             has_lifelink: false,
@@ -477,6 +513,8 @@ mod tests {
             instance_id,
             controller_id,
             state,
+            effective_power: None,
+            effective_toughness: None,
             has_trample: true,
             has_deathtouch: true,
             has_lifelink: false,
@@ -489,6 +527,8 @@ mod tests {
             instance_id,
             controller_id,
             state,
+            effective_power: None,
+            effective_toughness: None,
             has_trample: false,
             has_deathtouch: false,
             has_lifelink: false,
@@ -501,6 +541,8 @@ mod tests {
             instance_id,
             controller_id,
             state,
+            effective_power: None,
+            effective_toughness: None,
             has_trample: false,
             has_deathtouch: false,
             has_lifelink: true,

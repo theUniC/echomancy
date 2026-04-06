@@ -7,3 +7,6 @@
 
 # env files
 .env*
+
+# Claude Code session data
+.remember/

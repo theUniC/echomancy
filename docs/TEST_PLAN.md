@@ -392,6 +392,80 @@ When a creature with Toxic N deals combat damage to a player, that player gets N
 
 ---
 
+### LS1 — Layer System (CR 613)
+
+**Deck**: `TEST_DECK=ls1 cargo run -p echomancy-bevy`
+
+**Cards**: Turn to Frog ({1}{U}), Twisted Image ({U}), Titanic Growth ({1}{G}), Giant Growth ({G}), Bear (2/2), Ironbark Wall (0/4), Ancient Guardian (4/5 Indestructible)
+
+#### LS1.1 — Turn to Frog sets base P/T (Layer 7b)
+
+**Steps**:
+1. Play Islands + Forests over several turns.
+2. Cast a Bear (2/2).
+3. Cast Turn to Frog targeting the Bear.
+
+**Verification**:
+- [x] Bear becomes 1/1 after Turn to Frog resolves (hover to confirm P/T).
+- [x] Bear's oracle text no longer shows any abilities.
+- [x] Bear returns to 2/2 at end of turn.
+
+#### LS1.2 — Turn to Frog + Giant Growth (Layer 7b before 7c)
+
+**Steps**:
+1. Cast Turn to Frog on a Bear (becomes 1/1).
+2. Then cast Giant Growth on the same Bear (+3/+3).
+
+**Verification**:
+- [x] Bear shows 4/4 (1+3 / 1+3), NOT 5/5 — proves Layer 7b (set) applies before Layer 7c (modify).
+- [x] Bear returns to 2/2 at end of turn (both effects expire).
+
+#### LS1.3 — Twisted Image switches P/T (Layer 7d)
+
+**Steps**:
+1. Cast Ironbark Wall (0/4).
+2. Cast Twisted Image targeting the Wall.
+
+**Verification**:
+- [x] Ironbark Wall becomes 4/0 after Twisted Image resolves.
+- [x] Ironbark Wall dies immediately (SBA: 0 toughness).
+- [x] You draw a card from Twisted Image's draw effect.
+
+#### LS1.4 — Turn to Frog removes Indestructible (Layer 6)
+
+**Steps**:
+1. Cast Ancient Guardian (4/5 Indestructible).
+2. Cast Turn to Frog targeting Ancient Guardian (becomes 1/1, loses all abilities).
+3. Let the bot attack or shoot it with Lightning Strike.
+
+**Verification**:
+- [x] Ancient Guardian shows 1/1 after Turn to Frog.
+- [x] Ancient Guardian no longer shows "Indestructible" in hover.
+- [x] Ancient Guardian can now die to damage (no longer Indestructible).
+
+#### LS1.5 — Titanic Growth (Layer 7c pump)
+
+**Steps**:
+1. Cast a Bear (2/2).
+2. Cast Titanic Growth targeting the Bear (+4/+4).
+
+**Verification**:
+- [x] Bear shows 6/6 after Titanic Growth resolves.
+- [x] Bear returns to 2/2 at end of turn.
+
+#### LS1.6 — Stacked effects: Titanic Growth + Twisted Image
+
+**Steps**:
+1. Cast Ironbark Wall (0/4).
+2. Cast Titanic Growth on the Wall (+4/+4 → 4/8).
+3. Cast Twisted Image on the Wall (switch → 8/4).
+
+**Verification**:
+- [x] Ironbark Wall shows 8/4 after both spells resolve.
+- [x] Wall survives (toughness > 0).
+
+---
+
 ## Quick unit test verification
 
 Run all unit tests for features without showcase cards:
@@ -418,6 +492,21 @@ cargo test -- shroud changeling devoid fear skulk shadow horsemanship defender s
 | 12 | Giant Growth (instant +3/+3) | Combat trick |
 | 4 | Sol Ring (artifact) | R5/R15 Mana ability |
 | 2 | Wild Bounty (enchantment ETB draw) | R10 Triggered ability |
+
+### Layer System deck (P1, TEST_DECK=ls1) — 60 cards
+
+| Count | Card | Feature |
+|-------|------|---------|
+| 14 | Island | Blue mana |
+| 10 | Forest | Green mana |
+| 4 | Sol Ring | Mana acceleration |
+| 8 | Bear (2/2) | Target bàsic |
+| 4 | Ironbark Wall (0/4) | Target per Twisted Image (switch → 4/0 → mor) |
+| 4 | Ancient Guardian (4/5 Indestructible) | Target per Turn to Frog (perd Indestructible) |
+| 4 | Turn to Frog ({1}{U}) | LS1: Layer 6 (RemoveAllAbilities) + Layer 7b (SetPT 1/1) |
+| 4 | Twisted Image ({U}) | LS1: Layer 7d (SwitchPT) + draw |
+| 4 | Titanic Growth ({1}{G}) | LS1: Layer 7c (+4/+4) |
+| 4 | Giant Growth ({G}) | LS1: Layer 7c (+3/+3) |
 
 ### Red deck (P2/bot) — 60 cards
 

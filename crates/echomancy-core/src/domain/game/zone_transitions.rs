@@ -8,7 +8,7 @@ use crate::domain::enums::{GraveyardReason, ZoneName};
 use crate::domain::errors::GameError;
 use crate::domain::events::{CardInstanceSnapshot, GameEvent};
 use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
-use crate::domain::value_objects::permanent_state::PermanentState;
+use crate::domain::value_objects::permanent_state::{EffectDuration, PermanentState};
 
 use super::Game;
 
@@ -31,6 +31,10 @@ impl Game {
             owner_id: PlayerId::new(permanent.owner_id()),
         };
 
+        // Assign an ETB timestamp (CR 613.7d): monotonically increasing.
+        let etb_timestamp = self.next_effect_timestamp;
+        self.next_effect_timestamp += 1;
+
         // Initialize permanent state
         let enters_tapped = permanent
             .definition()
@@ -39,14 +43,16 @@ impl Game {
         if permanent.definition().is_creature() {
             let power = permanent.definition().power().unwrap_or(0) as i32;
             let toughness = permanent.definition().toughness().unwrap_or(0) as i32;
-            let state = PermanentState::for_creature(power, toughness);
+            let state = PermanentState::for_creature(power, toughness)
+                .with_etb_timestamp(etb_timestamp);
             let state = if enters_tapped { state.with_tapped(true) } else { state };
             self.permanent_states.insert(
                 permanent.instance_id().to_owned(),
                 state,
             );
         } else if self.is_permanent_type(&permanent) {
-            let state = PermanentState::for_non_creature();
+            let state = PermanentState::for_non_creature()
+                .with_etb_timestamp(etb_timestamp);
             let state = if enters_tapped { state.with_tapped(true) } else { state };
             self.permanent_states.insert(
                 permanent.instance_id().to_owned(),
@@ -139,6 +145,10 @@ impl Game {
         // Clean up permanent state.
         self.permanent_states.remove(permanent_id);
 
+        // Remove all WhileSourceOnBattlefield global effects whose source was this permanent (LS1).
+        // CR 613.7a: when a permanent leaves the battlefield, effects it generated end.
+        self.remove_effects_for_source(permanent_id);
+
         // Add to owner's graveyard.
         if let Ok(owner) = self.player_state_mut(&owner_id) {
             owner.graveyard.push(card);
@@ -214,6 +224,9 @@ impl Game {
         // Clean up permanent state.
         self.permanent_states.remove(permanent_id);
 
+        // Remove all WhileSourceOnBattlefield global effects whose source was this permanent (LS1).
+        self.remove_effects_for_source(permanent_id);
+
         // Add to owner's exile zone.
         if let Ok(owner) = self.player_state_mut(&owner_id) {
             owner.exile.push(card);
@@ -284,6 +297,9 @@ impl Game {
         // Clean up permanent state.
         self.permanent_states.remove(permanent_id);
 
+        // Remove all WhileSourceOnBattlefield global effects whose source was this permanent (LS1).
+        self.remove_effects_for_source(permanent_id);
+
         // Add to owner's hand.
         if let Ok(owner) = self.player_state_mut(&owner_id) {
             owner.hand.push(card);
@@ -327,6 +343,40 @@ impl Game {
     #[allow(dead_code)]
     pub(crate) fn remove_permanent_state(&mut self, permanent_id: &str) {
         self.permanent_states.remove(permanent_id);
+    }
+
+    /// Remove all global continuous effects whose `source_id` equals `permanent_id`.
+    ///
+    /// Called whenever a permanent leaves the battlefield, to clean up the
+    /// `WhileSourceOnBattlefield` effects it generated (CR 613.7a).
+    pub(crate) fn remove_effects_for_source(&mut self, permanent_id: &str) {
+        self.global_continuous_effects.retain(|e| {
+            match &e.duration {
+                EffectDuration::WhileSourceOnBattlefield(source) => source != permanent_id,
+                EffectDuration::UntilEndOfTurn => true,
+            }
+        });
+    }
+
+    /// Add a global continuous effect to the game's effect list.
+    ///
+    /// Use this for:
+    /// - Spell-resolution effects with `UntilEndOfTurn` and an auto-incremented timestamp.
+    /// - Static-ability effects with `WhileSourceOnBattlefield` and the source's ETB timestamp.
+    pub(crate) fn add_global_continuous_effect(
+        &mut self,
+        effect: crate::domain::game::layer_system::GlobalContinuousEffect,
+    ) {
+        self.global_continuous_effects.push(effect);
+    }
+
+    /// Allocate the next monotonically increasing effect timestamp and increment the counter.
+    ///
+    /// Used for spell-resolution effects (CR 613.7b).
+    pub(crate) fn next_timestamp(&mut self) -> u64 {
+        let ts = self.next_effect_timestamp;
+        self.next_effect_timestamp += 1;
+        ts
     }
 }
 

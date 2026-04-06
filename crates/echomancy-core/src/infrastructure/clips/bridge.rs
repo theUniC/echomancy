@@ -79,8 +79,15 @@ pub(crate) fn serialize_game_state(game: &Game) -> Vec<String> {
                         (false, false, 0, 0, 0)
                     };
 
-                // Keyword list (static abilities as CLIPS symbols)
-                let keywords = keyword_symbols(card.definition().static_abilities());
+                // Keyword list (static abilities as CLIPS symbols).
+                // Use the layer pipeline so Layer 6 effects (e.g. RemoveAllAbilities) are
+                // reflected in the CLIPS fact rather than the raw card definition.
+                let effective_ability_list = game.effective_abilities(instance_id);
+                let keywords = if let Some(ref abilities) = effective_ability_list {
+                    keyword_symbols(abilities)
+                } else {
+                    keyword_symbols(card.definition().static_abilities())
+                };
 
                 // Counter list: "type count type count ..." (multislot)
                 let counters = if let Some(pstate) = game.permanent_state(instance_id) {
@@ -383,8 +390,8 @@ fn target_id(target: &crate::domain::targets::Target) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::cards::card_definition::CardDefinition;
-    use crate::domain::cards::card_instance::CardInstance;
+    
+    
     use crate::domain::enums::{CardType, ManaColor, StaticAbility, Step};
     use crate::domain::events::{CardInstanceSnapshot, GameEvent};
     use crate::domain::game::test_helpers::{

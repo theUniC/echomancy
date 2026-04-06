@@ -128,6 +128,43 @@ pub enum RulesAction {
     /// Adapt N — if this creature has no +1/+1 counters on it, put N +1/+1
     /// counters on it (CR 701.46).
     Adapt { target: String, amount: u32 },
+    /// Set a creature's power and toughness to specific values (Layer 7b).
+    ///
+    /// Used by effects like Turn to Frog ("becomes a 1/1").
+    SetPowerToughness {
+        /// Instance ID of the permanent to modify.
+        target: String,
+        /// The new base power value.
+        power: i32,
+        /// The new base toughness value.
+        toughness: i32,
+        /// Duration string, e.g. `"until-end-of-turn"`.
+        duration: String,
+        /// Instance ID of the spell or ability that created this effect.
+        source: String,
+    },
+    /// Switch a creature's power and toughness (Layer 7d).
+    ///
+    /// Used by effects like Twisted Image.
+    SwitchPowerToughness {
+        /// Instance ID of the permanent whose P/T is switched.
+        target: String,
+        /// Duration string, e.g. `"until-end-of-turn"`.
+        duration: String,
+        /// Instance ID of the spell or ability that created this effect.
+        source: String,
+    },
+    /// Remove all keyword abilities from a creature (Layer 6).
+    ///
+    /// Used by effects like Turn to Frog.
+    RemoveAllAbilities {
+        /// Instance ID of the permanent to strip abilities from.
+        target: String,
+        /// Duration string, e.g. `"until-end-of-turn"`.
+        duration: String,
+        /// Instance ID of the spell or ability that created this effect.
+        source: String,
+    },
 }
 
 // ============================================================================

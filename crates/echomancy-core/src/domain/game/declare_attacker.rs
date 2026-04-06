@@ -70,13 +70,17 @@ mod tests {
     use super::*;
     use crate::domain::actions::Action;
     use crate::domain::enums::{StaticAbility, Step};
+    use crate::domain::game::layer_system::{
+        EffectLayer, EffectPayload, EffectTargeting, GlobalContinuousEffect,
+    };
     use crate::domain::game::test_helpers::{
         add_permanent_to_battlefield, clear_summoning_sickness, make_creature_card,
         make_creature_with_ability, make_started_game,
     };
     use crate::domain::types::{CardInstanceId, PlayerId};
+    use crate::domain::value_objects::permanent_state::EffectDuration;
 
-    fn setup_declare_attackers(player_id: &str) -> (crate::domain::game::Game, String, String) {
+    fn setup_declare_attackers(_player_id: &str) -> (crate::domain::game::Game, String, String) {
         let (mut game, p1, p2) = make_started_game();
         // Advance to DeclareAttackers step
         for _ in 0..5 {
@@ -194,5 +198,60 @@ mod tests {
             })
             .unwrap_err();
         assert!(matches!(err, GameError::InvalidPlayerAction { .. }));
+    }
+
+    /// CR 613.1f + CR 702.3 — when a Layer 6 RemoveAllAbilities effect removes
+    /// Defender from a creature, it must be allowed to attack.
+    ///
+    /// Scenario: Ironbark Wall has Defender in its card definition.  A
+    /// "Turn to Frog"-style continuous effect applies RemoveAllAbilities in
+    /// Layer 6 to the creature.  The combat system must consult the layer
+    /// pipeline (via `Game::effective_abilities`) instead of the raw card
+    /// definition, so the creature can attack normally.
+    #[test]
+    fn remove_all_abilities_via_layer_system_allows_defender_to_attack() {
+        let (mut game, p1, _p2) = setup_declare_attackers("p1");
+
+        // A wall with Defender — normally cannot attack.
+        let wall = make_creature_with_ability("wall-1", &p1, 0, 4, StaticAbility::Defender);
+        add_permanent_to_battlefield(&mut game, &p1, wall);
+        clear_summoning_sickness(&mut game, "wall-1");
+
+        // Sanity: without any layer effect, the wall cannot attack.
+        assert!(
+            game.apply(Action::DeclareAttacker {
+                player_id: PlayerId::new(&p1),
+                creature_id: CardInstanceId::new("wall-1"),
+            })
+            .is_err(),
+            "wall with Defender should not be able to attack without a layer effect"
+        );
+
+        // Apply a RemoveAllAbilities effect at Layer 6 targeting the wall
+        // (mirrors what "Turn to Frog" would inject via the rules engine).
+        game.global_continuous_effects.push(GlobalContinuousEffect {
+            layer: EffectLayer::Layer6Ability,
+            payload: EffectPayload::RemoveAllAbilities,
+            duration: EffectDuration::UntilEndOfTurn,
+            timestamp: 1,
+            source_id: "turn-to-frog-spell".to_owned(),
+            controller_id: "p2".to_owned(),
+            is_cda: false,
+            targeting: EffectTargeting::LockedSet(vec!["wall-1".to_owned()]),
+            locked_target_set: None,
+        });
+
+        // Now the layer system removes Defender — the wall should be able to attack.
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("wall-1"),
+        })
+        .expect("wall should be able to attack after RemoveAllAbilities removes Defender");
+
+        let state = game.permanent_state("wall-1").unwrap();
+        assert!(
+            state.creature_state().unwrap().is_attacking(),
+            "wall should be in attacking state"
+        );
     }
 }

@@ -255,6 +255,16 @@ pub(crate) trait ExportableGameContext {
     /// battlefield.
     fn permanent_state(&self, instance_id: &str) -> Option<&PermanentState>;
 
+    /// Layer-evaluated effective power and toughness for a permanent.
+    ///
+    /// Returns `Some((power, toughness))` when the permanent exists on a
+    /// battlefield and is a creature after the full layer pipeline. Returns
+    /// `None` for non-creatures or permanents not on a battlefield.
+    ///
+    /// Implementations that do not support the layer system may fall back to
+    /// `PermanentState::current_power` / `current_toughness`.
+    fn effective_power_toughness(&self, instance_id: &str) -> Option<(i32, i32)>;
+
     /// All items currently on the stack, from bottom (index 0) to top.
     fn stack_items(&self) -> Vec<StackItemExport>;
 
@@ -283,7 +293,8 @@ pub(crate) fn export_game_state(ctx: &impl ExportableGameContext) -> GameStateEx
                 .iter()
                 .map(|c| {
                     let state = ctx.permanent_state(c.instance_id());
-                    export_card_instance(c, player_id, state)
+                    let effective_pt = ctx.effective_power_toughness(c.instance_id());
+                    export_card_instance_with_effective_pt(c, player_id, state, effective_pt)
                 })
                 .collect(),
         };
@@ -375,10 +386,25 @@ pub(crate) fn export_card_instance(
     controller_id: &str,
     permanent_state: Option<&PermanentState>,
 ) -> CardInstanceExport {
+    export_card_instance_with_effective_pt(card, controller_id, permanent_state, None)
+}
+
+/// Like `export_card_instance`, but uses `effective_pt` (if `Some`) for the
+/// creature state's power and toughness instead of `PermanentState::current_power/toughness`.
+///
+/// This allows the layer system's computed values to appear in the export without
+/// threading `Game` through the entire conversion pipeline.
+pub(crate) fn export_card_instance_with_effective_pt(
+    card: &CardInstance,
+    controller_id: &str,
+    permanent_state: Option<&PermanentState>,
+    effective_pt: Option<(i32, i32)>,
+) -> CardInstanceExport {
     let def = card.definition();
     let is_planeswalker = def.types().contains(&CardType::Planeswalker);
 
-    let creature_state = permanent_state.and_then(export_creature_state);
+    let creature_state =
+        permanent_state.and_then(|s| export_creature_state_with_effective_pt(s, effective_pt));
 
     // Expose tapped state for all permanents (not just creatures).
     let is_tapped = permanent_state.map(|s| s.is_tapped());
@@ -401,10 +427,35 @@ pub(crate) fn export_card_instance(
 
 /// Converts a `PermanentState` to a `CreatureStateExport` if it has creature
 /// sub-state; returns `None` otherwise.
+///
+/// Uses `current_power`/`current_toughness` from `PermanentState` (legacy path).
+/// Kept as a convenience wrapper used by tests and any caller that does not have
+/// access to layer-system computed values.
+#[allow(dead_code)]
 pub(crate) fn export_creature_state(state: &PermanentState) -> Option<CreatureStateExport> {
+    export_creature_state_with_effective_pt(state, None)
+}
+
+/// Converts a `PermanentState` to a `CreatureStateExport` if it has creature
+/// sub-state; returns `None` otherwise.
+///
+/// When `effective_pt` is `Some((p, t))` those values are used for the exported
+/// power and toughness — this is the layer-system path. When `None`, falls back
+/// to `PermanentState::current_power`/`current_toughness`.
+pub(crate) fn export_creature_state_with_effective_pt(
+    state: &PermanentState,
+    effective_pt: Option<(i32, i32)>,
+) -> Option<CreatureStateExport> {
     let cs = state.creature_state()?;
-    let power = state.current_power().ok()?;
-    let toughness = state.current_toughness().ok()?;
+
+    let (power, toughness) = match effective_pt {
+        Some(pt) => pt,
+        None => {
+            let p = state.current_power().ok()?;
+            let t = state.current_toughness().ok()?;
+            (p, t)
+        }
+    };
 
     // Collect all counters from the snapshot.
     let counters = state.to_snapshot().counters;

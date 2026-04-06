@@ -29,6 +29,20 @@ use crate::domain::value_objects::permanent_state::{EffectDuration, PermanentSta
 
 use super::Game;
 
+/// Tuple representation of a single combat creature entry.
+///
+/// Fields (in order):
+/// 1. `instance_id` — the permanent's instance ID.
+/// 2. `controller_id` — the controlling player's ID.
+/// 3. `state` — the permanent's full `PermanentState`.
+/// 4. `effective_power` — layer-evaluated power, or `None` if not a creature.
+/// 5. `effective_toughness` — layer-evaluated toughness, or `None` if not a creature.
+/// 6. `has_trample`
+/// 7. `has_deathtouch`
+/// 8. `has_lifelink`
+/// 9. `has_menace`
+type CombatCreatureTuple = (String, String, PermanentState, Option<i32>, Option<i32>, bool, bool, bool, bool);
+
 impl Game {
     // =========================================================================
     // Draw
@@ -388,21 +402,38 @@ impl Game {
 
         let current_player = self.turn_state.current_player_id().as_str().to_owned();
 
-        let card_instances: Vec<(String, bool, bool)> = self
+        // Collect instance IDs and creature flags first (immutable borrow).
+        let card_base_info: Vec<(String, bool)> = self
             .players
             .iter()
             .find(|p| p.player_id.as_str() == current_player)
             .map(|p| {
                 p.battlefield
                     .iter()
-                    .map(|c| (
-                        c.instance_id().to_owned(),
-                        c.definition().is_creature(),
-                        c.definition().has_static_ability(StaticAbility::DoesNotUntap),
-                    ))
+                    .map(|c| (c.instance_id().to_owned(), c.definition().is_creature()))
                     .collect()
             })
             .unwrap_or_default();
+
+        // Now consult the layer pipeline for each card (requires &self, separate step).
+        // CR 613.1f: Layer 6 effects can remove DoesNotUntap from a permanent.
+        let card_instances: Vec<(String, bool, bool)> = card_base_info
+            .into_iter()
+            .map(|(instance_id, is_creature)| {
+                let does_not_untap = if let Some(abilities) = self.effective_abilities(&instance_id) {
+                    abilities.contains(&StaticAbility::DoesNotUntap)
+                } else {
+                    // Fallback: look up card definition on the battlefield.
+                    self.players
+                        .iter()
+                        .flat_map(|p| p.battlefield.iter())
+                        .find(|c| c.instance_id() == instance_id)
+                        .map(|c| c.definition().has_static_ability(StaticAbility::DoesNotUntap))
+                        .unwrap_or(false)
+                };
+                (instance_id, is_creature, does_not_untap)
+            })
+            .collect();
 
         for (instance_id, is_creature, does_not_untap) in card_instances {
             // CR 302.6: permanents with "does not untap" skip the untap step.
@@ -499,8 +530,13 @@ impl Game {
 
     /// Collect all creatures currently in combat (attacking or blocking).
     ///
-    /// Returns a list of `(instance_id, controller_id, PermanentState, has_trample, has_deathtouch, has_lifelink)` tuples.
-    fn collect_combat_creatures(&self) -> Vec<(String, String, PermanentState, bool, bool, bool, bool)> {
+    /// Returns a list of
+    /// `(instance_id, controller_id, PermanentState, effective_power, effective_toughness,
+    ///   has_trample, has_deathtouch, has_lifelink, has_menace)` tuples.
+    ///
+    /// `effective_power` and `effective_toughness` are computed via the layer pipeline so
+    /// that Layer 7b (set P/T) and Layer 7c (modify P/T) effects are applied to combat.
+    fn collect_combat_creatures(&self) -> Vec<CombatCreatureTuple> {
         let mut result = Vec::new();
 
         for player in &self.players {
@@ -518,12 +554,23 @@ impl Game {
                 if !cs.is_attacking() && cs.blocking_creature_id().is_none() {
                     continue;
                 }
-                let def = card.definition();
-                let has_trample = def.has_static_ability(StaticAbility::Trample);
-                let has_deathtouch = def.has_static_ability(StaticAbility::Deathtouch);
-                let has_lifelink = def.has_static_ability(StaticAbility::Lifelink);
-                let has_menace = def.has_static_ability(StaticAbility::Menace);
-                result.push((id, controller.clone(), state, has_trample, has_deathtouch, has_lifelink, has_menace));
+                // Compute layer-aware effective characteristics for this combat creature.
+                let (effective_power, effective_toughness) = self
+                    .effective_characteristics(&id)
+                    .map(|ch| (ch.power, ch.toughness))
+                    .unwrap_or((None, None));
+
+                // Read keyword abilities from the layer pipeline to account for
+                // Layer 6 effects (e.g. Trample granted by a spell).
+                let effective_abilities = self
+                    .effective_abilities(&id)
+                    .unwrap_or_default();
+
+                let has_trample = effective_abilities.contains(&StaticAbility::Trample);
+                let has_deathtouch = effective_abilities.contains(&StaticAbility::Deathtouch);
+                let has_lifelink = effective_abilities.contains(&StaticAbility::Lifelink);
+                let has_menace = effective_abilities.contains(&StaticAbility::Menace);
+                result.push((id, controller.clone(), state, effective_power, effective_toughness, has_trample, has_deathtouch, has_lifelink, has_menace));
             }
         }
 
@@ -532,8 +579,14 @@ impl Game {
 
     /// Returns `true` if the creature with the given instance_id has `FirstStrike`.
     ///
-    /// Looks up the creature's card definition on both battlefields.
+    /// Consults the layer pipeline first (CR 613.1f — Layer 6 can add/remove abilities)
+    /// so that effects like "Turn to Frog" (RemoveAllAbilities) are respected.
     fn creature_has_first_strike(&self, instance_id: &str) -> bool {
+        if let Some(abilities) = self.effective_abilities(instance_id) {
+            return abilities.contains(&StaticAbility::FirstStrike)
+                || abilities.contains(&StaticAbility::DoubleStrike);
+        }
+        // Fallback to card definition when layer system has no data for this permanent.
         self.players.iter().any(|player| {
             player
                 .battlefield
@@ -547,6 +600,10 @@ impl Game {
     }
 
     fn creature_has_double_strike(&self, instance_id: &str) -> bool {
+        if let Some(abilities) = self.effective_abilities(instance_id) {
+            return abilities.contains(&StaticAbility::DoubleStrike);
+        }
+        // Fallback to card definition when layer system has no data for this permanent.
         self.players.iter().any(|player| {
             player
                 .battlefield
@@ -574,9 +631,9 @@ impl Game {
         let all_combat = self.collect_combat_creatures();
 
         // Determine which combat creatures have FirstStrike.
-        let first_strikers: Vec<(String, String, PermanentState, bool, bool, bool, bool)> = all_combat
+        let first_strikers: Vec<CombatCreatureTuple> = all_combat
             .iter()
-            .filter(|(id, _, _, _, _, _, _)| self.creature_has_first_strike(id))
+            .filter(|(id, _, _, _, _, _, _, _, _)| self.creature_has_first_strike(id))
             .cloned()
             .collect();
 
@@ -588,17 +645,19 @@ impl Game {
         // Collect IDs that have first strike (both attackers and blockers).
         let first_striker_ids: Vec<String> = first_strikers
             .iter()
-            .map(|(id, _, _, _, _, _, _)| id.clone())
+            .map(|(id, _, _, _, _, _, _, _, _)| id.clone())
             .collect();
 
         // Build snapshots for the full combat pool (needed for blocker lookups) and for
         // first strikers only (the damage sources in this step).
         let all_entries: Vec<CreatureCombatEntry<'_>> = all_combat
             .iter()
-            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
+            .map(|(id, controller, state, eff_power, eff_toughness, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
                 instance_id: id.as_str(),
                 controller_id: controller.as_str(),
                 state,
+                effective_power: *eff_power,
+                effective_toughness: *eff_toughness,
                 has_trample: *has_trample,
                 has_deathtouch: *has_deathtouch,
                 has_lifelink: *has_lifelink,
@@ -608,10 +667,12 @@ impl Game {
 
         let fs_entries: Vec<CreatureCombatEntry<'_>> = first_strikers
             .iter()
-            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
+            .map(|(id, controller, state, eff_power, eff_toughness, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
                 instance_id: id.as_str(),
                 controller_id: controller.as_str(),
                 state,
+                effective_power: *eff_power,
+                effective_toughness: *eff_toughness,
                 has_trample: *has_trample,
                 has_deathtouch: *has_deathtouch,
                 has_lifelink: *has_lifelink,
@@ -689,9 +750,9 @@ impl Game {
 
         // Filter out creatures that already dealt first strike damage,
         // UNLESS they have Double Strike (CR 702.4: deal damage in both steps).
-        let regular_combat: Vec<(String, String, PermanentState, bool, bool, bool, bool)> = all_combat
+        let regular_combat: Vec<CombatCreatureTuple> = all_combat
             .into_iter()
-            .filter(|(id, _, state, _, _, _, _)| {
+            .filter(|(id, _, state, _, _, _, _, _, _)| {
                 let dealt_fs = state
                     .creature_state()
                     .map(|cs| cs.dealt_first_strike_damage())
@@ -706,10 +767,12 @@ impl Game {
 
         let combat_entries: Vec<CreatureCombatEntry<'_>> = regular_combat
             .iter()
-            .map(|(id, controller, state, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
+            .map(|(id, controller, state, eff_power, eff_toughness, has_trample, has_deathtouch, has_lifelink, has_menace)| CreatureCombatEntry {
                 instance_id: id.as_str(),
                 controller_id: controller.as_str(),
                 state,
+                effective_power: *eff_power,
+                effective_toughness: *eff_toughness,
                 has_trample: *has_trample,
                 has_deathtouch: *has_deathtouch,
                 has_lifelink: *has_lifelink,
@@ -766,10 +829,12 @@ impl Game {
         }
     }
 
-    /// Remove all continuous effects with the given duration from every permanent.
+    /// Remove all continuous effects with the given duration from every permanent
+    /// and from the global continuous effects list (LS1).
     ///
     /// Called at Cleanup step to expire "until end of turn" effects.
     pub(crate) fn expire_continuous_effects(&mut self, duration: EffectDuration) {
+        // Legacy per-permanent effects.
         let ids: Vec<String> = self.permanent_states.keys().cloned().collect();
         for id in ids {
             if let Some(state) = self.permanent_states.get(&id).cloned() {
@@ -777,6 +842,9 @@ impl Game {
                 self.permanent_states.insert(id, new_state);
             }
         }
+
+        // Global continuous effects (LS1): remove all effects matching the duration.
+        self.global_continuous_effects.retain(|e| e.duration != duration);
     }
 
     /// CR 514.1: At Cleanup, each player with more than 7 cards in hand
@@ -1950,6 +2018,224 @@ mod tests {
             game.player_poison_counters(&p2).unwrap(),
             0,
             "Blocked Toxic creature should not give poison counters"
+        );
+    }
+
+    // =========================================================================
+    // Layer-system bypass tests (LS1 fixes)
+    // =========================================================================
+
+    /// A creature with FirstStrike that has all abilities removed via the layer
+    /// system BEFORE the FirstStrikeDamage step should NOT deal damage in that step.
+    ///
+    /// This verifies that `creature_has_first_strike` consults the layer pipeline
+    /// (effective_abilities) rather than the raw card definition.
+    ///
+    /// The effect is applied while still in the DeclareBlockers step so that it
+    /// is active when the game advances into FirstStrikeDamage.
+    #[test]
+    fn first_strike_removed_by_layer_system_does_not_deal_first_strike_damage() {
+        use crate::domain::enums::StaticAbility;
+        use crate::domain::game::layer_system::{
+            EffectLayer, EffectPayload, EffectTargeting, GlobalContinuousEffect,
+        };
+        use crate::domain::game::test_helpers::make_creature_with_ability;
+        use crate::domain::value_objects::permanent_state::EffectDuration;
+
+        let (mut game, p1, p2) = make_started_game();
+
+        // Advance to DeclareAttackers (5 steps from Untap).
+        for _ in 0..5 {
+            let current = game.current_player_id().to_owned();
+            game.apply(Action::AdvanceStep {
+                player_id: PlayerId::new(&current),
+            })
+            .unwrap();
+        }
+        assert_eq!(game.current_step(), Step::DeclareAttackers);
+
+        // 2/2 attacker with FirstStrike on card definition.
+        let attacker = make_creature_with_ability("attacker-1", &p1, 2, 2, StaticAbility::FirstStrike);
+        add_permanent_to_battlefield(&mut game, &p1, attacker);
+        clear_summoning_sickness(&mut game, "attacker-1");
+
+        game.apply(Action::DeclareAttacker {
+            player_id: PlayerId::new(&p1),
+            creature_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        // Advance to DeclareBlockers.
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        assert_eq!(game.current_step(), Step::DeclareBlockers);
+
+        // Add a 2/3 blocker (survives 2 damage if first strike doesn't fire).
+        let blocker = make_creature_card("blocker-1", &p2, 2, 3);
+        add_permanent_to_battlefield(&mut game, &p2, blocker);
+        game.apply(Action::DeclareBlocker {
+            player_id: PlayerId::new(&p2),
+            blocker_id: CardInstanceId::new("blocker-1"),
+            attacker_id: CardInstanceId::new("attacker-1"),
+        })
+        .unwrap();
+
+        // BEFORE advancing to FirstStrikeDamage: apply RemoveAllAbilities to the attacker.
+        // This simulates "Turn to Frog" style removal of FirstStrike.
+        let remove_abilities = GlobalContinuousEffect {
+            layer: EffectLayer::Layer6Ability,
+            payload: EffectPayload::RemoveAllAbilities,
+            duration: EffectDuration::UntilEndOfTurn,
+            timestamp: 200,
+            source_id: "turn-to-frog".to_owned(),
+            controller_id: p2.clone(),
+            is_cda: false,
+            targeting: EffectTargeting::LockedSet(vec!["attacker-1".to_owned()]),
+            locked_target_set: None,
+        };
+        game.add_global_continuous_effect(remove_abilities);
+
+        // Verify the layer system no longer reports FirstStrike.
+        let abilities = game.effective_abilities("attacker-1").expect("should find creature");
+        assert!(
+            !abilities.contains(&StaticAbility::FirstStrike),
+            "effective_abilities must not include FirstStrike after RemoveAllAbilities"
+        );
+
+        // Advance into FirstStrikeDamage — this triggers resolve_first_strike_damage().
+        game.apply(Action::AdvanceStep { player_id: PlayerId::new(&p1) }).unwrap();
+        assert_eq!(game.current_step(), Step::FirstStrikeDamage);
+
+        // The attacker no longer has FirstStrike, so it must NOT have dealt first-strike damage.
+        let attacker_state = game.permanent_state("attacker-1").unwrap();
+        assert!(
+            !attacker_state
+                .creature_state()
+                .unwrap()
+                .dealt_first_strike_damage(),
+            "Attacker with FirstStrike removed by layer system must not have dealt first-strike damage"
+        );
+
+        // The blocker should have 0 damage (first-strike step did not fire).
+        let blocker_state = game.permanent_state("blocker-1").unwrap();
+        assert_eq!(
+            blocker_state.creature_state().unwrap().damage_marked_this_turn(),
+            0,
+            "Blocker should take no first-strike damage when attacker's FirstStrike was removed"
+        );
+    }
+
+    /// A permanent with DoesNotUntap that has all abilities removed via the layer
+    /// system should untap normally during the untap step.
+    ///
+    /// This verifies that `auto_untap_for_current_player` consults the layer pipeline
+    /// rather than the raw card definition.
+    ///
+    /// Strategy: advance p1 to FirstMain, add the tapped creature, apply
+    /// RemoveAllAbilities, then advance p1's whole turn and into p2's turn.
+    /// Then end p2's turn — that triggers p1's next Untap step where the creature
+    /// should untap.
+    #[test]
+    fn does_not_untap_removed_by_layer_system_allows_untapping() {
+        use crate::domain::enums::StaticAbility;
+        use crate::domain::game::layer_system::{
+            EffectLayer, EffectPayload, EffectTargeting, GlobalContinuousEffect,
+        };
+        use crate::domain::game::test_helpers::make_creature_with_ability;
+        use crate::domain::value_objects::permanent_state::EffectDuration;
+
+        // Start in FirstMain so we have time to set up before untap.
+        // Add filler land cards to both libraries so draw steps don't end the game.
+        let (mut game, p1, p2) = {
+            let (mut g, p1, p2) = make_started_game();
+            // Add 20 filler lands so each player can draw without losing.
+            for i in 0..20 {
+                let land = {
+                    use crate::domain::cards::card_definition::CardDefinition;
+                    use crate::domain::cards::card_instance::CardInstance;
+                    use crate::domain::enums::CardType;
+                    let def = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
+                    CardInstance::new(&format!("land-p1-{i}"), def, &p1)
+                };
+                if let Ok(player) = g.player_state_mut(&p1) {
+                    player.library.push(land);
+                }
+            }
+            for i in 0..20 {
+                let land = {
+                    use crate::domain::cards::card_definition::CardDefinition;
+                    use crate::domain::cards::card_instance::CardInstance;
+                    use crate::domain::enums::CardType;
+                    let def = CardDefinition::new("forest", "Forest", vec![CardType::Land]);
+                    CardInstance::new(&format!("land-p2-{i}"), def, &p2)
+                };
+                if let Ok(player) = g.player_state_mut(&p2) {
+                    player.library.push(land);
+                }
+            }
+            // Advance to FirstMain (Untap→Upkeep→Draw→FirstMain = 3 advances).
+            for _ in 0..3 {
+                let cur = g.current_player_id().to_owned();
+                g.apply(Action::AdvanceStep { player_id: PlayerId::new(&cur) }).unwrap();
+            }
+            (g, p1, p2)
+        };
+        assert_eq!(game.current_step(), Step::FirstMain);
+
+        // Add a creature with DoesNotUntap to p1's battlefield.
+        let creature = make_creature_with_ability("frozen-1", &p1, 2, 2, StaticAbility::DoesNotUntap);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+        clear_summoning_sickness(&mut game, "frozen-1");
+
+        // Tap the creature manually (simulates it having attacked).
+        if let Some(state) = game.permanent_states.get("frozen-1").cloned() {
+            game.permanent_states.insert("frozen-1".to_owned(), state.with_tapped(true));
+        }
+        assert!(
+            game.permanent_state("frozen-1").unwrap().is_tapped(),
+            "Setup: creature should be tapped"
+        );
+
+        // Remove all abilities via the layer system (simulates "Turn to Frog" removing DoesNotUntap).
+        // Use WhileSourceOnBattlefield so the effect persists across turns (it expires only when
+        // the source permanent leaves the battlefield).
+        let remove_abilities = GlobalContinuousEffect {
+            layer: EffectLayer::Layer6Ability,
+            payload: EffectPayload::RemoveAllAbilities,
+            duration: EffectDuration::WhileSourceOnBattlefield("frog-enchantment".to_owned()),
+            timestamp: 200,
+            source_id: "frog-enchantment".to_owned(),
+            controller_id: p1.clone(),
+            is_cda: false,
+            targeting: EffectTargeting::LockedSet(vec!["frozen-1".to_owned()]),
+            locked_target_set: None,
+        };
+        game.add_global_continuous_effect(remove_abilities);
+
+        // Verify the layer system no longer reports DoesNotUntap.
+        let abilities = game.effective_abilities("frozen-1").expect("should find creature");
+        assert!(
+            !abilities.contains(&StaticAbility::DoesNotUntap),
+            "effective_abilities must not include DoesNotUntap after RemoveAllAbilities"
+        );
+
+        // End p1's turn — this advances to p2's FirstMain.
+        game.apply(Action::EndTurn {
+            player_id: crate::domain::types::PlayerId::new(&p1),
+        })
+        .unwrap();
+        assert_eq!(game.current_player_id(), &p2);
+
+        // End p2's turn — this advances to p1's next Untap step, which should untap the creature.
+        game.apply(Action::EndTurn {
+            player_id: crate::domain::types::PlayerId::new(&p2),
+        })
+        .unwrap();
+        assert_eq!(game.current_player_id(), &p1);
+
+        // The creature should now be untapped because DoesNotUntap was removed by the layer system.
+        assert!(
+            !game.permanent_state("frozen-1").unwrap().is_tapped(),
+            "Creature with DoesNotUntap removed by layer system should untap normally"
         );
     }
 }

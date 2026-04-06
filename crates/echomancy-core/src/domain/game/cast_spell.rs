@@ -301,7 +301,13 @@ fn validate_permanent_target_with_type(
                     }
                 }
                 // CR 702.18: Shroud — can't be targeted by anyone.
-                if card.definition().has_static_ability(StaticAbility::Shroud) {
+                // Use the layer pipeline so Layer 6 effects (e.g. RemoveAllAbilities) are respected.
+                let has_shroud = if let Some(abilities) = game.effective_abilities(card.instance_id()) {
+                    abilities.contains(&StaticAbility::Shroud)
+                } else {
+                    card.definition().has_static_ability(StaticAbility::Shroud)
+                };
+                if has_shroud {
                     return Err(GameError::InvalidTarget {
                         reason: format!(
                             "permanent '{permanent_id}' has shroud and can't be targeted"
@@ -309,8 +315,13 @@ fn validate_permanent_target_with_type(
                     });
                 }
                 // CR 702.11: Hexproof — can't be targeted by opponents.
-                if card.definition().has_static_ability(StaticAbility::Hexproof)
-                    && pid != caster_id
+                // Use the layer pipeline so Layer 6 effects (e.g. RemoveAllAbilities) are respected.
+                let has_hexproof = if let Some(abilities) = game.effective_abilities(card.instance_id()) {
+                    abilities.contains(&StaticAbility::Hexproof)
+                } else {
+                    card.definition().has_static_ability(StaticAbility::Hexproof)
+                };
+                if has_hexproof && pid != caster_id
                 {
                     return Err(GameError::InvalidTarget {
                         reason: format!(
@@ -1297,5 +1308,121 @@ mod tests {
         .unwrap();
 
         assert_eq!(game.mana_pool(&p1).unwrap().total(), 0);
+    }
+
+    // =========================================================================
+    // Layer-system bypass tests (LS1 fixes) — targeting
+    // =========================================================================
+
+    /// A creature with Shroud that has all abilities removed via the layer system
+    /// should be targetable (Shroud no longer applies).
+    ///
+    /// Verifies that the Shroud check in `validate_permanent_target_with_type`
+    /// consults effective_abilities rather than the card definition.
+    #[test]
+    fn shroud_removed_by_layer_system_allows_targeting() {
+        use crate::domain::game::layer_system::{
+            EffectLayer, EffectPayload, EffectTargeting, GlobalContinuousEffect,
+        };
+        use crate::domain::value_objects::permanent_state::EffectDuration;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        // p2 has a Shroud creature on the battlefield.
+        let shroud_creature = {
+            let def = CardDefinition::new("shroud-creature", "Shroud Creature", vec![CardType::Creature])
+                .with_power_toughness(2, 2)
+                .with_static_ability(StaticAbility::Shroud);
+            CardInstance::new("shroud-1", def, &p2)
+        };
+        add_permanent_to_battlefield(&mut game, &p2, shroud_creature);
+
+        // Apply RemoveAllAbilities via layer system (simulates "Turn to Frog").
+        let remove_abilities = GlobalContinuousEffect {
+            layer: EffectLayer::Layer6Ability,
+            payload: EffectPayload::RemoveAllAbilities,
+            duration: EffectDuration::UntilEndOfTurn,
+            timestamp: 200,
+            source_id: "frog-effect".to_owned(),
+            controller_id: p1.clone(),
+            is_cda: false,
+            targeting: EffectTargeting::LockedSet(vec!["shroud-1".to_owned()]),
+            locked_target_set: None,
+        };
+        game.add_global_continuous_effect(remove_abilities);
+
+        // Verify Shroud is no longer in effective abilities.
+        let abilities = game.effective_abilities("shroud-1").expect("should find creature");
+        assert!(
+            !abilities.contains(&StaticAbility::Shroud),
+            "effective_abilities must not include Shroud after RemoveAllAbilities"
+        );
+
+        // p1 casts a removal spell targeting p2's creature — should succeed now that Shroud is gone.
+        let removal = make_instant_targeting_creature("removal-1", &p1);
+        add_card_to_hand(&mut game, &p1, removal);
+
+        let result = game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("removal-1"),
+            targets: vec![Target::creature("shroud-1")],
+            x_value: 0,
+        });
+
+        assert!(
+            result.is_ok(),
+            "Should be able to target creature after Shroud is removed by the layer system"
+        );
+    }
+
+    /// A creature with Hexproof that has all abilities removed via the layer system
+    /// should be targetable by opponents.
+    #[test]
+    fn hexproof_removed_by_layer_system_allows_opponent_targeting() {
+        use crate::domain::game::layer_system::{
+            EffectLayer, EffectPayload, EffectTargeting, GlobalContinuousEffect,
+        };
+        use crate::domain::value_objects::permanent_state::EffectDuration;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        // p2 has a Hexproof creature on the battlefield.
+        let hexproof_creature = {
+            let def = CardDefinition::new("hexproof-creature", "Hexproof Creature", vec![CardType::Creature])
+                .with_power_toughness(2, 2)
+                .with_static_ability(StaticAbility::Hexproof);
+            CardInstance::new("hexproof-1", def, &p2)
+        };
+        add_permanent_to_battlefield(&mut game, &p2, hexproof_creature);
+
+        // Apply RemoveAllAbilities via layer system.
+        let remove_abilities = GlobalContinuousEffect {
+            layer: EffectLayer::Layer6Ability,
+            payload: EffectPayload::RemoveAllAbilities,
+            duration: EffectDuration::UntilEndOfTurn,
+            timestamp: 200,
+            source_id: "frog-effect".to_owned(),
+            controller_id: p1.clone(),
+            is_cda: false,
+            targeting: EffectTargeting::LockedSet(vec!["hexproof-1".to_owned()]),
+            locked_target_set: None,
+        };
+        game.add_global_continuous_effect(remove_abilities);
+
+        // p1 (opponent) targets p2's creature — should succeed now Hexproof is gone.
+        let removal = make_instant_targeting_creature("removal-1", &p1);
+        add_card_to_hand(&mut game, &p1, removal);
+
+        let result = game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("removal-1"),
+            targets: vec![Target::creature("hexproof-1")],
+            x_value: 0,
+        });
+
+        assert!(
+            result.is_ok(),
+            "Should be able to target creature after Hexproof is removed by the layer system"
+        );
     }
 }

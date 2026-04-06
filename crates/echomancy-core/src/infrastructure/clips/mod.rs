@@ -506,14 +506,14 @@ mod tests {
     #[test]
     fn creates_environment_and_drops_cleanly() {
         // If Drop panics or double-frees, this test will crash.
-        let mut engine = ClipsEngine::new().expect("should create CLIPS environment");
+        let engine = ClipsEngine::new().expect("should create CLIPS environment");
         drop(engine);
     }
 
     #[test]
     fn multiple_engines_can_coexist() {
-        let mut a = ClipsEngine::new().expect("engine A");
-        let mut b = ClipsEngine::new().expect("engine B");
+        let a = ClipsEngine::new().expect("engine A");
+        let b = ClipsEngine::new().expect("engine B");
         // Both alive at same time — independent environments.
         drop(a);
         drop(b);

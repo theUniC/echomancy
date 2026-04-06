@@ -322,6 +322,51 @@ pub fn reckless_berserker() -> CardDefinition {
         .with_oracle_text("Menace (This creature can't be blocked except by two or more creatures.)\nThis creature attacks each combat if able.")
 }
 
+// ============================================================================
+// Showcase cards — LS1 Layer System
+// ============================================================================
+
+/// Return the `Titanic Growth` instant definition.
+///
+/// Mana cost: {1}{G} (1 generic + 1 green).
+/// Target creature gets +4/+4 until end of turn.
+/// Tests Layer 7c (ModifyPowerToughness) — a larger pump than Giant Growth,
+/// to make layer interactions more visible when combined with other effects.
+pub fn titanic_growth() -> CardDefinition {
+    let cost = ManaCost::parse("1G").expect("titanic growth mana cost is valid");
+    CardDefinition::new("titanic-growth", "Titanic Growth", vec![CardType::Instant])
+        .with_mana_cost(cost)
+        .with_target_requirement(TargetRequirement::Creature)
+        .with_oracle_text("Target creature gets +4/+4 until end of turn.")
+}
+
+/// Return the `Twisted Image` instant definition.
+///
+/// Mana cost: {U} (1 blue).
+/// Switch target creature's power and toughness until end of turn. Draw a card.
+/// Tests Layer 7d (SwitchPowerToughness).
+pub fn twisted_image() -> CardDefinition {
+    let cost = ManaCost::parse("U").expect("twisted image mana cost is valid");
+    CardDefinition::new("twisted-image", "Twisted Image", vec![CardType::Instant])
+        .with_mana_cost(cost)
+        .with_target_requirement(TargetRequirement::Creature)
+        .with_oracle_text("Switch target creature's power and toughness until end of turn. Draw a card.")
+}
+
+/// Return the `Turn to Frog` instant definition.
+///
+/// Mana cost: {1}{U} (1 generic + 1 blue).
+/// Target creature loses all abilities and becomes a base 1/1 until end of turn.
+/// Tests Layer 6 (RemoveAllAbilities) + Layer 7b (SetPowerToughness) — a
+/// multi-layer effect that requires CR 613.6 locked_target_set handling.
+pub fn turn_to_frog() -> CardDefinition {
+    let cost = ManaCost::parse("1U").expect("turn to frog mana cost is valid");
+    CardDefinition::new("turn-to-frog", "Turn to Frog", vec![CardType::Instant])
+        .with_mana_cost(cost)
+        .with_target_requirement(TargetRequirement::Creature)
+        .with_oracle_text("Target creature loses all abilities and becomes a base 1/1 until end of turn.")
+}
+
 /// Return the `Frozen Sentinel` creature definition.
 ///
 /// Mana cost: {1}{R} (1 generic + 1 red).
@@ -675,5 +720,57 @@ mod tests {
     fn wild_bounty_has_oracle_text() {
         let ae = wild_bounty();
         assert!(ae.oracle_text().is_some(), "Wild Bounty should have oracle text");
+    }
+
+    // =========================================================================
+    // Showcase cards — LS1 Layer System
+    // =========================================================================
+
+    #[test]
+    fn titanic_growth_is_instant_with_correct_stats() {
+        let tg = titanic_growth();
+        assert!(tg.is_instant());
+        assert_eq!(tg.id(), "titanic-growth");
+        assert_eq!(tg.name(), "Titanic Growth");
+        let cost = tg.mana_cost().expect("Titanic Growth must have a mana cost");
+        let expected = ManaCost::parse("1G").unwrap();
+        assert_eq!(*cost, expected, "Titanic Growth mana cost should be {{1}}{{G}}");
+        assert_eq!(tg.target_requirement(), TargetRequirement::Creature);
+        assert!(tg.oracle_text().is_some());
+    }
+
+    #[test]
+    fn twisted_image_is_instant_with_correct_stats() {
+        let ti = twisted_image();
+        assert!(ti.is_instant());
+        assert_eq!(ti.id(), "twisted-image");
+        assert_eq!(ti.name(), "Twisted Image");
+        let cost = ti.mana_cost().expect("Twisted Image must have a mana cost");
+        let expected = ManaCost::parse("U").unwrap();
+        assert_eq!(*cost, expected, "Twisted Image mana cost should be {{U}}");
+        assert_eq!(ti.target_requirement(), TargetRequirement::Creature);
+        assert!(ti.oracle_text().is_some());
+    }
+
+    #[test]
+    fn turn_to_frog_is_instant_with_correct_stats() {
+        let ttf = turn_to_frog();
+        assert!(ttf.is_instant());
+        assert_eq!(ttf.id(), "turn-to-frog");
+        assert_eq!(ttf.name(), "Turn to Frog");
+        let cost = ttf.mana_cost().expect("Turn to Frog must have a mana cost");
+        let expected = ManaCost::parse("1U").unwrap();
+        assert_eq!(*cost, expected, "Turn to Frog mana cost should be {{1}}{{U}}");
+        assert_eq!(ttf.target_requirement(), TargetRequirement::Creature);
+        assert!(ttf.oracle_text().is_some());
+    }
+
+    #[test]
+    fn ls1_showcase_ids_are_unique_and_in_catalog() {
+        let ids = ["titanic-growth", "twisted-image", "turn-to-frog"];
+        let mut seen = std::collections::HashSet::new();
+        for id in &ids {
+            assert!(seen.insert(*id), "Duplicate catalog ID: {id}");
+        }
     }
 }

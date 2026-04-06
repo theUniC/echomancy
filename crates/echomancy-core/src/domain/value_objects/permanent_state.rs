@@ -14,6 +14,13 @@ use crate::domain::value_objects::creature_state::CreatureSubState;
 pub enum EffectDuration {
     /// The effect ends at the Cleanup step of the current turn.
     UntilEndOfTurn,
+    /// The effect lasts as long as the source permanent (identified by its ID)
+    /// remains on the battlefield (CR 613.7a).
+    ///
+    /// Used for:
+    /// - A permanent's own static ability effects (source_id = the permanent itself).
+    /// - Aura/equipment effects where the enchanting/equipped relationship persists.
+    WhileSourceOnBattlefield(String),
 }
 
 // ============================================================================
@@ -87,6 +94,11 @@ pub struct PermanentState {
     counters: HashMap<String, u32>,
     creature_state: Option<CreatureSubState>,
     continuous_effects: Vec<ContinuousEffect>,
+    /// The timestamp assigned when this permanent entered the battlefield (CR 613.7d).
+    ///
+    /// Used by the layer system to determine effect ordering: static-ability
+    /// effects from this permanent inherit this timestamp (CR 613.7a).
+    etb_timestamp: u64,
 }
 
 impl PermanentState {
@@ -95,12 +107,15 @@ impl PermanentState {
     /// Creates a `PermanentState` for a creature entering the battlefield.
     ///
     /// The creature has summoning sickness and starts untapped with no counters.
+    /// `etb_timestamp` defaults to 0; the `Game` aggregate sets the correct
+    /// monotonically increasing timestamp when the permanent actually ETBs.
     pub fn for_creature(base_power: i32, base_toughness: i32) -> Self {
         Self {
             is_tapped: false,
             counters: HashMap::new(),
             creature_state: Some(CreatureSubState::new(base_power, base_toughness)),
             continuous_effects: Vec::new(),
+            etb_timestamp: 0,
         }
     }
 
@@ -112,6 +127,7 @@ impl PermanentState {
             counters: HashMap::new(),
             creature_state: None,
             continuous_effects: Vec::new(),
+            etb_timestamp: 0,
         }
     }
 
@@ -122,6 +138,7 @@ impl PermanentState {
             counters: snapshot.counters,
             creature_state: snapshot.creature_state,
             continuous_effects: Vec::new(),
+            etb_timestamp: 0,
         }
     }
 
@@ -140,6 +157,23 @@ impl PermanentState {
     /// Returns the count of counters of the given type (0 if none).
     pub fn get_counters(&self, counter_type: &str) -> u32 {
         self.counters.get(counter_type).copied().unwrap_or(0)
+    }
+
+    /// Returns the ETB timestamp for this permanent (CR 613.7d).
+    ///
+    /// The timestamp is assigned by `Game::enter_battlefield` and is used by
+    /// the layer system to determine effect ordering.
+    #[allow(dead_code)]
+    pub(crate) fn etb_timestamp(&self) -> u64 {
+        self.etb_timestamp
+    }
+
+    /// Returns a new `PermanentState` with the given ETB timestamp.
+    ///
+    /// Called by `Game::enter_battlefield` immediately after creating the state.
+    pub(crate) fn with_etb_timestamp(mut self, ts: u64) -> Self {
+        self.etb_timestamp = ts;
+        self
     }
 
     // ---- continuous effects accessors ---------------------------------------

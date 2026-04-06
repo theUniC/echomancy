@@ -39,6 +39,27 @@ pub(crate) trait CombatValidationContext {
 
     /// Returns the `PermanentState` for the given instance ID, if on a battlefield.
     fn permanent_state(&self, instance_id: &str) -> Option<&PermanentState>;
+
+    /// Returns the effective power of a permanent after applying all layer-system
+    /// effects (CR 613, LS1).
+    ///
+    /// The default implementation falls back to `PermanentState::current_power` for
+    /// test contexts that do not have access to the full layer pipeline. The `Game`
+    /// aggregate overrides this with the full `effective_power` query.
+    fn effective_power_of(&self, instance_id: &str) -> Option<i32> {
+        self.permanent_state(instance_id)
+            .and_then(|s| s.current_power().ok())
+    }
+
+    /// Returns the effective colors of a permanent after applying all layer-system
+    /// effects (CR 613, LS1 Layer 5).
+    ///
+    /// The default implementation falls back to the card definition's colors for
+    /// test contexts that do not have access to the full layer pipeline. The `Game`
+    /// aggregate overrides this with the full `effective_colors` query.
+    fn effective_colors_of(&self, card: &CardInstance) -> Vec<crate::domain::enums::ManaColor> {
+        card.definition().colors().to_vec()
+    }
 }
 
 // ============================================================================
@@ -310,9 +331,11 @@ pub(crate) fn validate_declare_blocker(
     }
 
     // 10. Fear restriction (CR 702.36): can only be blocked by artifact creatures and/or black creatures.
+    // Use effective_colors_of so Layer 5 color-changing effects are respected (CR 613.1e).
     if ctx.has_static_ability(attacker, StaticAbility::Fear) {
+        let blocker_colors = ctx.effective_colors_of(blocker);
         let blocker_can_block = blocker.definition().is_artifact()
-            || blocker.definition().colors().contains(&crate::domain::enums::ManaColor::Black);
+            || blocker_colors.contains(&crate::domain::enums::ManaColor::Black);
         if !blocker_can_block {
             return Err(GameError::InvalidPlayerAction {
                 player_id: player_id.into(),
@@ -322,13 +345,13 @@ pub(crate) fn validate_declare_blocker(
     }
 
     // 11. Skulk restriction (CR 702.118): can't be blocked by creatures with greater power.
+    //     Power comparison uses effective power from the layer system (LS1).
     if ctx.has_static_ability(attacker, StaticAbility::Skulk) {
-        let attacker_power = attacker_state
-            .current_power()
+        let attacker_power = ctx
+            .effective_power_of(attacker_id)
             .unwrap_or(0);
         let blocker_power = ctx
-            .permanent_state(blocker_id)
-            .and_then(|s| s.current_power().ok())
+            .effective_power_of(blocker_id)
             .unwrap_or(0);
         if blocker_power > attacker_power {
             return Err(GameError::InvalidPlayerAction {

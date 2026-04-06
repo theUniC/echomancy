@@ -296,16 +296,22 @@ pub(crate) fn compute_attackable_creatures(game: &Game, player_id: &str) -> Vec<
             if cs.has_attacked_this_turn() {
                 return false;
             }
+            // For ability checks we use the layer pipeline when the permanent has
+            // layer-system data (it's on the battlefield), falling back to the card
+            // definition for cards not yet tracked by the pipeline.
+            let effective_abilities = game
+                .effective_abilities(card.instance_id())
+                .unwrap_or_else(|| card.definition().static_abilities().to_vec());
+
             if cs.has_summoning_sickness()
-                && !card
-                    .definition()
-                    .static_abilities()
-                    .contains(&StaticAbility::Haste)
+                && !effective_abilities.contains(&StaticAbility::Haste)
             {
                 return false;
             }
-            // CR 508.1d: CannotAttack creatures can't attack.
-            if card.definition().has_static_ability(StaticAbility::CannotAttack) {
+            // CR 508.1d: CannotAttack and Defender creatures can't attack.
+            if effective_abilities.contains(&StaticAbility::CannotAttack)
+                || effective_abilities.contains(&StaticAbility::Defender)
+            {
                 return false;
             }
             true
@@ -347,7 +353,11 @@ pub(crate) fn compute_blockable_creatures(game: &Game, player_id: &str) -> Vec<S
                 return false;
             }
             // CR 508.1d: CannotBlock creatures can't block.
-            if card.definition().has_static_ability(StaticAbility::CannotBlock) {
+            // Use the layer pipeline so Layer 6 effects (e.g. RemoveAllAbilities) are respected.
+            let effective_abilities = game
+                .effective_abilities(card.instance_id())
+                .unwrap_or_else(|| card.definition().static_abilities().to_vec());
+            if effective_abilities.contains(&StaticAbility::CannotBlock) {
                 return false;
             }
             true

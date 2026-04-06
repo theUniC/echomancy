@@ -58,7 +58,7 @@ pub(crate) fn humanize_error(message: &str, player_ids: &super::PlayerIds) -> St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use echomancy_core::prelude::*;
+    
     use uuid::Uuid;
 
     use crate::plugins::game::{PlayerIds, PlayerInfo};

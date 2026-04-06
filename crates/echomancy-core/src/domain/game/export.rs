@@ -131,6 +131,13 @@ impl ExportableGameContext for Game {
         self.permanent_states.get(instance_id)
     }
 
+    fn effective_power_toughness(&self, instance_id: &str) -> Option<(i32, i32)> {
+        let chars = self.effective_characteristics(instance_id)?;
+        let power = chars.power?;
+        let toughness = chars.toughness?;
+        Some((power, toughness))
+    }
+
     fn mulligan_state_export(&self) -> MulliganStateExport {
         match &self.mulligan_state {
             None => MulliganStateExport {
@@ -217,10 +224,32 @@ impl CombatValidationContext for Game {
     }
 
     fn has_static_ability(&self, card: &CardInstance, ability: StaticAbility) -> bool {
-        card.definition().has_static_ability(ability)
+        // Consult the layer pipeline first (CR 613.1f — Layer 6 can add/remove abilities).
+        // If the permanent is on a battlefield and the layer system has data for it, use
+        // the effective abilities list.  Fall back to the card definition only when no
+        // layer-system data is available (e.g. cards not yet on a battlefield).
+        if let Some(effective) = self.effective_abilities(card.instance_id()) {
+            effective.contains(&ability)
+        } else {
+            card.definition().has_static_ability(ability)
+        }
     }
 
     fn permanent_state(&self, instance_id: &str) -> Option<&PermanentState> {
         self.permanent_states.get(instance_id)
+    }
+
+    fn effective_power_of(&self, instance_id: &str) -> Option<i32> {
+        self.effective_power(instance_id)
+    }
+
+    fn effective_colors_of(&self, card: &CardInstance) -> Vec<crate::domain::enums::ManaColor> {
+        // Consult the layer pipeline first (Layer 5 can change colors).
+        // Fall back to the card definition only when no layer-system data is available.
+        if let Some(colors) = self.effective_colors(card.instance_id()) {
+            colors
+        } else {
+            card.definition().colors().to_vec()
+        }
     }
 }

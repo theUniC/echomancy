@@ -22,6 +22,12 @@ pub(crate) struct CreatureSbaEntry<'a> {
     pub state: &'a PermanentState,
     /// Whether this creature has Indestructible (CR 702.12).
     pub is_indestructible: bool,
+    /// Layer-system effective toughness, if available (LS1).
+    ///
+    /// When `Some`, this overrides `state.current_toughness()` for SBA checks
+    /// so that Layer 7 effects (e.g. "becomes 1/1") are respected.
+    /// When `None`, falls back to `state.current_toughness()`.
+    pub effective_toughness: Option<i32>,
 }
 
 /// A minimal description of a player for SBA checks.
@@ -57,9 +63,16 @@ pub(crate) fn find_creatures_to_destroy(
             None => continue, // Not a creature — skip.
         };
 
-        let current_toughness = match entry.state.current_toughness() {
-            Ok(t) => t,
-            Err(_) => continue,
+        // Use layer-aware effective toughness if provided, otherwise fall back to
+        // current_toughness() which only considers base stats, counters, and
+        // old-style continuous effects.
+        let current_toughness = if let Some(eff_t) = entry.effective_toughness {
+            eff_t
+        } else {
+            match entry.state.current_toughness() {
+                Ok(t) => t,
+                Err(_) => continue,
+            }
         };
 
         // Check 0 or less toughness — this is NOT "destroy", so Indestructible
@@ -156,6 +169,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -168,6 +182,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -180,6 +195,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty());
@@ -195,6 +211,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -207,6 +224,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -219,6 +237,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty());
@@ -239,6 +258,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -255,6 +275,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty());
@@ -273,6 +294,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty());
@@ -288,6 +310,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: false,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"]);
@@ -305,11 +328,13 @@ mod tests {
                 instance_id: "dead",
                 state: &dying,
                 is_indestructible: false,
+                effective_toughness: None,
             },
             CreatureSbaEntry {
                 instance_id: "alive",
                 state: &healthy,
                 is_indestructible: false,
+                effective_toughness: None,
             },
         ];
 
@@ -326,6 +351,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: true,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty(), "Indestructible should survive lethal damage");
@@ -343,6 +369,7 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: true,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert!(result.is_empty(), "Indestructible should survive deathtouch");
@@ -356,9 +383,57 @@ mod tests {
             instance_id: "c1",
             state: &state,
             is_indestructible: true,
+            effective_toughness: None,
         }];
         let result = find_creatures_to_destroy(&entries);
         assert_eq!(result, vec!["c1"], "zero toughness kills even Indestructible");
+    }
+
+    // ---- find_creatures_to_destroy: effective_toughness override (LS1) -----
+
+    #[test]
+    fn effective_toughness_override_used_instead_of_base_when_provided() {
+        // 2/2 creature with 2 damage — base toughness says lethal, but effective
+        // toughness of 5 (from layer effects) means NOT lethal.
+        let state = creature_with_damage(2, 2, 2);
+        let entries = [CreatureSbaEntry {
+            instance_id: "c1",
+            state: &state,
+            is_indestructible: false,
+            effective_toughness: Some(5), // layer effect boosted to 5
+        }];
+        let result = find_creatures_to_destroy(&entries);
+        assert!(result.is_empty(), "effective toughness 5 > 2 damage: not lethal");
+    }
+
+    #[test]
+    fn effective_toughness_override_zero_triggers_sba_even_with_base_two() {
+        // 2/2 creature with no damage — base says fine, but layer effect reduces
+        // effective toughness to 0.
+        let state = creature_clean(2, 2);
+        let entries = [CreatureSbaEntry {
+            instance_id: "c1",
+            state: &state,
+            is_indestructible: false,
+            effective_toughness: Some(0),
+        }];
+        let result = find_creatures_to_destroy(&entries);
+        assert_eq!(result, vec!["c1"], "effective toughness 0: SBA triggers");
+    }
+
+    #[test]
+    fn layer7b_set_11_with_2_damage_is_lethal_via_effective_toughness() {
+        // 2/2 creature set to 1/1 by Layer 7b, with 2 damage: lethal.
+        // effective_toughness = 1 (from layer system), damage = 2 >= 1.
+        let state = creature_with_damage(2, 2, 2);
+        let entries = [CreatureSbaEntry {
+            instance_id: "c1",
+            state: &state,
+            is_indestructible: false,
+            effective_toughness: Some(1),
+        }];
+        let result = find_creatures_to_destroy(&entries);
+        assert_eq!(result, vec!["c1"], "2 damage >= effective toughness 1: lethal");
     }
 
     // ---- find_players_who_attempted_empty_library_draw ---------------------

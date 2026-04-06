@@ -54,7 +54,7 @@ pub(crate) fn handle(game: &mut Game, player_id: &str) -> Result<Vec<GameEvent>,
 mod tests {
     use super::*;
     use crate::domain::actions::Action;
-    use crate::domain::entities::the_stack::{SpellOnStack, StackItem};
+    
     use crate::domain::game::test_helpers::{
         add_card_to_hand, make_creature_card, make_game_in_first_main,
     };
@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn player_without_priority_cannot_pass() {
-        let (mut game, p1, p2) = make_game_in_first_main();
+        let (mut game, _p1, p2) = make_game_in_first_main();
         // p1 has priority, not p2
         let err = game
             .apply(Action::PassPriority {

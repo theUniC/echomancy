@@ -96,6 +96,7 @@ that affect correctness of every game.
 | C5 | SBA loop must repeat until no more actions taken | DONE | 704.3 | Low | - | Loops up to 20 iterations |
 | C5b | SBA infinite loop should declare draw (CR 104.4b) | DONE | 104.4b | Low | C5 | Declares Draw with InfiniteLoop reason at cap=20 |
 | C6 | Multiple blockers per attacker + damage ordering | DONE | 509.1a | High | - | Auto-assign damage (smallest first), UI pending (U8/U10) |
+| C7 | Concede (player can concede at any time → loses immediately) | TODO | 104.3a | Low | - | Special action, no stack. Needs domain + UI button |
 
 ### Phase 6: Major Missing Mechanics
 
@@ -145,6 +146,7 @@ Static abilities and keywords not yet implemented.
 | MA3 | Phyrexian mana (pay life instead) | TODO | 107.4f | Medium | - | |
 | MA4 | Convoke (tap creatures to pay) | TODO | 702.50 | High | - | |
 | MA5 | Snow mana | DONE | 107.4h | Low | - | is_snow flag on CardDefinition + with_snow() builder; no snow mana payment logic yet |
+| MA6 | Smart mana auto-pay (preserve colored mana for upcoming spells) | TODO | - | Medium | - | Current auto-pay spends colored mana on generic costs; should prefer colorless/generic first to preserve colored for later casts |
 
 ### Phase 9: Minor Mechanics
 
@@ -155,6 +157,146 @@ Static abilities and keywords not yet implemented.
 | MM3 | Discard mechanic (forced discard) | DONE | 701.8 | Low | - | discard (specific) + discard_random + RulesAction::Discard |
 | MM4 | Control change (Act of Treason) | TODO | 701.10 | High | - | Owner ≠ controller |
 | MM5 | "Enters tapped" for lands | DONE | - | Low | K8 | Covered by K8 (EntersTapped static ability) |
+
+### Phase 10: Core Rules Systems
+
+Fundamental rules infrastructure missing from the engine. Most card interactions require these.
+
+| # | Description | Status | CR Ref | Complexity | Dependency | Notes |
+|---|-------------|--------|--------|------------|------------|-------|
+| LS1 | Layer system (continuous effects ordering) | IN PROGRESS | 613 | Very High | - | Spec at docs/specs/active/LS1-layer-system.md. Layers 4-7 in scope. |
+| CP1 | Copy effects (copy spell / copy permanent) | TODO | 706 | Very High | LS1 | Fork, Twincast, Clone, etc. Copies use the layer system |
+| MD1 | Modal spells (choose one / choose two / choose all) | TODO | 700.2 | Medium | - | Very common. Needs choice UI and cost system hook |
+| SC1 | Split cards (two spells on one card) | TODO | 708 | Medium | MD1 | Fuse support optional |
+| SA1 | Sagas (lore counters, chapter triggers) | TODO | 715 | High | - | New card type. Add counter on ETB + upkeep, trigger per chapter |
+| VH1 | Vehicles (Artifact — Vehicle, Crew N) | TODO | 301.7 | High | - | Tap creatures with total power ≥ N → becomes creature until EOT |
+
+### Phase 11: Triggered Ability Patterns
+
+The CLIPS engine can write rules for these, but the domain needs to emit the right events first.
+
+| # | Description | Status | CR Ref | Complexity | Dependency | Notes |
+|---|-------------|--------|--------|------------|------------|-------|
+| TR1 | Upkeep triggers ("at the beginning of your upkeep") | TODO | 502.1 | Medium | - | Fire event at start of Upkeep step for each player |
+| TR2 | End step triggers ("at the beginning of your end step") | TODO | 513.1 | Medium | - | Fire event at start of End step |
+| TR3 | Death triggers ("when/whenever X dies") | TODO | 603.6 | Medium | - | LeaveBattlefield event to GY already partial; needs named event |
+| TR4 | Attack triggers ("whenever X attacks / whenever a creature attacks") | TODO | 603.6 | Low | - | Emit AttackerDeclared event per attacker |
+| TR5 | Draw triggers ("whenever you draw a card") | TODO | 603.6 | Low | - | Emit CardDrawn event on every draw |
+| TR6 | Cast triggers ("whenever you cast a spell") | TODO | 603.6 | Low | - | Emit SpellCast event on every cast |
+| TR7 | LTB triggers (leaves-the-battlefield) | TODO | 603.6c | Medium | TR3 | Broader than death: exile, bounce, sacrifice |
+
+### Phase 12: Alternate Casting Costs
+
+A framework for paying alternative costs at cast time. Each keyword below is an instance.
+
+| # | Description | Status | CR Ref | Complexity | Dependency | Notes |
+|---|-------------|--------|--------|------------|------------|-------|
+| AK1 | Cycling ({cost}: discard → draw) | TODO | 702.28 | Low | MM3 | Special action, doesn't use the stack |
+| AK2 | Flashback (cast from graveyard) | TODO | 702.33 | Medium | - | Alternate cost; exile after resolution |
+| AK3 | Kicker / Multikicker (optional additional cost) | TODO | 702.32 | Medium | - | Adds {kicker_paid} flag to SpellOnStack |
+| AK4 | Jump-start (flashback but discard a card) | TODO | 702.132 | Low | AK2 | Variant of Flashback |
+| AK5 | Escape (cast from GY, exile N cards) | TODO | 702.156 | Medium | AK2 | Variant of Flashback |
+| AK6 | Foretell (exile face-down for {2}, cast later) | TODO | 702.173 | High | - | New zone state + alternate cost next turn |
+| AK7 | Overload (pay more → target all instead of one) | TODO | 702.96 | Medium | MD1 | Changes targeting mode at cast time |
+| AK8 | Entwine (pay both modes of a modal spell) | TODO | 702.47 | Low | MD1 | Additive cost on modal spells |
+| AK9 | Suspend (exile with time counters, cast when last removed) | TODO | 702.61 | High | TR1 | Needs upkeep trigger + exile zone state |
+| AK10 | Delve (exile cards from GY to reduce cost) | TODO | 702.65 | Medium | - | Alternative cost reduction |
+| AK11 | Affinity (cost reduction per permanent type) | TODO | 702.40 | Medium | - | Alternative cost reduction |
+| AK12 | Emerge (sacrifice creature, reduce cost by its CMC) | TODO | 702.115 | Medium | R7 ✅ | Alternative cost + sacrifice |
+| AK13 | Madness (cast when discarded for alternate cost) | TODO | 702.34 | High | MM3, AK2 | Needs discard hook + exile-cast window |
+| AK14 | Cascade (cast random cheaper spell when casting) | TODO | 702.84 | High | - | Trigger on cast, exile until found |
+| AK15 | Storm (copy once per spell cast this turn) | TODO | 702.39 | High | TR6 | Needs spell count per turn |
+| AK16 | Buyback (pay extra → return to hand instead of GY) | TODO | 702.27 | Low | - | Alternate cost, destination change |
+| AK17 | Retrace (cast from GY, discard a land) | TODO | 702.87 | Low | AK2, MM3 | Variant of Flashback |
+
+### Phase 13: More Creature Keywords
+
+| # | Description | Status | CR Ref | Complexity | Dependency | Notes |
+|---|-------------|--------|--------|------------|------------|-------|
+| CK1 | Regenerate ({cost}: next time destroyed → tap + remove damage) | TODO | 701.15 | Medium | R11 | Replacement effect; old keyword still on many cards |
+| CK2 | Undying (dies with no +1/+1 counter → return with one) | TODO | 702.92 | Medium | TR3 | Death trigger + replacement |
+| CK3 | Persist (dies with no -1/-1 counter → return with one) | TODO | 702.77 | Medium | TR3 | Like Undying but -1/-1 |
+| CK4 | Wither (deals damage as -1/-1 counters) | TODO | 702.79 | Low | - | Damage-dealing replacement |
+| CK5 | Infect (damage as -1/-1 to creatures, poison to players) | TODO | 702.89 | Medium | CK4 | Extends Toxic/Wither model; P10.1 ✅ for poison |
+| CK6 | Prowess (+1/+1 until EOT whenever you cast non-creature) | TODO | 702.107 | Low | TR6 | Triggered ability off SpellCast event |
+| CK7 | Exalted (attacking alone gets +1/+1) | TODO | 702.90 | Low | TR4 | Triggered ability off AttackerDeclared |
+| CK8 | Landwalk (unblockable if opponent controls that land type) | TODO | 702.14 | Low | R2 ✅ | Forestwalk, Islandwalk, etc.; checks opponent lands |
+| CK9 | Intimidate (blocked only by artifacts + same-color) | TODO | 702.13 | Low | - | Like Fear but color-based |
+| CK10 | Annihilator N (attacker — defending player sacrifices N) | TODO | 702.85 | Medium | R7 ✅ | Triggered on attack |
+| CK11 | Modular N (ETB with N +1/+1; moves counters on death) | TODO | 702.43 | Medium | TR3 | Death trigger + counter transfer |
+| CK12 | Graft N (ETB with N +1/+1; can move to entering creature) | TODO | 702.57 | Medium | - | Triggered on other creature ETB |
+| CK13 | Ninjutsu ({cost}: swap with unblocked attacker from hand) | TODO | 702.48 | High | - | Activated ability outside normal timing |
+| CK14 | Morph / Megamorph (cast face-down for {3}) | TODO | 702.36 | Very High | LS1 | Face-down permanent state; turn face-up as special action |
+| CK15 | Mutate (cast on non-human creature, merge) | TODO | 702.157 | Very High | LS1 | New merge permanent; complex layer interactions |
+| CK16 | Level up ({cost}: put level counter, gains abilities) | TODO | 702.87b | High | - | Activated ability + level counter thresholds |
+| CK17 | Evoke (pay evoke cost → sacrifice when ETB trigger resolves) | TODO | 702.73 | Medium | - | Alternate cost + mandatory sacrifice |
+| CK18 | Champion (exile creature of type; return if leaves) | TODO | 702.71 | Medium | TR7 | ETB exile + LTB return |
+
+### Phase 14: Ability Words & Condition Patterns
+
+These are not keywords but common trigger conditions. CLIPS rules use them, but the domain must emit the right events (see Phase 11).
+
+| # | Description | Status | Notes |
+|---|-------------|--------|-------|
+| AW1 | Landfall (whenever a land enters under your control) | TODO | Needs ETB event filtered by land type |
+| AW2 | Threshold (7+ cards in your graveyard) | TODO | Condition check in CLIPS rules |
+| AW3 | Hellbent (no cards in hand) | TODO | Condition check in CLIPS rules |
+| AW4 | Morbid (a creature died this turn) | TODO | Needs death event flag per turn |
+| AW5 | Revolt (a permanent left your control this turn) | TODO | Needs LTB event flag per turn |
+| AW6 | Magecraft (whenever you cast or copy an instant/sorcery) | TODO | Needs SpellCast + Copy events |
+| AW7 | Raid (you attacked this turn) | TODO | Needs attacked flag per turn |
+| AW8 | Spectacle (opponent lost life this turn) | TODO | Needs opponent-life-lost flag per turn |
+| AW9 | Delirium (4+ card types in GY) | TODO | Condition check in CLIPS rules |
+| AW10 | Undergrowth (count creatures in GY) | TODO | Condition check in CLIPS rules |
+
+### Phase 15: Classic Keywords Missed
+
+Established keywords from older sets not yet in the backlog.
+
+| # | Description | Status | CR Ref | Complexity | Dependency | Notes |
+|---|-------------|--------|--------|------------|------------|-------|
+| CL1 | Proliferate (add counter to each permanent with a counter) | TODO | 701.27 | Low | - | Very common in counter-heavy sets |
+| CL2 | Amass N (create/grow Army token with N +1/+1 counters) | TODO | 701.44 | Medium | R9 ✅ | Token of specific subtype + counter add |
+| CL3 | Explore (reveal top; if land put in hand, else +1/+1 on this) | TODO | 701.39 | Medium | - | Common in Ixalan block |
+| CL4 | Mentor (when attacks with bigger creature, +1/+1 on smaller attacker) | TODO | 702.134 | Low | TR4 | Triggered on attack |
+| CL5 | Riot (ETB: choose haste or +1/+1 counter) | TODO | 702.138 | Low | - | ETB choice; common in Ravnica |
+| CL6 | Afterlife N (when dies, create N 1/1 Spirit tokens) | TODO | 702.150 | Low | TR3, R9 ✅ | Death trigger + token creation |
+| CL7 | Training (when attacks alongside creature with greater power, +1/+1) | TODO | 702.178 | Low | TR4 | Attack trigger |
+| CL8 | Disturb (cast enchantment creature from graveyard, transformed) | TODO | 702.179 | High | AK2 | Variant of Flashback for DFCs |
+| CL9 | Decayed (can attack, sacrificed at EOT, can't block) | TODO | 702.181 | Low | - | Static ability combo |
+| CL10 | Cleave (pay extra cost to remove text in [brackets]) | TODO | 702.183 | High | - | Modifies card text at cast time |
+| CL11 | Meld (two specific cards combine into one oversized permanent) | TODO | 712 | Very High | - | Special two-card pairing |
+| CL12 | Embalm (exile from GY to create token copy) | TODO | 702.128 | Medium | R9 ✅ | Activated ability from GY |
+| CL13 | Eternalize (like Embalm but 4/4 black token) | TODO | 702.129 | Low | CL12 | Variant of Embalm |
+| CL14 | Aftermath (sorcery half castable only from GY) | TODO | 702.130 | Medium | AK2 | Split card variant |
+| CL15 | Surge (alternate cost if you/teammate cast a spell this turn) | TODO | 702.118 | Medium | TR6 | SpellCast flag check |
+| CL16 | Awaken (pay extra → put N +1/+1 on target land, it becomes creature) | TODO | 702.112 | Medium | - | Kicker-like extra effect on lands |
+| CL17 | Renown N (first time deals combat damage to player → become renowned with N counters) | TODO | 702.111 | Low | - | Combat damage trigger |
+| CL18 | Dash (cast for dash cost, haste, return to hand at EOT) | TODO | 702.109 | Medium | - | Alternate cost + ETB + end trigger |
+| CL19 | Ascend / City's Blessing (if you control 10+ permanents, get the city's blessing) | TODO | 702.131 | Medium | - | Permanent flag gained via SBA-like check |
+| CL20 | Converge (effect scales with number of colors of mana spent) | TODO | 702.117 | Medium | - | Mana-payment tracking at cast time |
+| CL21 | Addendum (bonus if cast during your main phase) | TODO | 702.141 | Low | - | Timing condition check at resolution |
+
+### Phase 16: Recent Mechanics (2022–2025)
+
+Mechanics introduced in recent sets. Some require new card types or structural changes.
+
+| # | Description | Status | Set | Complexity | Dependency | Notes |
+|---|-------------|--------|-----|------------|------------|-------|
+| RE1 | Craft (exile cards from hand/GY + pay cost → transform) | TODO | LCI 2023 | High | - | Activated ability on DFCs; exile specific cards as cost |
+| RE2 | Plot (exile for plot cost; cast for free on later turn) | TODO | OTJ 2024 | Medium | - | Special action; exiled card gains "cast for free" flag |
+| RE3 | Impending N (enters as non-creature with N time counters; becomes creature when last removed) | TODO | BLB 2024 | High | TR1 | Upkeep trigger removes counter; layer effect while counters remain |
+| RE4 | Saddle N (tap creatures with total power ≥ N → Mount becomes creature) | TODO | OTJ 2024 | High | - | New permanent state + activated ability; similar to Crew |
+| RE5 | Spree (modal spell where each mode has an additional cost) | TODO | OTJ 2024 | High | MD1 | Choose one or more modes, each requiring extra mana |
+| RE6 | Gift (you may offer a gift; opponent chooses yes → you get bonus) | TODO | BLB 2024 | Medium | - | Political mechanic; target player decides |
+| RE7 | Offspring (pay {1} extra → create 1/1 token copy with flying) | TODO | BLB 2024 | Low | R9 ✅ | Kicker-like; creates token on resolution |
+| RE8 | Collect Evidence N (exile cards from GY with total MV ≥ N as cost) | TODO | MKM 2024 | Medium | - | Alternative cost using GY cards |
+| RE9 | Cases (Enchantment subtype with "To solve" condition → bonus when solved) | TODO | MKM 2024 | High | SA1 | New card type behavior; needs solve tracking |
+| RE10 | Rooms / Doors (double-faced enchantment — unlock second door for cost) | TODO | DSK 2024 | High | - | New DFC subtype; unlocking is activated ability |
+| RE11 | Eerie (triggered when you cast an enchantment or enchanted permanent ETBs) | TODO | DSK 2024 | Low | TR1 | Trigger pattern; needs enchantment-cast event |
+| RE12 | Expend N (condition: you spent N or more mana this turn) | TODO | DSK 2024 | Medium | - | Tracks total mana spent in turn |
+| RE13 | Manifest Dread (reveal top 2, manifest one face-down) | TODO | DSK 2024 | High | CK14 | Variant of Manifest; needs face-down permanent state |
+| RE14 | Committing a Crime (whenever you target an opponent's permanent/spell/player) | TODO | OTJ 2024 | Low | - | Trigger condition on targeting; needs targeting event |
 
 ### Bugs
 

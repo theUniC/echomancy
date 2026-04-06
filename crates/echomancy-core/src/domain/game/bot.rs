@@ -176,9 +176,7 @@ mod tests {
     use crate::domain::cards::{card_definition::CardDefinition, card_instance::CardInstance};
     use crate::domain::enums::{CardType, ManaColor, Step};
     use crate::domain::game::automation::run_auto_pass_loop;
-    use crate::domain::game::test_helpers::{
-        add_card_to_hand, add_permanent_to_battlefield, make_land_card,
-    };
+    use crate::domain::game::test_helpers::add_card_to_hand;
     use crate::domain::types::PlayerId;
     use crate::domain::value_objects::mana::ManaCost;
 

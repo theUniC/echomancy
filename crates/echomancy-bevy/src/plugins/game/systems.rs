@@ -50,10 +50,12 @@ pub(crate) fn setup_game(mut commands: Commands) {
     game.add_player(&p1_id, &p1_name).expect("add player 1");
     game.add_player(&p2_id, &p2_name).expect("add player 2");
 
-    game.assign_deck(&p1_id, prebuilt_decks::green_deck(&p1_id))
-        .expect("assign green deck");
-    game.assign_deck(&p2_id, prebuilt_decks::red_deck(&p2_id))
-        .expect("assign red deck");
+    let feature = std::env::var("TEST_DECK").unwrap_or_default();
+    let feature = feature.as_str();
+    game.assign_deck(&p1_id, prebuilt_decks::p1_test_deck(feature, &p1_id))
+        .expect("assign p1 deck");
+    game.assign_deck(&p2_id, prebuilt_decks::p2_test_deck(feature, &p2_id))
+        .expect("assign p2 deck");
 
     // Use OS entropy for shuffling (non-deterministic, as expected in production).
     // start_with_mulligan initialises the mulligan phase and auto-keeps for P2.
@@ -63,7 +65,8 @@ pub(crate) fn setup_game(mut commands: Commands) {
     // Load rules for all card types that appear in either deck.
     let card_ids = ["lightning-strike", "giant-growth", "divination",
                     "bear", "goblin", "forest", "mountain",
-                    "sol-ring", "wild-bounty"];
+                    "sol-ring", "wild-bounty",
+                    "turn-to-frog", "twisted-image", "titanic-growth"];
     match create_rules_engine(&card_ids) {
         Ok(engine) => {
             game.set_rules_engine(engine);

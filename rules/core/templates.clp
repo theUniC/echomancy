@@ -160,6 +160,29 @@
   (slot toughness (type INTEGER))
   (slot duration (type SYMBOL) (default until-end-of-turn)))
 
+(deftemplate action-set-pt
+  "Set a creature's power and toughness to specific values (Layer 7b, until end of turn)."
+  (slot priority (type INTEGER) (default 0))
+  (slot source (type STRING))
+  (slot target (type STRING))
+  (slot power (type INTEGER))
+  (slot toughness (type INTEGER))
+  (slot duration (type SYMBOL) (default until-end-of-turn)))
+
+(deftemplate action-switch-pt
+  "Switch a creature's power and toughness (Layer 7d, until end of turn)."
+  (slot priority (type INTEGER) (default 0))
+  (slot source (type STRING))
+  (slot target (type STRING))
+  (slot duration (type SYMBOL) (default until-end-of-turn)))
+
+(deftemplate action-remove-all-abilities
+  "Remove all abilities from a creature (Layer 6, until end of turn)."
+  (slot priority (type INTEGER) (default 0))
+  (slot source (type STRING))
+  (slot target (type STRING))
+  (slot duration (type SYMBOL) (default until-end-of-turn)))
+
 ;;; ============================================================================
 ;;; Signal facts: CLIPS requesting player input
 ;;; ============================================================================

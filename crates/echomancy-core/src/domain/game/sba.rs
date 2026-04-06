@@ -38,7 +38,13 @@ impl Game {
                 .players
                 .iter()
                 .flat_map(|p| p.battlefield.iter())
-                .filter(|c| c.definition().has_static_ability(StaticAbility::Indestructible))
+                .filter(|c| {
+                    if let Some(abilities) = self.effective_abilities(c.instance_id()) {
+                        abilities.contains(&StaticAbility::Indestructible)
+                    } else {
+                        c.definition().has_static_ability(StaticAbility::Indestructible)
+                    }
+                })
                 .map(|c| c.instance_id().to_owned())
                 .collect();
 
@@ -51,10 +57,16 @@ impl Game {
 
             let sba_entries: Vec<CreatureSbaEntry<'_>> = creature_entries
                 .iter()
-                .map(|(id, s)| CreatureSbaEntry {
-                    instance_id: id.as_str(),
-                    state: s,
-                    is_indestructible: indestructible_ids.contains(id),
+                .map(|(id, s)| {
+                    // Use layer-aware effective toughness so Layer 7 effects (e.g.
+                    // "becomes 1/1") are respected by SBA checks (LS1).
+                    let effective_toughness = self.effective_toughness(id.as_str());
+                    CreatureSbaEntry {
+                        instance_id: id.as_str(),
+                        state: s,
+                        is_indestructible: indestructible_ids.contains(id),
+                        effective_toughness,
+                    }
                 })
                 .collect();
 
