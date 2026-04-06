@@ -142,10 +142,8 @@ pub enum EffectTargeting {
 
 /// A fully-typed continuous effect record that participates in the layer pipeline.
 ///
-/// This is the new model introduced by LS1. The old `ContinuousEffect` on
-/// `PermanentState` is kept for backward compatibility of `current_power` /
-/// `current_toughness`, but all new effects should use this struct and be
-/// stored in `Game::global_continuous_effects`.
+/// Introduced by LS1. All continuous effects are stored here in
+/// `Game::global_continuous_effects` and evaluated through the layer system.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GlobalContinuousEffect {
     /// Which layer this effect belongs to.

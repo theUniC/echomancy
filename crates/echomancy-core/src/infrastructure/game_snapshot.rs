@@ -1028,42 +1028,4 @@ mod tests {
         );
     }
 
-    // ---- snapshot shows continuous effect P/T modification -----------------
-
-    /// Verify that CardSnapshot.power/toughness include continuous effect modifiers.
-    ///
-    /// This tests the full export pipeline:
-    /// PermanentState(with effect) → export_card_instance → CreatureStateExport
-    /// → make_card_snapshot → CardSnapshot.power/toughness
-    #[test]
-    fn snapshot_shows_modified_pt_when_continuous_effect_active() {
-        use crate::domain::value_objects::permanent_state::{
-            ContinuousEffect, EffectDuration, PermanentState,
-        };
-        use crate::infrastructure::game_state_export::export_card_instance;
-
-        let owner_id = "p1";
-        let card = CardInstance::new(
-            "bear-snapshot-1",
-            CardDefinition::new("bear", "Bear", vec![CardType::Creature]).with_power_toughness(2, 2),
-            owner_id,
-        );
-
-        // Build a PermanentState with a +3/+3 continuous effect applied
-        let effect = ContinuousEffect {
-            power_modifier: 3,
-            toughness_modifier: 3,
-            duration: EffectDuration::UntilEndOfTurn,
-            source_id: "gg-1".to_owned(),
-        };
-        let boosted_state = PermanentState::for_creature(2, 2).with_continuous_effect(effect);
-
-        // Export the card instance with the boosted state
-        let card_export = export_card_instance(&card, owner_id, Some(&boosted_state));
-
-        // The creature_state should show the buffed P/T
-        let cs = card_export.creature_state.expect("should have creature state");
-        assert_eq!(cs.power, 5, "export should show buffed power 5 (2 base + 3 effect)");
-        assert_eq!(cs.toughness, 5, "export should show buffed toughness 5 (2 base + 3 effect)");
-    }
 }

@@ -829,21 +829,10 @@ impl Game {
         }
     }
 
-    /// Remove all continuous effects with the given duration from every permanent
-    /// and from the global continuous effects list (LS1).
+    /// Remove all global continuous effects with the given duration (LS1).
     ///
     /// Called at Cleanup step to expire "until end of turn" effects.
     pub(crate) fn expire_continuous_effects(&mut self, duration: EffectDuration) {
-        // Legacy per-permanent effects.
-        let ids: Vec<String> = self.permanent_states.keys().cloned().collect();
-        for id in ids {
-            if let Some(state) = self.permanent_states.get(&id).cloned() {
-                let new_state = state.without_expired_effects(duration.clone());
-                self.permanent_states.insert(id, new_state);
-            }
-        }
-
-        // Global continuous effects (LS1): remove all effects matching the duration.
         self.global_continuous_effects.retain(|e| e.duration != duration);
     }
 
