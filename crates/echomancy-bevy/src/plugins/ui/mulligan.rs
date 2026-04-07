@@ -24,6 +24,7 @@ use bevy::state::prelude::DespawnOnExit;
 use echomancy_core::prelude::{Action, CardInstanceId, PlayerId};
 
 use super::card::{CARD_BORDER, CARD_HEIGHT, CARD_WIDTH, CardNode, card_background_color, card_border_color, card_pt_text, card_type_line};
+use super::hud::ConcedeButton;
 use crate::plugins::game::{
     AppState, CurrentSnapshot, GameActionMessage, PlayerIds, SnapshotChangedMessage,
 };
@@ -41,6 +42,8 @@ const BUTTON_PRESSED_BG: Color = Color::srgb(0.12, 0.25, 0.40);
 const SELECTABLE_BORDER: Color = Color::srgb(0.20, 0.90, 0.30);
 /// Standard instruction text color.
 const INSTRUCTION_COLOR: Color = Color::srgb(0.90, 0.80, 0.30);
+/// Concede button — muted red.
+const CONCEDE_BG: Color = Color::srgb(0.55, 0.18, 0.18);
 
 // ============================================================================
 // Marker components
@@ -240,6 +243,25 @@ fn setup_mulligan_screen(
                             TextColor(Color::WHITE),
                         ));
                     });
+
+                // Concede button (CR 104.3a — can concede at any time)
+                btn_row
+                    .spawn((
+                        ConcedeButton,
+                        Button,
+                        Node {
+                            padding: UiRect::axes(Val::Px(24.0), Val::Px(10.0)),
+                            ..default()
+                        },
+                        BackgroundColor(CONCEDE_BG),
+                    ))
+                    .with_children(|btn| {
+                        btn.spawn((
+                            Text::new("Concede"),
+                            TextFont { font_size: 16.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
             });
         }
     });
@@ -419,6 +441,25 @@ fn rebuild_mulligan_screen(
                             TextColor(Color::WHITE),
                         ));
                     });
+
+                // Concede button (CR 104.3a — can concede at any time)
+                btn_row
+                    .spawn((
+                        ConcedeButton,
+                        Button,
+                        Node {
+                            padding: UiRect::axes(Val::Px(24.0), Val::Px(10.0)),
+                            ..default()
+                        },
+                        BackgroundColor(CONCEDE_BG),
+                    ))
+                    .with_children(|btn| {
+                        btn.spawn((
+                            Text::new("Concede"),
+                            TextFont { font_size: 16.0, ..default() },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
             });
         }
     });
@@ -491,6 +532,21 @@ fn handle_mulligan_button(
     }
 }
 
+/// Handle Concede button clicks during the mulligan phase (CR 104.3a).
+fn handle_mulligan_concede_click(
+    query: Query<&Interaction, (Changed<Interaction>, With<ConcedeButton>)>,
+    player_ids: Res<PlayerIds>,
+    mut action_messages: MessageWriter<GameActionMessage>,
+) {
+    for interaction in &query {
+        if *interaction == Interaction::Pressed {
+            action_messages.write(GameActionMessage(Action::Concede {
+                player_id: PlayerId::new(&player_ids.p1.id),
+            }));
+        }
+    }
+}
+
 // ============================================================================
 // Put-back card click handler
 // ============================================================================
@@ -539,6 +595,7 @@ fn handle_mulligan_actions(
             Action::MulliganKeep { .. }
                 | Action::MulliganRedraw { .. }
                 | Action::PutCardOnBottom { .. }
+                | Action::Concede { .. }
         );
 
         if !is_mulligan_action {
@@ -618,6 +675,7 @@ impl Plugin for MulliganPlugin {
                     rebuild_mulligan_screen,
                     handle_keep_button,
                     handle_mulligan_button,
+                    handle_mulligan_concede_click,
                     handle_put_back_card,
                     update_button_colors,
                     handle_mulligan_actions,
