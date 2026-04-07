@@ -635,6 +635,85 @@ When a creature with Toxic N deals combat damage to a player, that player gets N
 
 ---
 
+### CK1 — Regenerate Keyword (CR 701.15)
+
+**Deck**: `TEST_DECK=ck1 cargo run -p echomancy-bevy`
+
+**Cards**: River Troll (2/3 Troll, {2}{G}, "{G}: Regenerate"), Giant Growth ({G}), Trollhide ({G}), Turn to Frog ({1}{U}), Twisted Image ({U}), Ironbark Wall (0/4)
+
+#### CK1.1 — Regenerate saves creature from lethal combat damage
+
+**Prepared hand**: Forest, Forest, Forest, Forest, River Troll, Giant Growth, Sol Ring
+
+**Steps**:
+1. Turn 1: Play Forest.
+2. Turn 2: Play Forest.
+3. Turn 3: Play Forest, cast River Troll ({2}{G}).
+4. Turn 4: Play Forest. When bot attacks with a creature with power >= 3, block with River Troll.
+5. Before combat damage, tap a Forest and activate River Troll's regenerate ability ({G}).
+6. Let combat damage resolve (lethal to a 2/3 Troll).
+
+**Verification**:
+- [ ] River Troll survives lethal combat damage.
+- [ ] River Troll is now tapped after regeneration.
+- [ ] River Troll has no damage marked.
+
+#### CK1.2 — Regenerate saves from Lightning Strike
+
+**Prepared hand**: Forest, Forest, Forest, Forest, River Troll, Giant Growth, Sol Ring
+
+**Steps**:
+1. Deploy River Troll (2/3).
+2. Tap a Forest to activate regenerate ({G}) — shield active.
+3. Wait for bot's Lightning Strike on River Troll (3 damage = lethal for 2/3).
+
+**Verification**:
+- [ ] River Troll survives Lightning Strike (regen shield intercepts the destroy from SBA).
+- [ ] River Troll is tapped, no damage marked.
+
+#### CK1.3 — Regeneration shield is consumed (single use)
+
+**Prepared hand**: Forest, Forest, Forest, Forest, River Troll, River Troll, Sol Ring
+
+**Steps**:
+1. Deploy River Troll. Activate regenerate once ({G}).
+2. Let the first lethal hit land (regen fires, Troll survives).
+3. Let a second lethal hit land without re-activating regenerate.
+
+**Verification**:
+- [ ] First lethal hit: Troll survives (regen fires).
+- [ ] Second lethal hit: Troll dies (no shield left).
+
+#### CK1.4 — Turn to Frog removes regenerate ability but not existing shield
+
+**Prepared hand**: Forest, Forest, Island, Island, River Troll, Turn to Frog, Sol Ring
+
+**Steps**:
+1. Deploy River Troll. Activate regenerate ({G}) — shield active.
+2. Cast Turn to Frog on River Troll ({1}{U}) — becomes 1/1, loses all abilities.
+3. Wait for bot's Lightning Strike (3 damage to a 1/1).
+
+**Verification**:
+- [ ] River Troll loses the regenerate ability (can't activate it again).
+- [ ] The existing regeneration shield still fires (it's in the replacement registry, separate from abilities).
+- [ ] River Troll (1/1) survives the 3 damage, tapped, no damage.
+
+#### CK1.5 — Multiple activations stack shields
+
+**Prepared hand**: Forest, Forest, Forest, Forest, Forest, River Troll, Sol Ring
+
+**Steps**:
+1. Deploy River Troll. Have 2+ Forests untapped.
+2. Activate regenerate twice ({G} + {G}) — two shields active.
+3. Take first lethal hit → first shield fires, Troll survives.
+4. Take second lethal hit → second shield fires, Troll survives again.
+
+**Verification**:
+- [ ] River Troll survives two consecutive lethal damage events.
+- [ ] After both shields consumed, a third lethal hit kills it.
+
+---
+
 ## Quick unit test verification
 
 Run all unit tests for features without showcase cards:
@@ -708,6 +787,23 @@ cargo test -- shroud changeling devoid fear skulk shadow horsemanship defender s
 | 4 | Giant Growth ({G}) | Pump spell |
 | 4 | Trollhide ({G}) | R11: Regeneration shield |
 | 4 | Twisted Image ({U}) | Edge case testing |
+
+### Regenerate deck (P1, TEST_DECK=ck1) — 60 cards
+
+| Count | Card | Feature |
+|-------|------|---------|
+| 12 | Forest | Green mana (Troll + regenerate activation) |
+| 6 | Plains | White mana (Mending Light) |
+| 4 | Island | Blue mana (Turn to Frog, Twisted Image) |
+| 4 | Sol Ring | Mana acceleration |
+| 8 | River Troll (2/3, {G}: Regenerate) | CK1: Regenerate keyword showcase |
+| 4 | Mending Light ({W}) | Prevention combo testing |
+| 4 | Giant Growth ({G}) | Pump spell |
+| 4 | Trollhide ({G}) | R11: Regen instant (comparison) |
+| 4 | Turn to Frog ({1}{U}) | Test: removes ability but not existing shield |
+| 2 | Ironbark Wall (0/4) | Zero-toughness edge case |
+| 4 | Twisted Image ({U}) | Zero-toughness test |
+| 4 | Bear (2/2) | Basic targets |
 
 ### Red deck (P2/bot) — 60 cards
 

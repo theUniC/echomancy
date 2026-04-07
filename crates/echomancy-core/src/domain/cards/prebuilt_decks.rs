@@ -451,6 +451,64 @@ pub fn r12_test_deck(owner_id: &str) -> Vec<CardInstance> {
     deck
 }
 
+/// CK1 Regenerate showcase deck (60 cards) for the given player.
+///
+/// Composition:
+/// - 12x Forest (green mana for Troll + regenerate activation)
+/// - 6x Plains (white mana for Mending Light)
+/// - 4x Island (blue mana for Turn to Frog)
+/// - 4x Sol Ring (mana acceleration)
+/// - 8x River Troll (2/3 with {G}: Regenerate — CK1 showcase)
+/// - 4x Mending Light (prevention combo with regen)
+/// - 4x Giant Growth (pump spells)
+/// - 4x Trollhide (regen instant for comparison)
+/// - 4x Turn to Frog (test: removes activated abilities)
+/// - 2x Ironbark Wall (0/4 — zero-toughness edge case with Twisted Image)
+/// - 4x Twisted Image (for zero-toughness test)
+/// - 4x Bear (basic targets)
+pub fn ck1_test_deck(owner_id: &str) -> Vec<CardInstance> {
+    let mut deck = Vec::with_capacity(60);
+
+    for _ in 0..12 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::forest(), owner_id));
+    }
+    for _ in 0..6 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::plains(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::island(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::sol_ring(), owner_id));
+    }
+    for _ in 0..8 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::river_troll(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::mending_light(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::giant_growth(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::trollhide(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::turn_to_frog(), owner_id));
+    }
+    for _ in 0..2 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::ironbark_wall(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::twisted_image(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::bear(), owner_id));
+    }
+
+    deck
+}
+
 /// Selects a P1 test deck by feature name (from TEST_DECK env var).
 pub fn p1_test_deck(feature: &str, owner_id: &str) -> Vec<CardInstance> {
     match feature {
@@ -463,6 +521,7 @@ pub fn p1_test_deck(feature: &str, owner_id: &str) -> Vec<CardInstance> {
         "ls1" => layer_system_test_deck(owner_id),
         "r11" => r11_test_deck(owner_id),
         "r12" => r12_test_deck(owner_id),
+        "ck1" => ck1_test_deck(owner_id),
         _ => green_deck(owner_id),
     }
 }
@@ -706,6 +765,51 @@ mod tests {
         assert_eq!(deck.len(), 60, "r12 p1 test deck should have 60 cards");
         let fogs = deck.iter().filter(|c| c.definition().id() == "fog").count();
         assert_eq!(fogs, 4, "r12 p1 deck should have 4 Fogs");
+    }
+
+    #[test]
+    fn ck1_test_deck_has_60_cards() {
+        let deck = ck1_test_deck("player-1");
+        assert_eq!(deck.len(), 60, "CK1 test deck should have exactly 60 cards");
+    }
+
+    #[test]
+    fn ck1_test_deck_composition() {
+        let deck = ck1_test_deck("player-1");
+
+        let forests = deck.iter().filter(|c| c.definition().id() == "forest").count();
+        let plains = deck.iter().filter(|c| c.definition().id() == "plains").count();
+        let islands = deck.iter().filter(|c| c.definition().id() == "island").count();
+        let sol_rings = deck.iter().filter(|c| c.definition().id() == "sol-ring").count();
+        let trolls = deck.iter().filter(|c| c.definition().id() == "river-troll").count();
+        let mending = deck.iter().filter(|c| c.definition().id() == "mending-light").count();
+        let giant = deck.iter().filter(|c| c.definition().id() == "giant-growth").count();
+        let trollhide_count = deck.iter().filter(|c| c.definition().id() == "trollhide").count();
+        let frogs = deck.iter().filter(|c| c.definition().id() == "turn-to-frog").count();
+        let walls = deck.iter().filter(|c| c.definition().id() == "ironbark-wall").count();
+        let twisted = deck.iter().filter(|c| c.definition().id() == "twisted-image").count();
+        let bears = deck.iter().filter(|c| c.definition().id() == "bear").count();
+
+        assert_eq!(forests, 12, "CK1 deck should have 12 Forests");
+        assert_eq!(plains, 6, "CK1 deck should have 6 Plains");
+        assert_eq!(islands, 4, "CK1 deck should have 4 Islands");
+        assert_eq!(sol_rings, 4, "CK1 deck should have 4 Sol Rings");
+        assert_eq!(trolls, 8, "CK1 deck should have 8 River Trolls");
+        assert_eq!(mending, 4, "CK1 deck should have 4 Mending Lights");
+        assert_eq!(giant, 4, "CK1 deck should have 4 Giant Growths");
+        assert_eq!(trollhide_count, 4, "CK1 deck should have 4 Trollhides");
+        assert_eq!(frogs, 4, "CK1 deck should have 4 Turn to Frogs");
+        assert_eq!(walls, 2, "CK1 deck should have 2 Ironbark Walls");
+        assert_eq!(twisted, 4, "CK1 deck should have 4 Twisted Images");
+        assert_eq!(bears, 4, "CK1 deck should have 4 Bears");
+    }
+
+    #[test]
+    fn p1_test_deck_routes_ck1() {
+        let deck = p1_test_deck("ck1", "player-1");
+        assert_eq!(deck.len(), 60, "ck1 p1 test deck should have 60 cards");
+        let trolls = deck.iter().filter(|c| c.definition().id() == "river-troll").count();
+        assert_eq!(trolls, 8, "ck1 p1 deck should have 8 River Trolls");
     }
 
     #[test]
