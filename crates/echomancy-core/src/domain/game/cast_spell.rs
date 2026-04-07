@@ -5,7 +5,7 @@ use crate::domain::errors::GameError;
 use crate::domain::events::GameEvent;
 use crate::domain::services::spell_timing::is_instant_speed;
 use crate::domain::targets::{Target, TargetRequirement};
-use crate::domain::types::{CardInstanceId, PlayerId};
+use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
 
 use super::Game;
 
@@ -124,6 +124,13 @@ pub(crate) fn handle(
         player.hand.retain(|c| c.instance_id() != card_id);
     }
 
+    // Capture card data for TR6 event before moving the card.
+    let spell_cast_event = GameEvent::SpellCast {
+        card_id: CardInstanceId::new(card.instance_id()),
+        card_definition_id: CardDefinitionId::new(card.definition().id()),
+        controller_id: PlayerId::new(player_id),
+    };
+
     // Push onto stack
     game.push_stack(StackItem::Spell(SpellOnStack {
         card,
@@ -132,10 +139,16 @@ pub(crate) fn handle(
         x_value,
     }));
 
+    // TR6: Evaluate "whenever a spell is cast" triggers AFTER the spell is on the stack.
+    let spell_cast_triggered = game.collect_triggered_abilities(&spell_cast_event);
+    game.execute_triggered_abilities(spell_cast_triggered);
+
     // CR 117.3c: after casting, priority returns to the caster.
     // Clear the "both passed" set since a new object was added to the stack.
     game.players_who_passed_priority.clear();
-    let events = game.assign_priority_to(player_id);
+    let mut events = game.assign_priority_to(player_id);
+    // Include the SpellCast event in the returned events list.
+    events.push(spell_cast_event);
     Ok(events)
 }
 
@@ -1422,5 +1435,48 @@ mod tests {
             result.is_ok(),
             "Should be able to target creature after Hexproof is removed by the layer system"
         );
+    }
+
+    // TR6: SpellCast event is emitted when a spell is cast
+    #[test]
+    fn cast_spell_emits_spell_cast_event() {
+        use crate::domain::events::GameEvent;
+
+        let (mut game, p1, _p2) = make_game_in_first_main();
+
+        let creature = make_creature_card("bear-1", &p1, 2, 2);
+        let def_with_cost = CardInstance::new(
+            "bear-1",
+            CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+                .with_power_toughness(2, 2)
+                .with_mana_cost(ManaCost::parse("G").unwrap()),
+            &p1,
+        );
+        add_card_to_hand(&mut game, &p1, def_with_cost);
+        game.add_mana(&p1, ManaColor::Green, 1).unwrap();
+
+        let events = game
+            .apply(Action::CastSpell {
+                player_id: PlayerId::new(&p1),
+                card_id: CardInstanceId::new("bear-1"),
+                targets: vec![],
+                x_value: 0,
+            })
+            .unwrap();
+
+        let spell_cast_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e, GameEvent::SpellCast { .. }))
+            .collect();
+        assert_eq!(
+            spell_cast_events.len(),
+            1,
+            "Expected exactly 1 SpellCast event when casting a spell"
+        );
+
+        if let GameEvent::SpellCast { card_id, controller_id, .. } = &spell_cast_events[0] {
+            assert_eq!(card_id.as_str(), "bear-1");
+            assert_eq!(controller_id.as_str(), &p1);
+        }
     }
 }

@@ -563,6 +563,8 @@ fn trigger_type_string(event_type: &TriggerEventType) -> String {
         TriggerEventType::StepStarted => "STEP_START".to_owned(),
         TriggerEventType::CreatureDeclaredAttacker => "ATTACK".to_owned(),
         TriggerEventType::CombatEnded => "COMBAT_ENDED".to_owned(),
+        TriggerEventType::CardDrawn => "CARD_DRAWN".to_owned(),
+        TriggerEventType::SpellCast => "SPELL_CAST".to_owned(),
     }
 }
 

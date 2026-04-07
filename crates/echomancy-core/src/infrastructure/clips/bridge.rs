@@ -284,6 +284,32 @@ pub(crate) fn serialize_game_event(event: &GameEvent) -> String {
                 definition_id = clips_string(source.definition_id.as_str()),
             )
         }
+
+        // TR5: card drawn
+        GameEvent::CardDrawn { player_id, card_id } => {
+            format!(
+                "(game-event \
+                 (type CARD_DRAWN) \
+                 (controller {player}) \
+                 (data {card}))",
+                player = clips_string(player_id.as_str()),
+                card = clips_string(card_id.as_str()),
+            )
+        }
+
+        // TR6: spell cast
+        GameEvent::SpellCast { card_id, card_definition_id, controller_id } => {
+            format!(
+                "(game-event \
+                 (type SPELL_CAST) \
+                 (controller {controller}) \
+                 (source-id {card}) \
+                 (data {def_id}))",
+                controller = clips_string(controller_id.as_str()),
+                card = clips_string(card_id.as_str()),
+                def_id = clips_string(card_definition_id.as_str()),
+            )
+        }
     }
 }
 

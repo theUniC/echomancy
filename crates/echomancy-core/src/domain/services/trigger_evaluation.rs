@@ -110,27 +110,51 @@ fn event_matches_trigger_type(event: &GameEvent, event_type: &TriggerEventType) 
             true
         }
         (GameEvent::CombatEnded { .. }, TriggerEventType::CombatEnded) => true,
+        (GameEvent::CardDrawn { .. }, TriggerEventType::CardDrawn) => true,
+        (GameEvent::SpellCast { .. }, TriggerEventType::SpellCast) => true,
         // Non-matching combinations — ZoneChanged event.
         (GameEvent::ZoneChanged { .. }, TriggerEventType::StepStarted) => false,
         (GameEvent::ZoneChanged { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
         (GameEvent::ZoneChanged { .. }, TriggerEventType::CombatEnded) => false,
+        (GameEvent::ZoneChanged { .. }, TriggerEventType::CardDrawn) => false,
+        (GameEvent::ZoneChanged { .. }, TriggerEventType::SpellCast) => false,
         // Non-matching combinations — StepStarted event.
         (GameEvent::StepStarted { .. }, TriggerEventType::ZoneChanged) => false,
         (GameEvent::StepStarted { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
         (GameEvent::StepStarted { .. }, TriggerEventType::CombatEnded) => false,
+        (GameEvent::StepStarted { .. }, TriggerEventType::CardDrawn) => false,
+        (GameEvent::StepStarted { .. }, TriggerEventType::SpellCast) => false,
         // Non-matching combinations — CreatureDeclaredAttacker event.
         (GameEvent::CreatureDeclaredAttacker { .. }, TriggerEventType::ZoneChanged) => false,
         (GameEvent::CreatureDeclaredAttacker { .. }, TriggerEventType::StepStarted) => false,
         (GameEvent::CreatureDeclaredAttacker { .. }, TriggerEventType::CombatEnded) => false,
+        (GameEvent::CreatureDeclaredAttacker { .. }, TriggerEventType::CardDrawn) => false,
+        (GameEvent::CreatureDeclaredAttacker { .. }, TriggerEventType::SpellCast) => false,
         // Non-matching combinations — CombatEnded event.
         (GameEvent::CombatEnded { .. }, TriggerEventType::ZoneChanged) => false,
         (GameEvent::CombatEnded { .. }, TriggerEventType::StepStarted) => false,
         (GameEvent::CombatEnded { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
+        (GameEvent::CombatEnded { .. }, TriggerEventType::CardDrawn) => false,
+        (GameEvent::CombatEnded { .. }, TriggerEventType::SpellCast) => false,
+        // Non-matching combinations — CardDrawn event.
+        (GameEvent::CardDrawn { .. }, TriggerEventType::ZoneChanged) => false,
+        (GameEvent::CardDrawn { .. }, TriggerEventType::StepStarted) => false,
+        (GameEvent::CardDrawn { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
+        (GameEvent::CardDrawn { .. }, TriggerEventType::CombatEnded) => false,
+        (GameEvent::CardDrawn { .. }, TriggerEventType::SpellCast) => false,
+        // Non-matching combinations — SpellCast event.
+        (GameEvent::SpellCast { .. }, TriggerEventType::ZoneChanged) => false,
+        (GameEvent::SpellCast { .. }, TriggerEventType::StepStarted) => false,
+        (GameEvent::SpellCast { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
+        (GameEvent::SpellCast { .. }, TriggerEventType::CombatEnded) => false,
+        (GameEvent::SpellCast { .. }, TriggerEventType::CardDrawn) => false,
         // Non-matching combinations — SpellResolved event (no trigger type maps to it yet).
         (GameEvent::SpellResolved { .. }, TriggerEventType::ZoneChanged) => false,
         (GameEvent::SpellResolved { .. }, TriggerEventType::StepStarted) => false,
         (GameEvent::SpellResolved { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
         (GameEvent::SpellResolved { .. }, TriggerEventType::CombatEnded) => false,
+        (GameEvent::SpellResolved { .. }, TriggerEventType::CardDrawn) => false,
+        (GameEvent::SpellResolved { .. }, TriggerEventType::SpellCast) => false,
         // Non-matching combinations — CreatureDeclaredBlocker event (no trigger type maps to it yet).
         (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::ZoneChanged) => false,
         (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::StepStarted) => false,
@@ -138,11 +162,15 @@ fn event_matches_trigger_type(event: &GameEvent, event_type: &TriggerEventType) 
             false
         }
         (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::CombatEnded) => false,
+        (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::CardDrawn) => false,
+        (GameEvent::CreatureDeclaredBlocker { .. }, TriggerEventType::SpellCast) => false,
         // Non-matching combinations — ManaAdded event (no trigger type maps to it yet).
         (GameEvent::ManaAdded { .. }, TriggerEventType::ZoneChanged) => false,
         (GameEvent::ManaAdded { .. }, TriggerEventType::StepStarted) => false,
         (GameEvent::ManaAdded { .. }, TriggerEventType::CreatureDeclaredAttacker) => false,
         (GameEvent::ManaAdded { .. }, TriggerEventType::CombatEnded) => false,
+        (GameEvent::ManaAdded { .. }, TriggerEventType::CardDrawn) => false,
+        (GameEvent::ManaAdded { .. }, TriggerEventType::SpellCast) => false,
         // Non-matching combinations — TriggeredAbilityFires event (no trigger type maps to it).
         // Triggers do not re-trigger from a TriggeredAbilityFires event to avoid
         // infinite loops. Triggered abilities only respond to game events from
@@ -153,6 +181,8 @@ fn event_matches_trigger_type(event: &GameEvent, event_type: &TriggerEventType) 
             false
         }
         (GameEvent::TriggeredAbilityFires { .. }, TriggerEventType::CombatEnded) => false,
+        (GameEvent::TriggeredAbilityFires { .. }, TriggerEventType::CardDrawn) => false,
+        (GameEvent::TriggeredAbilityFires { .. }, TriggerEventType::SpellCast) => false,
     }
 }
 

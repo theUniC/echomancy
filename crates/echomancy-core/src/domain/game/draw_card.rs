@@ -127,4 +127,63 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, GameError::InvalidPlayerAction { .. }));
     }
+
+    // TR5: CardDrawn event is emitted on each card draw
+    #[test]
+    fn draw_card_emits_card_drawn_event() {
+        use crate::domain::events::GameEvent;
+
+        let mut game = crate::domain::game::Game::create("g");
+        game.add_player("p1", "Alice").unwrap();
+        game.add_player("p2", "Bob").unwrap();
+        let deck: Vec<_> = (0..10)
+            .map(|i| make_land_card(&format!("l-{i}"), "p1"))
+            .collect();
+        game.assign_deck("p1", deck).unwrap();
+        game.start("p1", Some(42)).unwrap();
+
+        let events = game
+            .apply(Action::DrawCard {
+                player_id: PlayerId::new("p1"),
+                amount: 1,
+            })
+            .unwrap();
+
+        let card_drawn_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e, GameEvent::CardDrawn { .. }))
+            .collect();
+        assert_eq!(
+            card_drawn_events.len(),
+            1,
+            "Expected 1 CardDrawn event for drawing 1 card"
+        );
+    }
+
+    #[test]
+    fn draw_three_cards_emits_three_card_drawn_events() {
+        use crate::domain::events::GameEvent;
+
+        let mut game = crate::domain::game::Game::create("g");
+        game.add_player("p1", "Alice").unwrap();
+        game.add_player("p2", "Bob").unwrap();
+        let deck: Vec<_> = (0..10)
+            .map(|i| make_land_card(&format!("l-{i}"), "p1"))
+            .collect();
+        game.assign_deck("p1", deck).unwrap();
+        game.start("p1", Some(42)).unwrap();
+
+        let events = game
+            .apply(Action::DrawCard {
+                player_id: PlayerId::new("p1"),
+                amount: 3,
+            })
+            .unwrap();
+
+        let card_drawn_count = events
+            .iter()
+            .filter(|e| matches!(e, GameEvent::CardDrawn { .. }))
+            .count();
+        assert_eq!(card_drawn_count, 3, "Expected 3 CardDrawn events for drawing 3 cards");
+    }
 }

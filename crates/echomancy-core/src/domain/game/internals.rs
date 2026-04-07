@@ -72,16 +72,25 @@ impl Game {
                     Err(_) => continue,
                 };
 
-            let event = GameEvent::ZoneChanged {
-                card: card_snapshot,
+            let zone_event = GameEvent::ZoneChanged {
+                card: card_snapshot.clone(),
                 from_zone: ZoneName::Library,
                 to_zone: ZoneName::Hand,
                 controller_id: PlayerId::new(&player_id_owned),
             };
-            events.push(event.clone());
-            // Evaluate triggers for this draw event
-            let triggered = self.collect_triggered_abilities(&event);
+            events.push(zone_event.clone());
+            // Evaluate triggers for the zone change event
+            let triggered = self.collect_triggered_abilities(&zone_event);
             self.execute_triggered_abilities(triggered);
+
+            // TR5: Emit CardDrawn and evaluate "whenever you draw a card" triggers.
+            let draw_event = GameEvent::CardDrawn {
+                player_id: PlayerId::new(&player_id_owned),
+                card_id: card_snapshot.instance_id.clone(),
+            };
+            events.push(draw_event.clone());
+            let draw_triggered = self.collect_triggered_abilities(&draw_event);
+            self.execute_triggered_abilities(draw_triggered);
         }
         events
     }

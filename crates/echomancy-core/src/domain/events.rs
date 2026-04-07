@@ -99,6 +99,35 @@ pub enum GameEvent {
         #[serde(rename = "triggerType")]
         trigger_type: String,
     },
+
+    /// A player drew a card (TR5).
+    ///
+    /// Emitted once per individual card drawn. Enables "whenever you draw a card"
+    /// triggered abilities (e.g. Niv-Mizzet, the Firemind).
+    CardDrawn {
+        /// The player who drew the card.
+        #[serde(rename = "playerId")]
+        player_id: PlayerId,
+        /// The instance ID of the drawn card.
+        #[serde(rename = "cardId")]
+        card_id: CardInstanceId,
+    },
+
+    /// A spell was cast (TR6).
+    ///
+    /// Emitted when a spell is placed on the stack. Enables "whenever you cast
+    /// a spell" triggered abilities (e.g. Guttersnipe, Young Pyromancer).
+    SpellCast {
+        /// The instance ID of the spell on the stack.
+        #[serde(rename = "cardId")]
+        card_id: CardInstanceId,
+        /// The definition ID of the spell (card type/name key).
+        #[serde(rename = "cardDefinitionId")]
+        card_definition_id: CardDefinitionId,
+        /// The player who cast the spell.
+        #[serde(rename = "controllerId")]
+        controller_id: PlayerId,
+    },
 }
 
 #[cfg(test)]
@@ -217,5 +246,49 @@ mod tests {
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"TRIGGERED_ABILITY_FIRES\""));
+    }
+
+    #[test]
+    fn card_drawn_serde_roundtrip() {
+        let event = GameEvent::CardDrawn {
+            player_id: PlayerId::new("player-1"),
+            card_id: CardInstanceId::new("card-1"),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: GameEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, decoded);
+    }
+
+    #[test]
+    fn card_drawn_type_tag_in_json() {
+        let event = GameEvent::CardDrawn {
+            player_id: PlayerId::new("p1"),
+            card_id: CardInstanceId::new("c1"),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"CARD_DRAWN\""));
+    }
+
+    #[test]
+    fn spell_cast_serde_roundtrip() {
+        let event = GameEvent::SpellCast {
+            card_id: CardInstanceId::new("card-1"),
+            card_definition_id: CardDefinitionId::new("lightning-bolt"),
+            controller_id: PlayerId::new("player-1"),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: GameEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, decoded);
+    }
+
+    #[test]
+    fn spell_cast_type_tag_in_json() {
+        let event = GameEvent::SpellCast {
+            card_id: CardInstanceId::new("c1"),
+            card_definition_id: CardDefinitionId::new("def-1"),
+            controller_id: PlayerId::new("p1"),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"SPELL_CAST\""));
     }
 }

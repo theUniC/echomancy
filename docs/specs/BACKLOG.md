@@ -96,7 +96,7 @@ that affect correctness of every game.
 | C5 | SBA loop must repeat until no more actions taken | DONE | 704.3 | Low | - | Loops up to 20 iterations |
 | C5b | SBA infinite loop should declare draw (CR 104.4b) | DONE | 104.4b | Low | C5 | Declares Draw with InfiniteLoop reason at cap=20 |
 | C6 | Multiple blockers per attacker + damage ordering | DONE | 509.1a | High | - | Auto-assign damage (smallest first), UI pending (U8/U10) |
-| C7 | Concede (player can concede at any time → loses immediately) | TODO | 104.3a | Low | - | Special action, no stack. Needs domain + UI button |
+| C7 | Concede (player can concede at any time → loses immediately) | DONE | 104.3a | Low | - | Action::Concede + GameEndReason::Concession + UI button |
 
 ### Phase 6: Major Missing Mechanics
 
@@ -177,12 +177,12 @@ The CLIPS engine can write rules for these, but the domain needs to emit the rig
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| TR1 | Upkeep triggers ("at the beginning of your upkeep") | TODO | 502.1 | Medium | - | Fire event at start of Upkeep step for each player |
-| TR2 | End step triggers ("at the beginning of your end step") | TODO | 513.1 | Medium | - | Fire event at start of End step |
-| TR3 | Death triggers ("when/whenever X dies") | TODO | 603.6 | Medium | - | LeaveBattlefield event to GY already partial; needs named event |
-| TR4 | Attack triggers ("whenever X attacks / whenever a creature attacks") | TODO | 603.6 | Low | - | Emit AttackerDeclared event per attacker |
-| TR5 | Draw triggers ("whenever you draw a card") | TODO | 603.6 | Low | - | Emit CardDrawn event on every draw |
-| TR6 | Cast triggers ("whenever you cast a spell") | TODO | 603.6 | Low | - | Emit SpellCast event on every cast |
+| TR1 | Upkeep triggers ("at the beginning of your upkeep") | DONE | 502.1 | Medium | - | StepStarted event + AtStepStart condition (R10 infrastructure) |
+| TR2 | End step triggers ("at the beginning of your end step") | DONE | 513.1 | Medium | - | StepStarted event + AtStepStart condition (R10 infrastructure) |
+| TR3 | Death triggers ("when/whenever X dies") | DONE | 603.6 | Medium | - | ZoneChanged event + SourceDies condition (R10 infrastructure) |
+| TR4 | Attack triggers ("whenever X attacks / whenever a creature attacks") | DONE | 603.6 | Low | - | CreatureDeclaredAttacker event (R10 infrastructure) |
+| TR5 | Draw triggers ("whenever you draw a card") | DONE | 603.6 | Low | - | CardDrawn event emitted per draw + TriggerEventType::CardDrawn |
+| TR6 | Cast triggers ("whenever you cast a spell") | DONE | 603.6 | Low | - | SpellCast event emitted at cast time + TriggerEventType::SpellCast |
 | TR7 | LTB triggers (leaves-the-battlefield) | TODO | 603.6c | Medium | TR3 | Broader than death: exile, bounce, sacrifice |
 
 ### Phase 12: Alternate Casting Costs

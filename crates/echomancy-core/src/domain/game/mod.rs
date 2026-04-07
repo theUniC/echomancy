@@ -25,6 +25,7 @@ mod activate_ability;
 mod advance_step;
 pub mod automation;
 pub mod bot;
+mod concede;
 mod mulligan;
 mod cast_spell;
 mod combat_damage;
@@ -77,6 +78,8 @@ pub enum GameEndReason {
     InfiniteLoop,
     /// CR 704.5c — player accumulated 10 or more poison counters.
     PoisonCounters,
+    /// CR 104.3a — a player conceded the game.
+    Concession,
 }
 
 /// The winner/draw result when a game finishes.
@@ -478,6 +481,9 @@ impl Game {
             }
             Action::PutCardOnBottom { player_id, card_id } => {
                 mulligan::handle_put_card_on_bottom(self, player_id.as_str(), card_id.as_str())?
+            }
+            Action::Concede { player_id } => {
+                concede::handle(self, player_id.as_str())?
             }
         };
 

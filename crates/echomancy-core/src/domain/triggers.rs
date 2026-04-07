@@ -22,6 +22,10 @@ pub enum TriggerEventType {
     CreatureDeclaredAttacker,
     /// Combat ended.
     CombatEnded,
+    /// A player drew a card (TR5).
+    CardDrawn,
+    /// A spell was cast and placed on the stack (TR6).
+    SpellCast,
 }
 
 /// A triggered ability: fires when `event_type` occurs and `condition` is met.

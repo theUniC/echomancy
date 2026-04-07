@@ -81,6 +81,8 @@ pub fn compute_legal_actions(game: &Game, player_id: &str) -> AllowedActionsResu
         attackable_creatures,
         blockable_creatures,
         auto_pass_eligible,
+        // CR 104.3a: a player may concede at any time during a started game.
+        can_concede: true,
     }
 }
 

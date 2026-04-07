@@ -43,4 +43,10 @@ pub struct AllowedActionsResult {
     /// The Bevy layer uses this to auto-pass priority without requiring the
     /// player to click "Pass Priority" when they cannot meaningfully act.
     pub auto_pass_eligible: bool,
+
+    /// Whether the player can concede right now.
+    ///
+    /// Per CR 104.3a, a player may concede at any time during a started game.
+    /// This is always `true` for any player in a started game.
+    pub can_concede: bool,
 }

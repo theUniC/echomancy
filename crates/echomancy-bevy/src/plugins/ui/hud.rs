@@ -63,6 +63,9 @@ const BUTTON_DISABLED_BG: Color = Color::srgb(0.22, 0.22, 0.26);
 /// Background color for the error message box.
 const ERROR_BG: Color = Color::srgb(0.55, 0.10, 0.10);
 
+/// Background color for the Concede button (always enabled, red-tinted).
+const CONCEDE_BUTTON_BG: Color = Color::srgb(0.45, 0.10, 0.10);
+
 // ============================================================================
 // Marker components
 // ============================================================================
@@ -94,6 +97,13 @@ pub(crate) struct PassPriorityButton;
 /// Marks the "End Turn" button.
 #[derive(Component)]
 pub(crate) struct EndTurnButton;
+
+/// Marks the "Concede" button.
+///
+/// The Concede button is always enabled and visible during a game. Clicking it
+/// sends `Action::Concede` for the current player (CR 104.3a).
+#[derive(Component)]
+pub(crate) struct ConcedeButton;
 
 /// Marks the player life total label.
 #[derive(Component)]
@@ -363,6 +373,30 @@ pub(crate) fn spawn_hud(mut commands: Commands) {
                             ..default()
                         },
                         TextColor(LABEL_COLOR),
+                    ));
+                });
+
+            // Concede button — always enabled (CR 104.3a: can concede at any time)
+            panel
+                .spawn((
+                    ConcedeButton,
+                    Button,
+                    Interaction::default(),
+                    Node {
+                        padding: UiRect::axes(Val::Px(8.0), Val::Px(6.0)),
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                    BackgroundColor(CONCEDE_BUTTON_BG),
+                ))
+                .with_children(|btn| {
+                    btn.spawn((
+                        Text::new("Concede"),
+                        TextFont {
+                            font_size: 13.0,
+                            ..default()
+                        },
+                        TextColor(Color::srgb(1.0, 0.70, 0.70)),
                     ));
                 });
 
@@ -986,6 +1020,24 @@ pub(crate) fn handle_pass_priority_click(
     }
 }
 
+/// Update system: handle Concede button clicks.
+///
+/// A player may concede at any time during a started game (CR 104.3a).
+/// No priority check is required — the action is always legal.
+pub(crate) fn handle_concede_click(
+    query: Query<&Interaction, (Changed<Interaction>, With<ConcedeButton>)>,
+    active_player: Res<HumanPlayerId>,
+    mut action_writer: MessageWriter<GameActionMessage>,
+) {
+    for interaction in &query {
+        if *interaction == Interaction::Pressed {
+            action_writer.write(GameActionMessage(Action::Concede {
+                player_id: PlayerId::new(&active_player.player_id),
+            }));
+        }
+    }
+}
+
 /// Update system: handle End Turn button clicks.
 ///
 /// "End Turn" is only valid for the active player (the player whose turn it is),
@@ -1034,6 +1086,7 @@ impl Plugin for HudPlugin {
                     update_targeting_display,
                     handle_pass_priority_click,
                     handle_end_turn_click,
+                    handle_concede_click,
                     handle_cancel_target_click,
                     handle_target_opponent_click,
                 )

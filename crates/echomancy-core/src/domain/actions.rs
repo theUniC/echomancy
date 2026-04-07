@@ -132,6 +132,15 @@ pub enum Action {
         #[serde(rename = "cardId")]
         card_id: CardInstanceId,
     },
+
+    /// Concede the game (CR 104.3a).
+    ///
+    /// A player may concede at any time. This is a special action that does not
+    /// use the stack — the conceding player loses immediately and the opponent wins.
+    Concede {
+        #[serde(rename = "playerId")]
+        player_id: PlayerId,
+    },
 }
 
 #[cfg(test)]
@@ -295,5 +304,24 @@ mod tests {
                 ability_index: 0,
             }
         );
+    }
+
+    #[test]
+    fn concede_serde_roundtrip() {
+        let action = Action::Concede {
+            player_id: PlayerId::new("player-1"),
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        let decoded: Action = serde_json::from_str(&json).unwrap();
+        assert_eq!(action, decoded);
+    }
+
+    #[test]
+    fn concede_type_tag_in_json() {
+        let action = Action::Concede {
+            player_id: PlayerId::new("p1"),
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        assert!(json.contains("\"type\":\"CONCEDE\""));
     }
 }
