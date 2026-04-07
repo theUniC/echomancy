@@ -213,7 +213,7 @@ A framework for paying alternative costs at cast time. Each keyword below is an 
 
 | # | Description | Status | CR Ref | Complexity | Dependency | Notes |
 |---|-------------|--------|--------|------------|------------|-------|
-| CK1 | Regenerate ({cost}: next time destroyed → tap + remove damage) | TODO | 701.15 | Medium | R11 | Replacement effect; old keyword still on many cards |
+| CK1 | Regenerate ({cost}: next time destroyed → tap + remove damage) | DONE | 701.15 | Medium | R11 | Replacement effect; old keyword still on many cards |
 | CK2 | Undying (dies with no +1/+1 counter → return with one) | TODO | 702.92 | Medium | TR3 | Death trigger + replacement |
 | CK3 | Persist (dies with no -1/-1 counter → return with one) | TODO | 702.77 | Medium | TR3 | Like Undying but -1/-1 |
 | CK4 | Wither (deals damage as -1/-1 counters) | TODO | 702.79 | Low | - | Damage-dealing replacement |

@@ -175,6 +175,42 @@ impl Game {
     // Registry Management
     // =========================================================================
 
+    /// Register a regeneration shield on a target permanent (CR 701.15).
+    ///
+    /// The shield is a `NextOccurrence` replacement effect: when the target would
+    /// next be destroyed (lethal damage or destroy effect), the shield fires and
+    /// instead taps the creature, removes all damage, and removes it from combat.
+    ///
+    /// `source_id` — the permanent that generated the shield (e.g. the creature
+    /// whose activated ability was used). `target_id` — the permanent to protect
+    /// (for self-regenerate these are the same).
+    pub(crate) fn register_regeneration_shield_for(&mut self, source_id: &str, target_id: &str) {
+        // Only register a shield if the target is actually on the battlefield.
+        if !self.permanent_states.contains_key(target_id) {
+            return;
+        }
+        let controller_id = match self
+            .players
+            .iter()
+            .find(|p| p.battlefield.iter().any(|c| c.instance_id() == target_id))
+            .map(|p| p.player_id.as_str().to_owned())
+        {
+            Some(id) => id,
+            None => return,
+        };
+        let ts = self.next_timestamp();
+        let effect = ReplacementEffect::new(
+            format!("regen-{ts}"),
+            source_id,
+            controller_id,
+            ReplacementEventFilter::DestroyPermanent { permanent_id: target_id.to_owned() },
+            ReplacementOutcome::Regenerate,
+            ReplacementDuration::NextOccurrence,
+            ts,
+        );
+        self.register_replacement_effect(effect);
+    }
+
     /// Register a replacement effect in the game's replacement registry.
     pub(crate) fn register_replacement_effect(&mut self, effect: ReplacementEffect) {
         self.replacement_effects.push(effect);

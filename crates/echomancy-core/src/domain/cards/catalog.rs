@@ -423,6 +423,34 @@ pub fn trollhide() -> CardDefinition {
         .with_oracle_text("Regenerate target creature. (The next time it would be destroyed this turn, instead tap it, remove all damage from it, and remove it from combat.)")
 }
 
+// ============================================================================
+// Showcase cards — CK1 Regenerate Keyword (CR 701.15)
+// ============================================================================
+
+/// Return the `River Troll` creature definition.
+///
+/// Mana cost: {2}{G} (2 generic + 1 green).
+/// A 2/3 Troll with a self-regeneration activated ability.
+/// Activated ability: {G}: Regenerate River Troll.
+///
+/// Showcases the CK1 Regenerate implementation — an activated ability that
+/// places a regeneration shield on the creature (CR 701.15). If the creature
+/// would be destroyed while the shield is active, instead tap it, remove all
+/// damage from it, and remove it from combat.
+pub fn river_troll() -> CardDefinition {
+    let cost = ManaCost::parse("2G").expect("river troll mana cost is valid");
+    let regen_cost = ManaCost::parse("G").expect("river troll regen cost is valid");
+    CardDefinition::new("river-troll", "River Troll", vec![CardType::Creature])
+        .with_subtype("Troll")
+        .with_power_toughness(2, 3)
+        .with_mana_cost(cost)
+        .with_activated_ability(ActivatedAbility {
+            cost: ActivationCost::Mana(regen_cost),
+            effect: Effect::RegenerateSelf,
+        })
+        .with_oracle_text("{G}: Regenerate River Troll.")
+}
+
 /// Return the `Frozen Sentinel` creature definition.
 ///
 /// Mana cost: {1}{R} (1 generic + 1 red).
@@ -561,6 +589,8 @@ mod tests {
             // R11 Replacement Effects
             "mending-light",
             "trollhide",
+            // CK1 Regenerate
+            "river-troll",
         ];
         let mut seen = std::collections::HashSet::new();
         for id in &ids {
@@ -879,5 +909,84 @@ mod tests {
         for id in &ids {
             assert!(seen.insert(*id), "Duplicate catalog ID: {id}");
         }
+    }
+
+    // =========================================================================
+    // Showcase cards — CK1 Regenerate (CR 701.15)
+    // =========================================================================
+
+    #[test]
+    fn river_troll_is_creature_with_correct_stats() {
+        let t = river_troll();
+        assert!(t.is_creature(), "River Troll must be a Creature");
+        assert_eq!(t.id(), "river-troll");
+        assert_eq!(t.name(), "River Troll");
+        assert_eq!(t.power(), Some(2));
+        assert_eq!(t.toughness(), Some(3));
+    }
+
+    #[test]
+    fn river_troll_has_2g_mana_cost() {
+        let t = river_troll();
+        let cost = t.mana_cost().expect("River Troll must have a mana cost");
+        let expected = ManaCost::parse("2G").unwrap();
+        assert_eq!(*cost, expected, "River Troll mana cost should be {{2}}{{G}}");
+    }
+
+    #[test]
+    fn river_troll_has_troll_subtype() {
+        let t = river_troll();
+        assert!(
+            t.subtypes().iter().any(|s| s == "Troll"),
+            "River Troll must have the Troll subtype"
+        );
+    }
+
+    #[test]
+    fn river_troll_has_regenerate_activated_ability() {
+        let t = river_troll();
+        let ability = t
+            .first_activated_ability()
+            .expect("River Troll must have an activated ability");
+        assert_eq!(
+            ability.effect,
+            Effect::RegenerateSelf,
+            "River Troll's activated ability must be RegenerateSelf"
+        );
+    }
+
+    #[test]
+    fn river_troll_regenerate_cost_is_one_green() {
+        let t = river_troll();
+        let ability = t
+            .first_activated_ability()
+            .expect("River Troll must have an activated ability");
+        let expected_cost = ManaCost::parse("G").unwrap();
+        assert!(
+            matches!(&ability.cost, ActivationCost::Mana(c) if *c == expected_cost),
+            "River Troll regenerate cost must be {{G}}, got: {:?}", ability.cost
+        );
+    }
+
+    #[test]
+    fn river_troll_regenerate_is_not_a_mana_ability() {
+        let t = river_troll();
+        let ability = t
+            .first_activated_ability()
+            .expect("River Troll must have an activated ability");
+        assert!(
+            !ability.effect.is_mana_ability(),
+            "Regenerate must not be a mana ability"
+        );
+    }
+
+    #[test]
+    fn river_troll_has_oracle_text() {
+        let t = river_troll();
+        assert_eq!(
+            t.oracle_text(),
+            Some("{G}: Regenerate River Troll."),
+            "River Troll must have correct oracle text"
+        );
     }
 }

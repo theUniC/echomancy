@@ -420,7 +420,19 @@ impl Game {
         match ability.kind {
             AbilityKind::Activated => {
                 // Activated abilities resolve their effect directly.
-                // (Currently no non-mana activated abilities need CLIPS.)
+                use crate::domain::effects::Effect;
+                match &ability.effect {
+                    Effect::RegenerateSelf => {
+                        // Register a regeneration shield on the source permanent (CR 701.15).
+                        self.register_regeneration_shield_for(
+                            &ability.source_id,
+                            &ability.source_id,
+                        );
+                    }
+                    _ => {
+                        // Other effects resolved immediately or are no-ops.
+                    }
+                }
                 Vec::new()
             }
             AbilityKind::Triggered {

@@ -70,6 +70,16 @@ pub enum Effect {
 
     /// No-op — does nothing on resolution.
     NoOp,
+
+    /// Register a regeneration shield on the source permanent (CR 701.15).
+    ///
+    /// When resolved as an activated ability, places a `NextOccurrence`
+    /// regeneration shield on the source permanent. If the creature would be
+    /// destroyed, instead tap it, remove all damage from it, and remove it
+    /// from combat.
+    ///
+    /// This is NOT a mana ability — it goes on the stack.
+    RegenerateSelf,
 }
 
 impl Effect {

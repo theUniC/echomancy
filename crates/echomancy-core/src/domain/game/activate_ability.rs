@@ -729,4 +729,120 @@ mod tests {
             "Out-of-range index should produce PermanentHasNoActivatedAbility, got: {err:?}"
         );
     }
+
+    // ---- Regenerate ability (CK1 / CR 701.15) ---------------------------------
+
+    fn make_regenerate_creature(instance_id: &str, owner_id: &str) -> CardInstance {
+        use crate::domain::value_objects::mana::ManaCost;
+        let def = CardDefinition::new("troll", "River Troll", vec![CardType::Creature])
+            .with_subtype("Troll")
+            .with_power_toughness(2, 3)
+            .with_mana_cost(ManaCost::parse("2G").expect("valid cost"))
+            .with_activated_ability(ActivatedAbility {
+                cost: ActivationCost::Mana(ManaCost::parse("G").expect("valid cost")),
+                effect: Effect::RegenerateSelf,
+            });
+        CardInstance::new(instance_id, def, owner_id)
+    }
+
+    #[test]
+    fn activating_regenerate_puts_ability_on_stack() {
+        let (mut game, p1, _) = make_game_in_first_main();
+        let troll = make_regenerate_creature("troll-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, troll);
+        game.add_mana_to_pool(&p1, ManaColor::Green, 1).unwrap();
+
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("troll-1"),
+            ability_index: 0,
+        })
+        .unwrap();
+
+        assert_eq!(game.stack().len(), 1, "Regenerate is a non-mana ability; it should go on the stack");
+    }
+
+    #[test]
+    fn regenerate_ability_is_not_a_mana_ability() {
+        assert!(!Effect::RegenerateSelf.is_mana_ability());
+    }
+
+    #[test]
+    fn resolving_regenerate_ability_registers_shield() {
+        use crate::domain::game::replacement_effects::ReplacementOutcome;
+        let (mut game, p1, p2) = make_game_in_first_main();
+        let troll = make_regenerate_creature("troll-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, troll);
+        game.add_mana_to_pool(&p1, ManaColor::Green, 1).unwrap();
+
+        // Activate regenerate
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("troll-1"),
+            ability_index: 0,
+        })
+        .unwrap();
+
+        // After non-mana activation, priority goes to opponent (p2) first.
+        // Both players pass to resolve the stack.
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+
+        assert!(game.stack().is_empty(), "Stack should be empty after resolution");
+
+        // A regeneration shield should now be registered for troll-1
+        let has_shield = game.replacement_effects.iter().any(|e| {
+            matches!(&e.replacement, ReplacementOutcome::Regenerate)
+                && e.source_id == "troll-1"
+        });
+        assert!(has_shield, "A regeneration shield should be registered after the ability resolves");
+    }
+
+    #[test]
+    fn regeneration_shield_saves_creature_from_lethal_damage() {
+        use crate::domain::game::replacement_effects::{DestroyReason, ReplacementOutcome};
+        let (mut game, p1, p2) = make_game_in_first_main();
+        let troll = make_regenerate_creature("troll-1", &p1);
+        add_permanent_to_battlefield(&mut game, &p1, troll);
+        game.add_mana_to_pool(&p1, ManaColor::Green, 1).unwrap();
+
+        // Activate and resolve regenerate shield
+        game.apply(Action::ActivateAbility {
+            player_id: PlayerId::new(&p1),
+            permanent_id: CardInstanceId::new("troll-1"),
+            ability_index: 0,
+        })
+        .unwrap();
+        // After non-mana activation, priority goes to opponent (p2) first.
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+
+        // Mark lethal damage on the creature (toughness is 3)
+        game.mark_damage_on_creature("troll-1", 5, false);
+
+        // Now trigger the destroy path — with regeneration shield, creature should survive
+        game.move_permanent_to_graveyard_with_reason("troll-1", DestroyReason::LethalDamage)
+            .unwrap();
+
+        // Troll should still be on the battlefield
+        let battlefield = game.battlefield(&p1).unwrap();
+        assert!(
+            battlefield.iter().any(|c| c.instance_id() == "troll-1"),
+            "Troll should survive due to regeneration shield"
+        );
+
+        // Shield should be consumed (NextOccurrence)
+        let has_shield = game.replacement_effects.iter().any(|e| {
+            matches!(&e.replacement, ReplacementOutcome::Regenerate)
+                && e.source_id == "troll-1"
+        });
+        assert!(!has_shield, "Regeneration shield should be consumed after use");
+
+        // Creature should be tapped with no damage
+        let state = game.permanent_state("troll-1").unwrap();
+        assert!(state.is_tapped(), "Creature should be tapped after regeneration");
+        if let Some(cs) = state.creature_state() {
+            assert_eq!(cs.damage_marked_this_turn(), 0, "All damage should be removed after regeneration");
+        }
+    }
 }
