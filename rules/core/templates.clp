@@ -183,6 +183,23 @@
   (slot target (type STRING))
   (slot duration (type SYMBOL) (default until-end-of-turn)))
 
+(deftemplate action-prevent-damage
+  "Register a damage prevention shield on a target (R11, CR 615).
+   Prevents up to amount damage the next time damage would be dealt to target."
+  (slot priority (type INTEGER) (default 0))
+  (slot source (type STRING))
+  (slot target (type STRING))
+  (slot amount (type INTEGER))
+  (slot duration (type SYMBOL) (default next-occurrence)))
+
+(deftemplate action-regenerate
+  "Register a regeneration shield on a creature (R11, CR 701.15).
+   The next time the creature would be destroyed, instead tap it,
+   remove all damage, and remove it from combat."
+  (slot priority (type INTEGER) (default 0))
+  (slot source (type STRING))
+  (slot target (type STRING)))
+
 ;;; ============================================================================
 ;;; Signal facts: CLIPS requesting player input
 ;;; ============================================================================

@@ -353,6 +353,49 @@ pub(crate) fn parse_action_facts(engine: &ClipsEngine) -> Result<Vec<RulesAction
         ));
     }
 
+    // action-prevent-damage
+    for row in engine.collect_facts_by_template(
+        "action-prevent-damage",
+        &["priority", "source", "target", "amount", "duration"],
+    ) {
+        let priority = extract_integer(&row, "priority").unwrap_or(0);
+        let source = match extract_string(&row, "source") {
+            Some(s) => s,
+            None => continue,
+        };
+        let target = match extract_string(&row, "target") {
+            Some(s) => s,
+            None => continue,
+        };
+        let amount = match extract_integer(&row, "amount") {
+            Some(n) if n >= 0 => n as u32,
+            _ => continue,
+        };
+        let duration = extract_symbol(&row, "duration")
+            .unwrap_or_else(|| "next-occurrence".to_owned());
+        actions.push((
+            priority,
+            RulesAction::RegisterPreventionShield { source, target, amount, duration },
+        ));
+    }
+
+    // action-regenerate
+    for row in engine.collect_facts_by_template(
+        "action-regenerate",
+        &["priority", "source", "target"],
+    ) {
+        let priority = extract_integer(&row, "priority").unwrap_or(0);
+        let source = match extract_string(&row, "source") {
+            Some(s) => s,
+            None => continue,
+        };
+        let target = match extract_string(&row, "target") {
+            Some(s) => s,
+            None => continue,
+        };
+        actions.push((priority, RulesAction::RegisterRegenerationShield { source, target }));
+    }
+
     // Sort by priority ascending
     actions.sort_by_key(|(priority, _)| *priority);
 
@@ -636,6 +679,52 @@ mod tests {
                 &actions[0],
                 RulesAction::ModifyPowerToughness { source, target, power: 3, toughness: 3, duration }
                     if source == "gg-1" && target == "bear-1" && duration == "until-end-of-turn"
+            ),
+            "unexpected action: {:?}",
+            actions[0]
+        );
+    }
+
+    // ---- parse_action_facts: action-prevent-damage --------------------------
+
+    #[test]
+    fn parse_action_facts_parses_action_prevent_damage() {
+        let mut engine = engine_with_templates();
+        engine
+            .assert_fact(
+                r#"(action-prevent-damage (source "mend-1") (target "bear-1") (amount 3) (duration until-depleted))"#,
+            )
+            .unwrap();
+
+        let actions = parse_action_facts(&engine).unwrap();
+        assert_eq!(actions.len(), 1);
+        assert!(
+            matches!(
+                &actions[0],
+                RulesAction::RegisterPreventionShield { target, amount: 3, duration, source }
+                    if target == "bear-1" && duration == "until-depleted" && source == "mend-1"
+            ),
+            "unexpected action: {:?}",
+            actions[0]
+        );
+    }
+
+    // ---- parse_action_facts: action-regenerate -------------------------------
+
+    #[test]
+    fn parse_action_facts_parses_action_regenerate() {
+        let mut engine = engine_with_templates();
+        engine
+            .assert_fact(r#"(action-regenerate (source "troll-1") (target "bear-1"))"#)
+            .unwrap();
+
+        let actions = parse_action_facts(&engine).unwrap();
+        assert_eq!(actions.len(), 1);
+        assert!(
+            matches!(
+                &actions[0],
+                RulesAction::RegisterRegenerationShield { target, source }
+                    if target == "bear-1" && source == "troll-1"
             ),
             "unexpected action: {:?}",
             actions[0]

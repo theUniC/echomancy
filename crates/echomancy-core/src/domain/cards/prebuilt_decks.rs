@@ -343,6 +343,60 @@ pub fn layer_system_test_deck(owner_id: &str) -> Vec<CardInstance> {
     deck
 }
 
+/// Replacement Effects showcase deck (60 cards) for the given player.
+///
+/// Composition:
+/// - 10x Plains (white mana for Mending Light)
+/// - 10x Forest (green mana for Trollhide)
+/// - 4x Island (blue mana for Turn to Frog / Twisted Image as controls)
+/// - 4x Sol Ring (artifact mana acceleration)
+/// - 8x Bear (2/2 — basic targets for prevention and regeneration)
+/// - 4x Ironbark Wall (0/4 — zero-power target for Twisted Image edge case)
+/// - 4x Mending Light (prevention shield test: prevent next 3 damage)
+/// - 4x Trollhide (regeneration shield test)
+/// - 4x Giant Growth (pump to deal enough damage in edge cases)
+/// - 4x Twisted Image (Layer 7d switch — wall + regen interaction)
+/// - 4x Turn to Frog (control — removes abilities)
+pub fn r11_test_deck(owner_id: &str) -> Vec<CardInstance> {
+    let mut deck = Vec::with_capacity(60);
+
+    for _ in 0..10 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::plains(), owner_id));
+    }
+    for _ in 0..10 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::forest(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::island(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::sol_ring(), owner_id));
+    }
+    for _ in 0..8 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::bear(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::ironbark_wall(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::mending_light(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::trollhide(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::giant_growth(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::twisted_image(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::turn_to_frog(), owner_id));
+    }
+
+    deck
+}
+
 /// Selects a P1 test deck by feature name (from TEST_DECK env var).
 pub fn p1_test_deck(feature: &str, owner_id: &str) -> Vec<CardInstance> {
     match feature {
@@ -353,6 +407,7 @@ pub fn p1_test_deck(feature: &str, owner_id: &str) -> Vec<CardInstance> {
         "r5" => sol_ring_test_deck(owner_id),
         "r10" => wild_bounty_test_deck(owner_id),
         "ls1" => layer_system_test_deck(owner_id),
+        "r11" => r11_test_deck(owner_id),
         _ => green_deck(owner_id),
     }
 }
@@ -510,6 +565,49 @@ mod tests {
         // Verify it selected the LS1 deck by checking for a LS1-specific card
         let frogs = deck.iter().filter(|c| c.definition().id() == "turn-to-frog").count();
         assert_eq!(frogs, 4, "ls1 p1 deck should have 4 Turn to Frogs");
+    }
+
+    #[test]
+    fn r11_test_deck_has_60_cards() {
+        let deck = r11_test_deck("player-1");
+        assert_eq!(deck.len(), 60, "R11 test deck should have exactly 60 cards");
+    }
+
+    #[test]
+    fn r11_test_deck_composition() {
+        let deck = r11_test_deck("player-1");
+
+        let plains = deck.iter().filter(|c| c.definition().id() == "plains").count();
+        let forests = deck.iter().filter(|c| c.definition().id() == "forest").count();
+        let islands = deck.iter().filter(|c| c.definition().id() == "island").count();
+        let sol_rings = deck.iter().filter(|c| c.definition().id() == "sol-ring").count();
+        let bears = deck.iter().filter(|c| c.definition().id() == "bear").count();
+        let walls = deck.iter().filter(|c| c.definition().id() == "ironbark-wall").count();
+        let mending = deck.iter().filter(|c| c.definition().id() == "mending-light").count();
+        let trollhide_count = deck.iter().filter(|c| c.definition().id() == "trollhide").count();
+        let giant = deck.iter().filter(|c| c.definition().id() == "giant-growth").count();
+        let twisted = deck.iter().filter(|c| c.definition().id() == "twisted-image").count();
+        let frog = deck.iter().filter(|c| c.definition().id() == "turn-to-frog").count();
+
+        assert_eq!(plains, 10, "R11 deck should have 10 Plains");
+        assert_eq!(forests, 10, "R11 deck should have 10 Forests");
+        assert_eq!(islands, 4, "R11 deck should have 4 Islands");
+        assert_eq!(sol_rings, 4, "R11 deck should have 4 Sol Rings");
+        assert_eq!(bears, 8, "R11 deck should have 8 Bears");
+        assert_eq!(walls, 4, "R11 deck should have 4 Ironbark Walls");
+        assert_eq!(mending, 4, "R11 deck should have 4 Mending Lights");
+        assert_eq!(trollhide_count, 4, "R11 deck should have 4 Trollhides");
+        assert_eq!(giant, 4, "R11 deck should have 4 Giant Growths");
+        assert_eq!(twisted, 4, "R11 deck should have 4 Twisted Images");
+        assert_eq!(frog, 4, "R11 deck should have 4 Turn to Frogs");
+    }
+
+    #[test]
+    fn p1_test_deck_routes_r11() {
+        let deck = p1_test_deck("r11", "player-1");
+        assert_eq!(deck.len(), 60, "r11 p1 test deck should have 60 cards");
+        let mending = deck.iter().filter(|c| c.definition().id() == "mending-light").count();
+        assert_eq!(mending, 4, "r11 p1 deck should have 4 Mending Lights");
     }
 
     #[test]

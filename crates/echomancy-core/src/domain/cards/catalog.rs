@@ -365,6 +365,40 @@ pub fn turn_to_frog() -> CardDefinition {
         .with_oracle_text("Target creature loses all abilities and becomes a base 1/1 until end of turn.")
 }
 
+// ============================================================================
+// Showcase cards — R11 Replacement Effects
+// ============================================================================
+
+/// Return the `Mending Light` instant definition.
+///
+/// Mana cost: {W} (1 white).
+/// Prevents the next 3 damage that would be dealt to target creature.
+/// Showcases the R11 prevention shield replacement effect framework.
+/// The actual shield registration is handled by the CLIPS rule `mending-light-resolve`.
+pub fn mending_light() -> CardDefinition {
+    let cost = ManaCost::parse("W").expect("mending light mana cost is valid");
+    CardDefinition::new("mending-light", "Mending Light", vec![CardType::Instant])
+        .with_mana_cost(cost)
+        .with_target_requirement(TargetRequirement::Creature)
+        .with_oracle_text("Prevent the next 3 damage that would be dealt to target creature.")
+}
+
+/// Return the `Trollhide` instant definition.
+///
+/// Mana cost: {G} (1 green).
+/// Regenerates target creature — the next time it would be destroyed this turn,
+/// instead tap it, remove all damage from it, and remove it from combat.
+/// Showcases the R11 regeneration shield replacement effect framework.
+/// Simplified as an Instant for testing purposes (the real card is an Aura).
+/// The actual shield registration is handled by the CLIPS rule `trollhide-resolve`.
+pub fn trollhide() -> CardDefinition {
+    let cost = ManaCost::parse("G").expect("trollhide mana cost is valid");
+    CardDefinition::new("trollhide", "Trollhide", vec![CardType::Instant])
+        .with_mana_cost(cost)
+        .with_target_requirement(TargetRequirement::Creature)
+        .with_oracle_text("Regenerate target creature. (The next time it would be destroyed this turn, instead tap it, remove all damage from it, and remove it from combat.)")
+}
+
 /// Return the `Frozen Sentinel` creature definition.
 ///
 /// Mana cost: {1}{R} (1 generic + 1 red).
@@ -500,6 +534,9 @@ mod tests {
             "thornwood-tapland",
             "reckless-berserker",
             "frozen-sentinel",
+            // R11 Replacement Effects
+            "mending-light",
+            "trollhide",
         ];
         let mut seen = std::collections::HashSet::new();
         for id in &ids {
@@ -600,6 +637,54 @@ mod tests {
         let ability = l.first_activated_ability().expect("Thornwood Tapland must have a mana ability");
         assert_eq!(ability.effect, Effect::AddMana { color: ManaColor::Green, amount: 1 });
         assert!(l.oracle_text().is_some());
+    }
+
+    // =========================================================================
+    // Showcase cards — R11 Replacement Effects (Mending Light + Trollhide)
+    // =========================================================================
+
+    #[test]
+    fn mending_light_is_instant_with_white_mana_cost() {
+        let ml = mending_light();
+        assert!(ml.is_instant(), "Mending Light must be an Instant");
+        assert_eq!(ml.id(), "mending-light");
+        assert_eq!(ml.name(), "Mending Light");
+        let cost = ml.mana_cost().expect("Mending Light must have a mana cost");
+        let expected = crate::domain::value_objects::mana::ManaCost::parse("W").unwrap();
+        assert_eq!(*cost, expected, "Mending Light mana cost should be {{W}}");
+        assert_ne!(
+            ml.target_requirement(),
+            TargetRequirement::None,
+            "Mending Light must have a target requirement"
+        );
+        assert_eq!(
+            ml.target_requirement(),
+            TargetRequirement::Creature,
+            "Mending Light must target a creature"
+        );
+        assert!(ml.oracle_text().is_some(), "Mending Light must have oracle text");
+    }
+
+    #[test]
+    fn trollhide_is_instant_with_green_mana_cost() {
+        let th = trollhide();
+        assert!(th.is_instant(), "Trollhide must be an Instant");
+        assert_eq!(th.id(), "trollhide");
+        assert_eq!(th.name(), "Trollhide");
+        let cost = th.mana_cost().expect("Trollhide must have a mana cost");
+        let expected = crate::domain::value_objects::mana::ManaCost::parse("G").unwrap();
+        assert_eq!(*cost, expected, "Trollhide mana cost should be {{G}}");
+        assert_ne!(
+            th.target_requirement(),
+            TargetRequirement::None,
+            "Trollhide must have a target requirement"
+        );
+        assert_eq!(
+            th.target_requirement(),
+            TargetRequirement::Creature,
+            "Trollhide must target a creature"
+        );
+        assert!(th.oracle_text().is_some(), "Trollhide must have oracle text");
     }
 
     // =========================================================================

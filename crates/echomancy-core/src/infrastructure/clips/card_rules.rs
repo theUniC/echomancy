@@ -50,6 +50,12 @@ const TWISTED_IMAGE_RULES: &str =
 const TURN_TO_FROG_RULES: &str =
     include_str!("../../../../../rules/cards/t/turn-to-frog.clp");
 
+const MENDING_LIGHT_RULES: &str =
+    include_str!("../../../../../rules/cards/m/mending-light.clp");
+
+const TROLLHIDE_RULES: &str =
+    include_str!("../../../../../rules/cards/t/trollhide.clp");
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -79,6 +85,8 @@ pub(crate) fn load_core_templates(engine: &mut ClipsEngine) -> Result<(), RulesE
 /// | `"divination"` | Controller draws 2 cards |
 /// | `"giant-growth"` | Target creature gets +3/+3 until end of turn |
 /// | `"wild-bounty"` | Controller draws 1 card on ETB |
+/// | `"mending-light"` | Register 3-damage prevention shield on target creature |
+/// | `"trollhide"` | Register regeneration shield on target creature |
 /// | anything else | No rules — silently succeeds |
 #[allow(dead_code)]
 pub(crate) fn load_card_rules(engine: &mut ClipsEngine, card_id: &str) -> Result<(), RulesError> {
@@ -91,6 +99,8 @@ pub(crate) fn load_card_rules(engine: &mut ClipsEngine, card_id: &str) -> Result
         "titanic-growth" => engine.load_rules(TITANIC_GROWTH_RULES),
         "twisted-image" => engine.load_rules(TWISTED_IMAGE_RULES),
         "turn-to-frog" => engine.load_rules(TURN_TO_FROG_RULES),
+        "mending-light" => engine.load_rules(MENDING_LIGHT_RULES),
+        "trollhide" => engine.load_rules(TROLLHIDE_RULES),
         // Sol Ring uses no CLIPS rule — its mana ability is handled entirely by
         // the Rust domain (CR 605 mana abilities bypass the stack).
         // Vanilla/keyword-only cards have no .clp — this is expected and fine.
@@ -978,5 +988,240 @@ mod tests {
         let eff_toughness = game.effective_toughness("creature-1").expect("should have effective toughness");
         assert_eq!(eff_power, 4, "Layer 7b(1/1) + Layer 7c(+3/+3) = 4 power");
         assert_eq!(eff_toughness, 4, "Layer 7b(1/1) + Layer 7c(+3/+3) = 4 toughness");
+    }
+
+    // =========================================================================
+    // CLIPS rule correctness: Mending Light (R11 Prevention Shield)
+    // =========================================================================
+
+    #[test]
+    fn load_card_rules_for_mending_light_succeeds() {
+        let mut engine = ClipsEngine::new().expect("engine");
+        load_core_templates(&mut engine).expect("core templates");
+        load_card_rules(&mut engine, "mending-light").expect("mending-light rules should load");
+    }
+
+    /// Mending Light rule fires and produces an action-prevent-damage fact for the target.
+    #[test]
+    fn mending_light_rule_produces_prevention_shield_action() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::targets::Target;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+
+        let mut engine = engine_for(&["mending-light"]);
+        let (game, p1, _p2) = make_game_in_first_main();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("mend-1"),
+                definition_id: CardDefinitionId::new("mending-light"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+            targets: vec![Target::creature("creature-1")],
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert_eq!(result.actions.len(), 1, "should produce exactly one action");
+        assert!(
+            matches!(
+                &result.actions[0],
+                RulesAction::RegisterPreventionShield { source, target, amount: 3, duration }
+                    if source == "mend-1" && target == "creature-1" && duration == "until-depleted"
+            ),
+            "should register a 3-damage prevention shield, got: {:?}",
+            result.actions[0]
+        );
+    }
+
+    /// Mending Light rule does not fire when no target is provided.
+    #[test]
+    fn mending_light_rule_does_not_fire_without_target() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+        use crate::domain::game::test_helpers::make_started_game;
+
+        let mut engine = engine_for(&["mending-light"]);
+        let (game, p1, _p2) = make_started_game();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("mend-1"),
+                definition_id: CardDefinitionId::new("mending-light"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+            targets: vec![], // no target
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert!(
+            result.actions.is_empty(),
+            "mending-light rule should not fire without a target"
+        );
+    }
+
+    /// Full pipeline: Mending Light cast on p1's creature registers a prevention shield.
+    #[test]
+    fn e2e_mending_light_registers_prevention_shield_on_creature() {
+        use crate::domain::game::test_helpers::add_permanent_to_battlefield;
+        use crate::domain::targets::Target;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        let engine = engine_for(&["mending-light"]);
+        game.set_rules_engine(Box::new(engine));
+
+        // Put a 2/2 creature on p1's battlefield
+        let creature_def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let creature = CardInstance::new("bear-1", creature_def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+
+        // Put Mending Light (free) in p1's hand
+        let ml_def = CardDefinition::new("mending-light", "Mending Light", vec![CardType::Instant])
+            .with_target_requirement(crate::domain::targets::TargetRequirement::Creature);
+        let ml = CardInstance::new("mend-1", ml_def, &p1);
+        add_card_to_hand(&mut game, &p1, ml);
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("mend-1"),
+            targets: vec![Target::creature("bear-1")],
+            x_value: 0,
+        })
+        .expect("cast Mending Light should succeed");
+
+        // Both pass priority — stack resolves
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+
+        assert_eq!(game.stack().len(), 0, "stack should be empty after resolution");
+
+        // The creature should have a prevention shield of 3 registered.
+        assert_eq!(
+            game.prevention_shield_remaining("bear-1"),
+            Some(3),
+            "bear-1 should have a prevention shield of 3 after Mending Light resolves"
+        );
+    }
+
+    // =========================================================================
+    // CLIPS rule correctness: Trollhide (R11 Regeneration Shield)
+    // =========================================================================
+
+    #[test]
+    fn load_card_rules_for_trollhide_succeeds() {
+        let mut engine = ClipsEngine::new().expect("engine");
+        load_core_templates(&mut engine).expect("core templates");
+        load_card_rules(&mut engine, "trollhide").expect("trollhide rules should load");
+    }
+
+    /// Trollhide rule fires and produces an action-regenerate fact for the target.
+    #[test]
+    fn trollhide_rule_produces_regeneration_shield_action() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::targets::Target;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+
+        let mut engine = engine_for(&["trollhide"]);
+        let (game, p1, _p2) = make_game_in_first_main();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("troll-1"),
+                definition_id: CardDefinitionId::new("trollhide"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+            targets: vec![Target::creature("creature-1")],
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert_eq!(result.actions.len(), 1, "should produce exactly one action");
+        assert!(
+            matches!(
+                &result.actions[0],
+                RulesAction::RegisterRegenerationShield { source, target }
+                    if source == "troll-1" && target == "creature-1"
+            ),
+            "should register a regeneration shield, got: {:?}",
+            result.actions[0]
+        );
+    }
+
+    /// Trollhide rule does not fire when no target is provided.
+    #[test]
+    fn trollhide_rule_does_not_fire_without_target() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+        use crate::domain::game::test_helpers::make_started_game;
+
+        let mut engine = engine_for(&["trollhide"]);
+        let (game, p1, _p2) = make_started_game();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("troll-1"),
+                definition_id: CardDefinitionId::new("trollhide"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+            targets: vec![], // no target
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert!(
+            result.actions.is_empty(),
+            "trollhide rule should not fire without a target"
+        );
+    }
+
+    /// Full pipeline: Trollhide cast on p1's creature registers a regeneration shield.
+    #[test]
+    fn e2e_trollhide_registers_regeneration_shield_on_creature() {
+        use crate::domain::game::test_helpers::add_permanent_to_battlefield;
+        use crate::domain::targets::Target;
+
+        let (mut game, p1, p2) = make_game_in_first_main();
+
+        let engine = engine_for(&["trollhide"]);
+        game.set_rules_engine(Box::new(engine));
+
+        // Put a 2/2 creature on p1's battlefield
+        let creature_def = CardDefinition::new("bear", "Bear", vec![CardType::Creature])
+            .with_power_toughness(2, 2);
+        let creature = CardInstance::new("bear-1", creature_def, &p1);
+        add_permanent_to_battlefield(&mut game, &p1, creature);
+
+        // Put Trollhide (free) in p1's hand
+        let th_def = CardDefinition::new("trollhide", "Trollhide", vec![CardType::Instant])
+            .with_target_requirement(crate::domain::targets::TargetRequirement::Creature);
+        let th = CardInstance::new("troll-1", th_def, &p1);
+        add_card_to_hand(&mut game, &p1, th);
+
+        game.apply(Action::CastSpell {
+            player_id: PlayerId::new(&p1),
+            card_id: CardInstanceId::new("troll-1"),
+            targets: vec![Target::creature("bear-1")],
+            x_value: 0,
+        })
+        .expect("cast Trollhide should succeed");
+
+        // Both pass priority — stack resolves
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p1) }).unwrap();
+        game.apply(Action::PassPriority { player_id: PlayerId::new(&p2) }).unwrap();
+
+        assert_eq!(game.stack().len(), 0, "stack should be empty after resolution");
+
+        // The creature should have a regeneration shield registered.
+        assert!(
+            game.has_regeneration_shield("bear-1"),
+            "bear-1 should have a regeneration shield after Trollhide resolves"
+        );
     }
 }

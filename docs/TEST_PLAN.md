@@ -466,6 +466,92 @@ When a creature with Toxic N deals combat damage to a player, that player gets N
 
 ---
 
+### R11 — Replacement Effects (CR 614)
+
+**Deck**: `TEST_DECK=r11 cargo run -p echomancy-bevy`
+
+**Cards**: Mending Light ({W} prevent 3), Trollhide ({G} regenerate), Bear (2/2), Ironbark Wall (0/4), Twisted Image ({U}), Turn to Frog ({1}{U}), Giant Growth ({G})
+
+#### R11.1 — Prevention shield absorbs all damage
+
+**Prepared hand**: Plains, Plains, Forest, Bear, Mending Light, Giant Growth, Sol Ring
+
+**Steps**:
+1. Turn 1: Play Plains.
+2. Turn 2: Play Forest, cast Bear (2/2).
+3. Turn 3: Play Plains, cast Mending Light targeting the Bear (prevention shield of 3 active).
+4. Wait for bot's Lightning Strike targeting the Bear (3 damage).
+
+**Verification**:
+- [ ] Bear survives Lightning Strike (prevention shield absorbs all 3 damage).
+- [ ] Bear shows 2/2 with no damage markers after the strike.
+
+#### R11.2 — Regeneration saves creature from lethal combat damage
+
+**Prepared hand**: Forest, Forest, Plains, Bear, Trollhide, Giant Growth, Sol Ring
+
+**Steps**:
+1. Turn 1: Play Forest.
+2. Turn 2: Play Forest, cast Bear (2/2).
+3. Turn 3: Play Plains.
+4. During bot's combat, block a 3/3 Frozen Sentinel with the Bear.
+5. Before combat damage, cast Trollhide ({G}) targeting the Bear (regeneration shield active).
+6. Let combat damage resolve (3 damage to a 2/2 = lethal).
+
+**Verification**:
+- [ ] Bear survives lethal combat damage (regeneration replaces destroy).
+- [ ] Bear is now tapped after regeneration.
+- [ ] Bear has no damage marked (regeneration removes all damage).
+
+#### R11.3 — Zero toughness bypasses regeneration (CR 704.5f)
+
+**Prepared hand**: Forest, Island, Island, Ironbark Wall, Trollhide, Twisted Image, Sol Ring
+
+**Steps**:
+1. Turn 1: Play Forest.
+2. Turn 2: Play Island, cast Ironbark Wall (0/4).
+3. Turn 3: Play Island, cast Trollhide targeting Ironbark Wall (regen shield active).
+4. Cast Twisted Image targeting Ironbark Wall (switch P/T → 4/0).
+
+**Verification**:
+- [ ] Ironbark Wall dies despite having a regeneration shield.
+- [ ] Zero toughness is "put into graveyard", not "destroy" — regen doesn't apply.
+- [ ] You draw a card from Twisted Image.
+
+#### R11.4 — Prevention shield partially absorbs damage
+
+**Prepared hand**: Plains, Forest, Forest, Bear, Mending Light, Giant Growth, Giant Growth
+
+**Steps**:
+1. Turn 1: Play Plains.
+2. Turn 2: Play Forest, cast Bear (2/2).
+3. Turn 3: Play Forest, cast Mending Light on Bear (prevent 3).
+4. Cast two Giant Growth on a bot creature to pump it high (or wait for enough combat damage > 3).
+5. Block the pumped creature with Bear — total damage should exceed 3.
+
+**Verification**:
+- [ ] Prevention absorbs 3 of the incoming damage, the rest goes through.
+- [ ] If remaining damage is lethal (≥2 for a 2/2 Bear), Bear dies.
+- [ ] If remaining damage is <2, Bear survives with damage marked.
+
+#### R11.5 — Turn to Frog does NOT interact with replacement effects (control test)
+
+**Prepared hand**: Island, Island, Forest, Bear, Turn to Frog, Trollhide, Sol Ring
+
+**Steps**:
+1. Turn 1: Play Island.
+2. Turn 2: Play Forest, cast Bear (2/2).
+3. Turn 3: Play Island, cast Trollhide on Bear (regen shield active).
+4. Cast Turn to Frog on Bear (becomes 1/1, loses all abilities).
+5. Wait for bot's Lightning Strike on Bear (3 damage to a 1/1).
+
+**Verification**:
+- [ ] Regeneration shield was registered before Turn to Frog → shield still exists in the replacement registry.
+- [ ] Bear (now 1/1) takes 3 lethal damage → regeneration fires → Bear survives, tapped, no damage.
+- [ ] Turn to Frog removes abilities from the creature, but does NOT remove replacement effects from the registry (they are separate from the layer system).
+
+---
+
 ## Quick unit test verification
 
 Run all unit tests for features without showcase cards:
@@ -507,6 +593,22 @@ cargo test -- shroud changeling devoid fear skulk shadow horsemanship defender s
 | 4 | Twisted Image ({U}) | LS1: Layer 7d (SwitchPT) + draw |
 | 4 | Titanic Growth ({1}{G}) | LS1: Layer 7c (+4/+4) |
 | 4 | Giant Growth ({G}) | LS1: Layer 7c (+3/+3) |
+
+### Replacement Effects deck (P1, TEST_DECK=r11) — 60 cards
+
+| Count | Card | Feature |
+|-------|------|---------|
+| 10 | Plains | White mana (Mending Light) |
+| 10 | Forest | Green mana (Trollhide) |
+| 4 | Island | Blue mana (Turn to Frog, Twisted Image) |
+| 4 | Sol Ring | Mana acceleration |
+| 8 | Bear (2/2) | Target bàsic per prevention/regen |
+| 4 | Ironbark Wall (0/4) | Target per zero-toughness edge case |
+| 4 | Mending Light ({W}) | R11: Prevention shield (prevent next 3 damage) |
+| 4 | Trollhide ({G}) | R11: Regeneration shield |
+| 4 | Giant Growth ({G}) | Pump per edge cases |
+| 4 | Twisted Image ({U}) | Switch P/T (zero-toughness test) |
+| 4 | Turn to Frog ({1}{U}) | Control: removes abilities, test interaction |
 
 ### Red deck (P2/bot) — 60 cards
 
