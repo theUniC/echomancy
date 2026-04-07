@@ -356,26 +356,25 @@ pub(crate) fn parse_action_facts(engine: &ClipsEngine) -> Result<Vec<RulesAction
     // action-prevent-damage
     for row in engine.collect_facts_by_template(
         "action-prevent-damage",
-        &["priority", "source", "target", "amount", "duration"],
+        &["priority", "source", "target", "amount", "duration", "scope"],
     ) {
         let priority = extract_integer(&row, "priority").unwrap_or(0);
         let source = match extract_string(&row, "source") {
             Some(s) => s,
             None => continue,
         };
-        let target = match extract_string(&row, "target") {
-            Some(s) => s,
-            None => continue,
-        };
+        let target = extract_string(&row, "target").unwrap_or_default();
         let amount = match extract_integer(&row, "amount") {
             Some(n) if n >= 0 => n as u32,
             _ => continue,
         };
         let duration = extract_symbol(&row, "duration")
             .unwrap_or_else(|| "next-occurrence".to_owned());
+        let scope = extract_symbol(&row, "scope")
+            .unwrap_or_else(|| "targeted".to_owned());
         actions.push((
             priority,
-            RulesAction::RegisterPreventionShield { source, target, amount, duration },
+            RulesAction::RegisterPreventionShield { source, target, amount, duration, scope },
         ));
     }
 
@@ -701,8 +700,9 @@ mod tests {
         assert!(
             matches!(
                 &actions[0],
-                RulesAction::RegisterPreventionShield { target, amount: 3, duration, source }
+                RulesAction::RegisterPreventionShield { target, amount: 3, duration, source, scope }
                     if target == "bear-1" && duration == "until-depleted" && source == "mend-1"
+                    && scope == "targeted"
             ),
             "unexpected action: {:?}",
             actions[0]

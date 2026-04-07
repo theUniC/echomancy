@@ -220,9 +220,19 @@ impl Game {
             .map(|a| a.contains(&crate::domain::enums::StaticAbility::Deathtouch))
             .unwrap_or(false);
 
-        // Deal damage simultaneously.
-        self.mark_damage_on_creature(creature_b_id, power_a, a_has_deathtouch);
-        self.mark_damage_on_creature(creature_a_id, power_b, b_has_deathtouch);
+        // Deal damage simultaneously — route through replacement effects framework
+        // so prevention shields (e.g. Guardian Shield) are respected (CR 701.14).
+        // Fight damage is non-combat damage (is_combat: false).
+        let final_a_to_b = self.apply_damage_with_replacement(creature_a_id, creature_b_id, power_a, a_has_deathtouch, false, false);
+        let final_b_to_a = self.apply_damage_with_replacement(creature_b_id, creature_a_id, power_b, b_has_deathtouch, false, false);
+
+        // Mark the remaining damage after prevention.
+        if final_a_to_b > 0 {
+            self.mark_damage_on_creature(creature_b_id, final_a_to_b, a_has_deathtouch);
+        }
+        if final_b_to_a > 0 {
+            self.mark_damage_on_creature(creature_a_id, final_b_to_a, b_has_deathtouch);
+        }
 
         // Run SBAs to destroy any creatures with lethal damage.
         let sba_events = self.perform_state_based_actions();

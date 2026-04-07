@@ -552,6 +552,89 @@ When a creature with Toxic N deals combat damage to a player, that player gets N
 
 ---
 
+### R12 — Prevention Effects (CR 615)
+
+**Deck**: `TEST_DECK=r12 cargo run -p echomancy-bevy`
+
+**Cards**: Fog ({G} no target), Guardian Shield ({1}{W} target creature), Mending Light ({W} prevent 3), Bear (2/2), Ironbark Wall (0/4), Giant Growth ({G}), Trollhide ({G})
+
+#### R12.1 — Fog prevents all combat damage
+
+**Prepared hand**: Forest, Forest, Forest, Bear, Bear, Fog, Sol Ring
+
+**Steps**:
+1. Turn 1: Play Forest.
+2. Turn 2: Play Forest, cast Bear (2/2).
+3. Turn 3: Play Forest, cast second Bear.
+4. Let bot attack with creatures (Goblins, Frozen Sentinels).
+5. Block with one Bear. Before combat damage, cast Fog ({G}).
+
+**Verification**:
+- [ ] After combat damage step, your blocking Bear has 0 damage (Fog prevented combat damage).
+- [ ] Your life total did not decrease from unblocked attackers (Fog prevented that too).
+- [ ] Bot's attacking creatures also took 0 damage from blockers (Fog prevents ALL combat damage).
+
+#### R12.2 — Fog does NOT prevent spell damage
+
+**Prepared hand**: Forest, Forest, Plains, Bear, Fog, Mending Light, Sol Ring
+
+**Steps**:
+1. Turn 1: Play Forest.
+2. Turn 2: Play Forest, cast Bear (2/2).
+3. Cast Fog at some point during the turn (it lasts until end of turn).
+4. Wait for bot's Lightning Strike targeting the Bear.
+
+**Verification**:
+- [ ] Lightning Strike deals full 3 damage to the Bear (Fog does NOT prevent spell damage).
+- [ ] Bear dies to lethal damage (3 ≥ 2 toughness).
+
+#### R12.3 — Guardian Shield prevents all damage to target creature
+
+**Prepared hand**: Plains, Plains, Forest, Bear, Guardian Shield, Giant Growth, Sol Ring
+
+**Steps**:
+1. Turn 1: Play Plains.
+2. Turn 2: Play Plains, cast Sol Ring.
+3. Turn 3: Play Forest, cast Bear (2/2).
+4. Cast Guardian Shield ({1}{W}) targeting the Bear.
+5. Block a bot attacker with the Bear.
+6. After combat, wait for bot's Lightning Strike on the Bear.
+
+**Verification**:
+- [ ] Bear survives combat damage (Guardian Shield prevents it).
+- [ ] Bear survives Lightning Strike (Guardian Shield prevents ALL damage, not just combat).
+- [ ] Bear shows 2/2 with no damage marked throughout the turn.
+
+#### R12.4 — Guardian Shield only protects the target
+
+**Prepared hand**: Plains, Plains, Forest, Bear, Bear, Guardian Shield, Sol Ring
+
+**Steps**:
+1. Deploy two Bears.
+2. Cast Guardian Shield on Bear A.
+3. Wait for bot's Lightning Strike on Bear B (the unprotected one).
+
+**Verification**:
+- [ ] Bear B takes full 3 damage and dies (Guardian Shield does NOT protect it).
+- [ ] Bear A remains undamaged.
+
+#### R12.5 — Fog + Mending Light combo (multiple prevention effects)
+
+**Prepared hand**: Forest, Forest, Plains, Bear, Fog, Mending Light, Sol Ring
+
+**Steps**:
+1. Deploy Bear.
+2. Cast Mending Light on Bear (prevent 3 shield).
+3. Cast Fog.
+4. Let bot attack — block with Bear.
+
+**Verification**:
+- [ ] Bear takes 0 combat damage (Fog prevents it before Mending Light is needed).
+- [ ] After combat, Mending Light shield is still active (wasn't consumed because Fog handled it).
+- [ ] If bot casts Lightning Strike post-combat, Mending Light absorbs the 3 spell damage.
+
+---
+
 ## Quick unit test verification
 
 Run all unit tests for features without showcase cards:
@@ -609,6 +692,22 @@ cargo test -- shroud changeling devoid fear skulk shadow horsemanship defender s
 | 4 | Giant Growth ({G}) | Pump per edge cases |
 | 4 | Twisted Image ({U}) | Switch P/T (zero-toughness test) |
 | 4 | Turn to Frog ({1}{U}) | Control: removes abilities, test interaction |
+
+### Prevention Effects deck (P1, TEST_DECK=r12) — 60 cards
+
+| Count | Card | Feature |
+|-------|------|---------|
+| 10 | Plains | White mana (Guardian Shield, Mending Light) |
+| 10 | Forest | Green mana (Fog, Trollhide, Giant Growth) |
+| 4 | Sol Ring | Mana acceleration |
+| 8 | Bear (2/2) | Target bàsic per prevention |
+| 4 | Ironbark Wall (0/4) | Edge case target |
+| 4 | Fog ({G}) | R12: Global combat damage prevention |
+| 4 | Guardian Shield ({1}{W}) | R12: Full-turn prevention on target creature |
+| 4 | Mending Light ({W}) | R11: Depleting prevention shield (combo testing) |
+| 4 | Giant Growth ({G}) | Pump spell |
+| 4 | Trollhide ({G}) | R11: Regeneration shield |
+| 4 | Twisted Image ({U}) | Edge case testing |
 
 ### Red deck (P2/bot) — 60 cards
 

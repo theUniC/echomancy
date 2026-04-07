@@ -397,6 +397,60 @@ pub fn r11_test_deck(owner_id: &str) -> Vec<CardInstance> {
     deck
 }
 
+/// Test deck for R12 prevention effects (Fog and Guardian Shield).
+///
+/// Composition (60 cards):
+/// - 10x Plains
+/// - 10x Forest
+/// - 4x Sol Ring
+/// - 8x Bear (2/2)
+/// - 4x Ironbark Wall (0/4)
+/// - 4x Fog (prevent all combat damage this turn — R12)
+/// - 4x Guardian Shield (prevent all damage to target creature — R12)
+/// - 4x Mending Light (from R11, for combo testing)
+/// - 4x Giant Growth
+/// - 4x Trollhide
+/// - 4x Twisted Image
+pub fn r12_test_deck(owner_id: &str) -> Vec<CardInstance> {
+    let mut deck = Vec::with_capacity(60);
+
+    for _ in 0..10 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::plains(), owner_id));
+    }
+    for _ in 0..10 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::forest(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::sol_ring(), owner_id));
+    }
+    for _ in 0..8 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::bear(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::ironbark_wall(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::fog(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::guardian_shield(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::mending_light(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::giant_growth(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::trollhide(), owner_id));
+    }
+    for _ in 0..4 {
+        deck.push(CardInstance::new(Uuid::new_v4().to_string(), catalog::twisted_image(), owner_id));
+    }
+
+    deck
+}
+
 /// Selects a P1 test deck by feature name (from TEST_DECK env var).
 pub fn p1_test_deck(feature: &str, owner_id: &str) -> Vec<CardInstance> {
     match feature {
@@ -408,6 +462,7 @@ pub fn p1_test_deck(feature: &str, owner_id: &str) -> Vec<CardInstance> {
         "r10" => wild_bounty_test_deck(owner_id),
         "ls1" => layer_system_test_deck(owner_id),
         "r11" => r11_test_deck(owner_id),
+        "r12" => r12_test_deck(owner_id),
         _ => green_deck(owner_id),
     }
 }
@@ -608,6 +663,49 @@ mod tests {
         assert_eq!(deck.len(), 60, "r11 p1 test deck should have 60 cards");
         let mending = deck.iter().filter(|c| c.definition().id() == "mending-light").count();
         assert_eq!(mending, 4, "r11 p1 deck should have 4 Mending Lights");
+    }
+
+    #[test]
+    fn r12_test_deck_has_60_cards() {
+        let deck = r12_test_deck("player-1");
+        assert_eq!(deck.len(), 60, "R12 test deck should have exactly 60 cards");
+    }
+
+    #[test]
+    fn r12_test_deck_composition() {
+        let deck = r12_test_deck("player-1");
+
+        let plains = deck.iter().filter(|c| c.definition().id() == "plains").count();
+        let forests = deck.iter().filter(|c| c.definition().id() == "forest").count();
+        let sol_rings = deck.iter().filter(|c| c.definition().id() == "sol-ring").count();
+        let bears = deck.iter().filter(|c| c.definition().id() == "bear").count();
+        let walls = deck.iter().filter(|c| c.definition().id() == "ironbark-wall").count();
+        let fogs = deck.iter().filter(|c| c.definition().id() == "fog").count();
+        let shields = deck.iter().filter(|c| c.definition().id() == "guardian-shield").count();
+        let mending = deck.iter().filter(|c| c.definition().id() == "mending-light").count();
+        let giant = deck.iter().filter(|c| c.definition().id() == "giant-growth").count();
+        let trollhide_count = deck.iter().filter(|c| c.definition().id() == "trollhide").count();
+        let twisted = deck.iter().filter(|c| c.definition().id() == "twisted-image").count();
+
+        assert_eq!(plains, 10, "R12 deck should have 10 Plains");
+        assert_eq!(forests, 10, "R12 deck should have 10 Forests");
+        assert_eq!(sol_rings, 4, "R12 deck should have 4 Sol Rings");
+        assert_eq!(bears, 8, "R12 deck should have 8 Bears");
+        assert_eq!(walls, 4, "R12 deck should have 4 Ironbark Walls");
+        assert_eq!(fogs, 4, "R12 deck should have 4 Fogs");
+        assert_eq!(shields, 4, "R12 deck should have 4 Guardian Shields");
+        assert_eq!(mending, 4, "R12 deck should have 4 Mending Lights");
+        assert_eq!(giant, 4, "R12 deck should have 4 Giant Growths");
+        assert_eq!(trollhide_count, 4, "R12 deck should have 4 Trollhides");
+        assert_eq!(twisted, 4, "R12 deck should have 4 Twisted Images");
+    }
+
+    #[test]
+    fn p1_test_deck_routes_r12() {
+        let deck = p1_test_deck("r12", "player-1");
+        assert_eq!(deck.len(), 60, "r12 p1 test deck should have 60 cards");
+        let fogs = deck.iter().filter(|c| c.definition().id() == "fog").count();
+        assert_eq!(fogs, 4, "r12 p1 deck should have 4 Fogs");
     }
 
     #[test]

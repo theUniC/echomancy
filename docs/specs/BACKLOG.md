@@ -115,7 +115,7 @@ Core MTG systems not yet implemented, ordered by dependency chain.
 | R9 | Token creation | DONE | 111 | High | - | Game::create_token() + RulesAction::CreateToken wired |
 | R10 | Triggered abilities should use the stack | DONE | 603.3 | High | - | AbilityKind::Triggered + resolve_ability calls CLIPS at resolution time |
 | R11 | Replacement effects ("instead" effects) | DONE | 614-615 | Very High | - | MVP: damage prevention, destroy/regen, ETB. Framework + registry + interception |
-| R12 | Prevention effects (prevent damage) | TODO | 615 | High | R11 | Often implemented together |
+| R12 | Prevention effects (prevent damage) | DONE | 615 | High | R11 ✅ | Fog (all combat), Guardian Shield (all to target), is_combat flag, AllCombatDamage filter |
 | R13 | Hand size enforcement at Cleanup (discard to 7) | DONE | 514.1 | Low | - | Auto-discard last cards (MVP) |
 | R14 | Color identity on cards (derived from mana cost) | DONE | 105 | Low | - | colors() and is_colorless() on CardDefinition |
 | R15 | Multiple activated abilities per card | DONE | 602 | Medium | R5 | `Vec<ActivatedAbility>` with `ability_index` in ActivateAbility action |

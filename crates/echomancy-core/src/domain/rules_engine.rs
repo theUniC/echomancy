@@ -165,22 +165,30 @@ pub enum RulesAction {
         /// Instance ID of the spell or ability that created this effect.
         source: String,
     },
-    /// Register a damage prevention shield on a target (R11).
+    /// Register a damage prevention shield on a target (R11/R12).
     ///
     /// The shield prevents up to `amount` damage to the target. Once the budget
     /// is depleted, the shield is removed from the registry.
     ///
     /// Duration: `"next-occurrence"` for a single use, `"until-end-of-turn"` for
-    /// a turn-long prevention effect (rare).
+    /// a turn-long prevention effect.
+    ///
+    /// Scope:
+    /// - `"targeted"` (default): filter on the specific `target` permanent or player.
+    /// - `"all-combat"`: global combat-damage prevention (Fog, CR 615.7a);
+    ///   the `target` field is ignored, `AllCombatDamage` filter is used instead.
     RegisterPreventionShield {
         /// Instance ID of the target creature or player ID.
+        /// Ignored when `scope` is `"all-combat"`.
         target: String,
-        /// Maximum amount of damage to prevent.
+        /// Maximum amount of damage to prevent. `0` means prevent all.
         amount: u32,
         /// Duration string: `"next-occurrence"` or `"until-end-of-turn"`.
         duration: String,
         /// Instance ID of the spell or ability that created this shield.
         source: String,
+        /// Scope string: `"targeted"` or `"all-combat"`.
+        scope: String,
     },
     /// Register a regeneration shield on a creature (R11, CR 701.15).
     ///

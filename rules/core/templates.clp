@@ -184,13 +184,17 @@
   (slot duration (type SYMBOL) (default until-end-of-turn)))
 
 (deftemplate action-prevent-damage
-  "Register a damage prevention shield on a target (R11, CR 615).
-   Prevents up to amount damage the next time damage would be dealt to target."
+  "Register a damage prevention shield on a target (R11/R12, CR 615).
+   Prevents up to amount damage the next time damage would be dealt to target.
+   If amount is 0, prevents all damage.
+   scope: targeted (default) — applies to the target permanent/player only.
+          all-combat — applies to ALL combat damage this turn (Fog-style, CR 615.7a)."
   (slot priority (type INTEGER) (default 0))
   (slot source (type STRING))
   (slot target (type STRING))
   (slot amount (type INTEGER))
-  (slot duration (type SYMBOL) (default next-occurrence)))
+  (slot duration (type SYMBOL) (default next-occurrence))
+  (slot scope (type SYMBOL) (allowed-symbols targeted all-combat) (default targeted)))
 
 (deftemplate action-regenerate
   "Register a regeneration shield on a creature (R11, CR 701.15).

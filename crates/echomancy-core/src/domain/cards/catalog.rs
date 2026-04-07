@@ -150,6 +150,30 @@ pub fn giant_growth() -> CardDefinition {
         .with_oracle_text("Target creature gets +3/+3 until end of turn.")
 }
 
+/// Return the `Fog` instant definition (R12 showcase card).
+///
+/// Mana cost: {G} (1 green).
+/// No target. Effect: prevent all combat damage this turn.
+pub fn fog() -> CardDefinition {
+    let cost = ManaCost::parse("G").expect("fog mana cost is valid");
+    CardDefinition::new("fog", "Fog", vec![CardType::Instant])
+        .with_mana_cost(cost)
+        .with_oracle_text("Prevent all combat damage that would be dealt this turn.")
+}
+
+/// Return the `Guardian Shield` instant definition (R12 showcase card).
+///
+/// Mana cost: {1}{W} (1 generic + 1 white).
+/// Target: creature.
+/// Effect: Prevent all damage that would be dealt to target creature this turn.
+pub fn guardian_shield() -> CardDefinition {
+    let cost = ManaCost::parse("1W").expect("guardian shield mana cost is valid");
+    CardDefinition::new("guardian-shield", "Guardian Shield", vec![CardType::Instant])
+        .with_mana_cost(cost)
+        .with_target_requirement(TargetRequirement::Creature)
+        .with_oracle_text("Prevent all damage that would be dealt to target creature this turn.")
+}
+
 /// Return the `Lightning Strike` instant definition.
 ///
 /// Mana cost: {1}{R} (1 generic + 1 red).

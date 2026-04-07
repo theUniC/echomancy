@@ -20,7 +20,6 @@ use std::collections::HashSet;
 // ============================================================================
 
 /// How long a replacement effect lasts.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReplacementDuration {
     /// Effect is removed during the Cleanup step of the current turn.
@@ -39,15 +38,19 @@ pub(crate) enum ReplacementDuration {
 // ============================================================================
 
 /// What kind of event a replacement effect intercepts.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReplacementEventFilter {
     /// Intercept damage events targeting a specific permanent.
     DamageToPermanent { permanent_id: String },
     /// Intercept damage events targeting a specific player.
     DamageToPlayer { player_id: String },
-    /// Intercept all damage events (global effect).
+    /// Intercept all damage events (global effect, both combat and non-combat).
     DamageToAny,
+    /// Intercept all combat damage events only (e.g. Fog, CR 615.7a).
+    ///
+    /// Matches when `is_combat == true`. Does NOT match spell/ability damage
+    /// (`is_combat == false`).
+    AllCombatDamage,
     /// Intercept destroy events targeting a specific permanent.
     DestroyPermanent { permanent_id: String },
     /// Intercept ETB events for a specific permanent.
@@ -59,7 +62,6 @@ pub(crate) enum ReplacementEventFilter {
 // ============================================================================
 
 /// What happens as a replacement for the intercepted event.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReplacementOutcome {
     /// Prevent up to `amount` damage. If `amount == 0`, prevents all damage.
@@ -135,7 +137,6 @@ impl ReplacementEffect {
 /// Only `LethalDamage` and `DestroyEffect` can be intercepted by replacement
 /// effects (regeneration shields, etc.). `ZeroToughness` bypasses the
 /// replacement framework entirely per CR 704.5f.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DestroyReason {
     /// The creature has damage >= toughness (lethal damage SBA, CR 704.5g).
@@ -225,6 +226,9 @@ impl Game {
     /// - `amount` — raw damage amount.
     /// - `is_deathtouch` — whether the source has Deathtouch.
     /// - `target_is_player` — true if target is a player, false if a creature.
+    /// - `is_combat` — true if damage originates from the Combat Damage step
+    ///   (FirstStrikeDamage or CombatDamage), false for spell/ability damage.
+    ///   Used by `AllCombatDamage` filter (Fog, CR 615.7a).
     pub(crate) fn apply_damage_with_replacement(
         &mut self,
         _source_id: &str,
@@ -232,6 +236,7 @@ impl Game {
         amount: i32,
         _is_deathtouch: bool,
         target_is_player: bool,
+        is_combat: bool,
     ) -> i32 {
         let event_id = self.next_event_id();
         let mut remaining = amount;
@@ -262,7 +267,9 @@ impl Game {
                             target_is_player && player_id == target_id
                         }
                         ReplacementEventFilter::DamageToAny => true,
-                        _ => false, // Not a damage filter
+                        ReplacementEventFilter::AllCombatDamage => is_combat,
+                        ReplacementEventFilter::DestroyPermanent { .. } => false,
+                        ReplacementEventFilter::EntersBattlefield { .. } => false,
                     }
                 })
                 .min_by_key(|(_, e)| e.timestamp)
@@ -288,7 +295,10 @@ impl Game {
                         remaining -= prevented;
                     }
                 }
-                _ => {
+                ReplacementOutcome::Regenerate
+                | ReplacementOutcome::ExileInstead
+                | ReplacementOutcome::EnterTapped
+                | ReplacementOutcome::EnterWithCounters { .. } => {
                     // Non-damage outcome — skip (shouldn't match damage events).
                     break;
                 }
@@ -703,7 +713,7 @@ mod tests {
             ts,
         ));
 
-        let final_amount = game.apply_damage_with_replacement("source", "big-creature", 5, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "big-creature", 5, false, false, false);
 
         assert_eq!(final_amount, 2, "shield should prevent 3 from 5");
         assert_eq!(game.replacement_effects.len(), 0, "shield consumed");
@@ -732,7 +742,7 @@ mod tests {
         ));
 
         // 7 damage - 2 - 2 = 3
-        let final_amount = game.apply_damage_with_replacement("source", "big-creature", 7, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "big-creature", 7, false, false, false);
         assert_eq!(final_amount, 3, "both shields apply: 7 - 2 - 2 = 3");
         assert_eq!(game.replacement_effects.len(), 0, "both consumed");
     }
@@ -748,7 +758,7 @@ mod tests {
         add_creature_to_battlefield(&mut game, &p1, creature);
         register_prevention(&mut game, "creature-1", &p1, 3);
 
-        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 3, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 3, false, false, false);
         assert_eq!(final_amount, 0, "3-point shield prevents all 3 damage");
         assert_eq!(game.replacement_effects.len(), 0, "shield depleted");
     }
@@ -760,7 +770,7 @@ mod tests {
         add_creature_to_battlefield(&mut game, &p1, creature);
         register_prevention(&mut game, "creature-1", &p1, 3);
 
-        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 5, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 5, false, false, false);
         assert_eq!(final_amount, 2, "3-point shield against 5 leaves 2");
         assert_eq!(game.replacement_effects.len(), 0, "shield consumed");
     }
@@ -772,7 +782,7 @@ mod tests {
         add_creature_to_battlefield(&mut game, &p1, creature);
         register_prevention(&mut game, "creature-1", &p1, 3);
 
-        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 2, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 2, false, false, false);
         assert_eq!(final_amount, 0, "3-point shield prevents all 2 damage");
         assert_eq!(game.replacement_effects.len(), 1, "shield still active with 1 remaining");
         match &game.replacement_effects[0].duration {
@@ -790,7 +800,7 @@ mod tests {
         add_creature_to_battlefield(&mut game, &p1, creature);
         register_prevention(&mut game, "creature-1", &p1, 3);
 
-        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 3, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 3, false, false, false);
         assert_eq!(final_amount, 0, "3-point shield prevents exactly 3 damage");
         assert_eq!(game.replacement_effects.len(), 0, "shield fully consumed");
     }
@@ -804,7 +814,7 @@ mod tests {
         add_creature_to_battlefield(&mut game, &p1, cy);
         register_prevention(&mut game, "creature-x", &p1, 3);
 
-        let final_amount = game.apply_damage_with_replacement("source", "creature-y", 3, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "creature-y", 3, false, false, false);
         assert_eq!(final_amount, 3, "shield on X should not intercept damage to Y");
         assert_eq!(game.replacement_effects.len(), 1, "shield still active");
     }
@@ -817,7 +827,7 @@ mod tests {
         register_prevention(&mut game, "creature-1", &p1, 5);
 
         // Apply 2 damage through the framework — all prevented.
-        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 2, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 2, false, false, false);
         assert_eq!(final_amount, 0);
 
         // Mark 0 damage (nothing to mark) and run SBA.
@@ -981,7 +991,7 @@ mod tests {
         ));
 
         // 3 damage - 2 (shield1, older) = 1, then 1 - 1 (shield2 prevents up to 2, only 1 left) = 0.
-        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 3, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 3, false, false, false);
         assert_eq!(final_amount, 0, "both shields applied: 3 - 2 - 1 = 0");
     }
 
@@ -1008,10 +1018,121 @@ mod tests {
         ));
 
         // First shield prevents all 3 → second shield not needed.
-        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 3, false, false);
+        let final_amount = game.apply_damage_with_replacement("source", "creature-1", 3, false, false, false);
         assert_eq!(final_amount, 0);
         assert_eq!(game.replacement_effects.len(), 1, "second shield remains untouched");
         assert_eq!(game.replacement_effects[0].effect_id, "shield-2");
+    }
+
+    // =========================================================================
+    // R12: AllCombatDamage filter
+    // =========================================================================
+
+    #[test]
+    fn all_combat_damage_filter_matches_when_is_combat_true() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+        let creature = make_creature_pt("creature-1", &p1, 2, 4);
+        add_creature_to_battlefield(&mut game, &p1, creature);
+
+        let ts = game.next_timestamp();
+        game.register_replacement_effect(ReplacementEffect::new(
+            "fog-effect", "fog-spell", &p1,
+            ReplacementEventFilter::AllCombatDamage,
+            ReplacementOutcome::PreventDamage { amount: 0 },
+            ReplacementDuration::UntilEndOfTurn,
+            ts,
+        ));
+
+        // Combat damage should be intercepted (prevented all).
+        let final_amount = game.apply_damage_with_replacement(
+            "attacker", "creature-1", 3, false, false, true, // is_combat = true
+        );
+        assert_eq!(final_amount, 0, "AllCombatDamage filter should prevent combat damage");
+        // UntilEndOfTurn: effect remains active
+        assert_eq!(game.replacement_effects.len(), 1, "UntilEndOfTurn effect persists");
+    }
+
+    #[test]
+    fn all_combat_damage_filter_does_not_match_when_is_combat_false() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+        let creature = make_creature_pt("creature-1", &p1, 2, 4);
+        add_creature_to_battlefield(&mut game, &p1, creature);
+
+        let ts = game.next_timestamp();
+        game.register_replacement_effect(ReplacementEffect::new(
+            "fog-effect", "fog-spell", &p1,
+            ReplacementEventFilter::AllCombatDamage,
+            ReplacementOutcome::PreventDamage { amount: 0 },
+            ReplacementDuration::UntilEndOfTurn,
+            ts,
+        ));
+
+        // Spell damage should NOT be intercepted.
+        let final_amount = game.apply_damage_with_replacement(
+            "lightning-strike", "creature-1", 3, false, false, false, // is_combat = false
+        );
+        assert_eq!(final_amount, 3, "AllCombatDamage filter should NOT prevent spell damage");
+        assert_eq!(game.replacement_effects.len(), 1, "effect unchanged");
+    }
+
+    #[test]
+    fn damage_to_any_filter_matches_both_combat_and_non_combat() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+        let creature = make_creature_pt("creature-1", &p1, 10, 10);
+        add_creature_to_battlefield(&mut game, &p1, creature);
+
+        let ts = game.next_timestamp();
+        game.register_replacement_effect(ReplacementEffect::new(
+            "global-shield", "some-source", &p1,
+            ReplacementEventFilter::DamageToAny,
+            ReplacementOutcome::PreventDamage { amount: 0 },
+            ReplacementDuration::UntilEndOfTurn,
+            ts,
+        ));
+
+        // DamageToAny should match combat damage.
+        let combat_result = game.apply_damage_with_replacement(
+            "attacker", "creature-1", 2, false, false, true,
+        );
+        assert_eq!(combat_result, 0, "DamageToAny should prevent combat damage");
+
+        // DamageToAny should also match spell damage.
+        let spell_result = game.apply_damage_with_replacement(
+            "spell", "creature-1", 2, false, false, false,
+        );
+        assert_eq!(spell_result, 0, "DamageToAny should prevent spell damage too");
+    }
+
+    #[test]
+    fn damage_to_permanent_filter_matches_regardless_of_is_combat() {
+        let (mut game, p1, _p2) = make_game_in_first_main();
+        let creature = make_creature_pt("creature-1", &p1, 10, 10);
+        add_creature_to_battlefield(&mut game, &p1, creature);
+
+        let ts = game.next_timestamp();
+        // Register a UntilEndOfTurn full-prevention shield (Guardian Shield style)
+        game.register_replacement_effect(ReplacementEffect::new(
+            "guardian-shield-effect", "guardian-shield-spell", &p1,
+            ReplacementEventFilter::DamageToPermanent { permanent_id: "creature-1".into() },
+            ReplacementOutcome::PreventDamage { amount: 0 },
+            ReplacementDuration::UntilEndOfTurn,
+            ts,
+        ));
+
+        // Combat damage to the target should be prevented.
+        let combat = game.apply_damage_with_replacement(
+            "attacker", "creature-1", 4, false, false, true,
+        );
+        assert_eq!(combat, 0, "DamageToPermanent should prevent combat damage");
+
+        // Spell damage to the same target should also be prevented.
+        let spell = game.apply_damage_with_replacement(
+            "spell", "creature-1", 3, false, false, false,
+        );
+        assert_eq!(spell, 0, "DamageToPermanent should prevent spell damage");
+
+        // Effect remains (UntilEndOfTurn, amount:0).
+        assert_eq!(game.replacement_effects.len(), 1, "UntilEndOfTurn effect persists");
     }
 
     // =========================================================================

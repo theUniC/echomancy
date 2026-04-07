@@ -727,7 +727,7 @@ impl Game {
     /// and `mark_damage_on_creature` internally.
     pub fn deal_damage_to_creature(&mut self, target_id: &str, amount: i32) -> i32 {
         let final_damage =
-            self.apply_damage_with_replacement("test-source", target_id, amount, false, false);
+            self.apply_damage_with_replacement("test-source", target_id, amount, false, false, false);
         if final_damage > 0 {
             self.mark_damage_on_creature(target_id, final_damage, false);
         }
@@ -789,6 +789,153 @@ impl Game {
                     if permanent_id == creature_id
             ) && matches!(&e.replacement, ReplacementOutcome::Regenerate)
         })
+    }
+
+    /// Deal `amount` combat damage (is_combat=true) to creature `target_id`, going
+    /// through the replacement effects framework.
+    ///
+    /// Returns the final (post-replacement) damage and marks it on the creature.
+    ///
+    /// This is a test-only helper — in a real game, combat damage comes from
+    /// `resolve_first_strike_damage` or `resolve_regular_combat_damage`, which
+    /// call `apply_damage_with_replacement` with `is_combat=true` internally.
+    pub fn deal_combat_damage_to_creature(&mut self, target_id: &str, amount: i32) -> i32 {
+        let final_damage =
+            self.apply_damage_with_replacement("test-source", target_id, amount, false, false, true);
+        if final_damage > 0 {
+            self.mark_damage_on_creature(target_id, final_damage, false);
+        }
+        final_damage
+    }
+
+    /// Register an `AllCombatDamage` prevention effect (Fog-style, CR 615.7a).
+    ///
+    /// The effect prevents all combat damage for the rest of the current turn.
+    ///
+    /// This is a test-only helper.
+    pub fn register_all_combat_damage_prevention(&mut self, source_id: &str, controller_id: &str) {
+        use crate::domain::game::replacement_effects::{
+            ReplacementDuration, ReplacementEffect, ReplacementEventFilter, ReplacementOutcome,
+        };
+        let ts = self.next_effect_timestamp;
+        self.next_effect_timestamp += 1;
+        let effect = ReplacementEffect::new(
+            format!("all-combat-prevention-{ts}"),
+            source_id,
+            controller_id,
+            ReplacementEventFilter::AllCombatDamage,
+            ReplacementOutcome::PreventDamage { amount: 0 },
+            ReplacementDuration::UntilEndOfTurn,
+            ts,
+        );
+        self.replacement_effects.push(effect);
+    }
+
+    /// Register a full-turn damage prevention shield on `target_id` (Guardian Shield style).
+    ///
+    /// The shield prevents ALL damage (amount=0) to the target until end of turn.
+    ///
+    /// This is a test-only helper.
+    pub fn register_full_turn_prevention_shield(&mut self, source_id: &str, target_id: &str) {
+        use crate::domain::game::replacement_effects::{
+            ReplacementDuration, ReplacementEffect, ReplacementEventFilter, ReplacementOutcome,
+        };
+        let ts = self.next_effect_timestamp;
+        self.next_effect_timestamp += 1;
+        let effect = ReplacementEffect::new(
+            format!("guardian-shield-{ts}"),
+            source_id,
+            source_id,
+            ReplacementEventFilter::DamageToPermanent { permanent_id: target_id.to_owned() },
+            ReplacementOutcome::PreventDamage { amount: 0 },
+            ReplacementDuration::UntilEndOfTurn,
+            ts,
+        );
+        self.replacement_effects.push(effect);
+    }
+
+    /// Register a full-turn damage prevention shield on `player_id` that prevents
+    /// ALL damage (amount=0, UntilEndOfTurn).
+    ///
+    /// This is a test-only helper.
+    pub fn register_player_until_end_of_turn_shield(&mut self, player_id: &str) {
+        use crate::domain::game::replacement_effects::{
+            ReplacementDuration, ReplacementEffect, ReplacementEventFilter, ReplacementOutcome,
+        };
+        let ts = self.next_effect_timestamp;
+        self.next_effect_timestamp += 1;
+        let effect = ReplacementEffect::new(
+            format!("player-shield-eot-{ts}"),
+            "test-source",
+            player_id,
+            ReplacementEventFilter::DamageToPlayer { player_id: player_id.to_owned() },
+            ReplacementOutcome::PreventDamage { amount: 0 },
+            ReplacementDuration::UntilEndOfTurn,
+            ts,
+        );
+        self.replacement_effects.push(effect);
+    }
+
+    /// Register a depleting damage prevention shield on `player_id`.
+    ///
+    /// The shield prevents up to `amount` damage to the player.
+    ///
+    /// This is a test-only helper.
+    pub fn register_player_prevention_shield(&mut self, player_id: &str, amount: i32) {
+        use crate::domain::game::replacement_effects::{
+            ReplacementDuration, ReplacementEffect, ReplacementEventFilter, ReplacementOutcome,
+        };
+        let ts = self.next_effect_timestamp;
+        self.next_effect_timestamp += 1;
+        let effect = ReplacementEffect::new(
+            format!("player-shield-{ts}"),
+            "test-source",
+            player_id,
+            ReplacementEventFilter::DamageToPlayer { player_id: player_id.to_owned() },
+            ReplacementOutcome::PreventDamage { amount },
+            ReplacementDuration::UntilDepleted { remaining: amount },
+            ts,
+        );
+        self.replacement_effects.push(effect);
+    }
+
+    /// Deal `amount` damage to player `player_id`, going through the replacement
+    /// effects framework (is_combat=false).
+    ///
+    /// Returns the final damage amount and updates the player's life total.
+    ///
+    /// This is a test-only helper.
+    pub fn deal_damage_to_player_through_framework(&mut self, player_id: &str, amount: i32) -> i32 {
+        let final_damage = self.apply_damage_with_replacement(
+            "test-source",
+            player_id,
+            amount,
+            false,
+            true, // target_is_player
+            false, // is_combat
+        );
+        if final_damage > 0 {
+            self.deal_damage_to_player(player_id, final_damage);
+        }
+        final_damage
+    }
+
+    /// Return `true` if an `AllCombatDamage` prevention effect is registered.
+    ///
+    /// This is a test-only helper to verify that Fog (or similar) has taken effect.
+    pub fn has_all_combat_damage_prevention(&self) -> bool {
+        use crate::domain::game::replacement_effects::ReplacementEventFilter;
+        self.replacement_effects
+            .iter()
+            .any(|e| matches!(&e.event_filter, ReplacementEventFilter::AllCombatDamage))
+    }
+
+    /// Expose cleanup_expired_replacement_effects for integration tests.
+    ///
+    /// Removes all `UntilEndOfTurn` effects. In production this is called
+    /// automatically during the Cleanup step.
+    pub fn cleanup_expired_replacement_effects_pub(&mut self) {
+        self.cleanup_expired_replacement_effects();
     }
 
     /// Inject a Layer 7b "set P/T to (power, toughness)" effect on `creature_id`

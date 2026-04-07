@@ -184,6 +184,7 @@ impl Game {
                 assignment.amount,
                 assignment.is_deathtouch,
                 assignment.is_player,
+                true, // is_combat: first-strike damage is combat damage (CR 510.1)
             );
 
             if assignment.is_player {
@@ -276,13 +277,14 @@ impl Game {
 
         // Apply all damage; also handle Lifelink life gain and Toxic poison counters.
         for assignment in &assignments {
-            // Run damage through the replacement framework (R11).
+            // Run damage through the replacement framework (R11/R12).
             let final_damage = self.apply_damage_with_replacement(
                 &assignment.source_id,
                 &assignment.target_id,
                 assignment.amount,
                 assignment.is_deathtouch,
                 assignment.is_player,
+                true, // is_combat: regular combat damage (CR 510.2)
             );
 
             if assignment.is_player {

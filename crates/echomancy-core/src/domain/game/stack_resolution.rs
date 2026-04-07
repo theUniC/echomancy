@@ -177,13 +177,14 @@ impl Game {
             RulesAction::DealDamage { source, target, amount } => {
                 // Determine if target is a player or creature for replacement framework.
                 let target_is_player = self.player_state(target).is_ok();
-                // Run damage through the replacement framework (R11).
+                // Run damage through the replacement framework (R11/R12).
                 let final_amount = self.apply_damage_with_replacement(
                     source,
                     target,
                     *amount as i32,
                     false, // DealDamage from CLIPS doesn't carry deathtouch
                     target_is_player,
+                    false, // is_combat: spell/ability damage is NOT combat damage
                 );
                 if final_amount > 0 {
                     if target_is_player {
@@ -335,24 +336,45 @@ impl Game {
                     source,
                 );
             }
-            RulesAction::RegisterPreventionShield { target, amount, duration, source } => {
+            RulesAction::RegisterPreventionShield { target, amount, duration, source, scope } => {
                 use crate::domain::game::replacement_effects::{
                     ReplacementDuration, ReplacementEffect, ReplacementEventFilter,
                     ReplacementOutcome,
                 };
-                let controller_id = match self.find_controller_of(target) {
-                    Some(id) => id,
-                    None => return, // target not on battlefield
-                };
                 let ts = self.next_timestamp();
-                // Determine if target is a player or permanent.
-                let event_filter = if self.player_state(target).is_ok() {
-                    ReplacementEventFilter::DamageToPlayer { player_id: target.clone() }
-                } else {
-                    ReplacementEventFilter::DamageToPermanent { permanent_id: target.clone() }
+
+                // Determine the event filter based on scope.
+                let (event_filter, controller_id) = match scope.to_ascii_lowercase().as_str() {
+                    "all-combat" => {
+                        // Global combat prevention (Fog): no specific target.
+                        // Controller is the caster — find via the source spell's controller.
+                        // Fall back to the active player if source is not a permanent.
+                        let ctrl = self.find_controller_of(source)
+                            .unwrap_or_else(|| self.current_player_id().to_string());
+                        (ReplacementEventFilter::AllCombatDamage, ctrl)
+                    }
+                    _ => {
+                        // Targeted: apply to the specific creature or player.
+                        let controller_id = match self.find_controller_of(target) {
+                            Some(id) => id,
+                            None if self.player_state(target).is_ok() => {
+                                // Target is a player — use the player themselves as controller.
+                                target.clone()
+                            }
+                            None => return, // target not on battlefield and not a player
+                        };
+                        let filter = if self.player_state(target).is_ok() {
+                            ReplacementEventFilter::DamageToPlayer { player_id: target.clone() }
+                        } else {
+                            ReplacementEventFilter::DamageToPermanent { permanent_id: target.clone() }
+                        };
+                        (filter, controller_id)
+                    }
                 };
+
                 let replacement_duration = match duration.to_ascii_lowercase().as_str() {
                     "next-occurrence" | "next_occurrence" => ReplacementDuration::NextOccurrence,
+                    "until-end-of-turn" | "until_end_of_turn" => ReplacementDuration::UntilEndOfTurn,
                     _ => ReplacementDuration::UntilDepleted { remaining: *amount as i32 },
                 };
                 let effect = ReplacementEffect::new(

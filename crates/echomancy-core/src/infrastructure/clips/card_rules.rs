@@ -56,6 +56,12 @@ const MENDING_LIGHT_RULES: &str =
 const TROLLHIDE_RULES: &str =
     include_str!("../../../../../rules/cards/t/trollhide.clp");
 
+const FOG_RULES: &str =
+    include_str!("../../../../../rules/cards/f/fog.clp");
+
+const GUARDIAN_SHIELD_RULES: &str =
+    include_str!("../../../../../rules/cards/g/guardian-shield.clp");
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -87,6 +93,8 @@ pub(crate) fn load_core_templates(engine: &mut ClipsEngine) -> Result<(), RulesE
 /// | `"wild-bounty"` | Controller draws 1 card on ETB |
 /// | `"mending-light"` | Register 3-damage prevention shield on target creature |
 /// | `"trollhide"` | Register regeneration shield on target creature |
+/// | `"fog"` | Prevent all combat damage this turn (AllCombatDamage, R12) |
+/// | `"guardian-shield"` | Prevent all damage to target creature this turn (R12) |
 /// | anything else | No rules — silently succeeds |
 #[allow(dead_code)]
 pub(crate) fn load_card_rules(engine: &mut ClipsEngine, card_id: &str) -> Result<(), RulesError> {
@@ -101,6 +109,8 @@ pub(crate) fn load_card_rules(engine: &mut ClipsEngine, card_id: &str) -> Result
         "turn-to-frog" => engine.load_rules(TURN_TO_FROG_RULES),
         "mending-light" => engine.load_rules(MENDING_LIGHT_RULES),
         "trollhide" => engine.load_rules(TROLLHIDE_RULES),
+        "fog" => engine.load_rules(FOG_RULES),
+        "guardian-shield" => engine.load_rules(GUARDIAN_SHIELD_RULES),
         // Sol Ring uses no CLIPS rule — its mana ability is handled entirely by
         // the Rust domain (CR 605 mana abilities bypass the stack).
         // Vanilla/keyword-only cards have no .clp — this is expected and fine.
@@ -1027,8 +1037,9 @@ mod tests {
         assert!(
             matches!(
                 &result.actions[0],
-                RulesAction::RegisterPreventionShield { source, target, amount: 3, duration }
+                RulesAction::RegisterPreventionShield { source, target, amount: 3, duration, scope }
                     if source == "mend-1" && target == "creature-1" && duration == "until-depleted"
+                    && scope == "targeted"
             ),
             "should register a 3-damage prevention shield, got: {:?}",
             result.actions[0]
@@ -1222,6 +1233,124 @@ mod tests {
         assert!(
             game.has_regeneration_shield("bear-1"),
             "bear-1 should have a regeneration shield after Trollhide resolves"
+        );
+    }
+
+    // =========================================================================
+    // CLIPS rule correctness: Fog (R12 AllCombatDamage prevention)
+    // =========================================================================
+
+    #[test]
+    fn load_card_rules_for_fog_succeeds() {
+        let mut engine = ClipsEngine::new().expect("engine");
+        load_core_templates(&mut engine).expect("core templates");
+        load_card_rules(&mut engine, "fog").expect("fog rules should load");
+    }
+
+    /// Fog rule fires and produces an action-prevent-damage with scope all-combat.
+    #[test]
+    fn fog_rule_produces_all_combat_prevention_action() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+
+        let mut engine = engine_for(&["fog"]);
+        let (game, p1, _p2) = make_game_in_first_main();
+
+        // Fog has no target, so targets vec is empty.
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("fog-1"),
+                definition_id: CardDefinitionId::new("fog"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+            targets: vec![],
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert_eq!(result.actions.len(), 1, "should produce exactly one action");
+        assert!(
+            matches!(
+                &result.actions[0],
+                RulesAction::RegisterPreventionShield { source, amount: 0, duration, scope, .. }
+                    if source == "fog-1" && duration == "until-end-of-turn" && scope == "all-combat"
+            ),
+            "fog should register an all-combat prevention shield, got: {:?}",
+            result.actions[0]
+        );
+    }
+
+    // =========================================================================
+    // CLIPS rule correctness: Guardian Shield (R12 targeted full prevention)
+    // =========================================================================
+
+    #[test]
+    fn load_card_rules_for_guardian_shield_succeeds() {
+        let mut engine = ClipsEngine::new().expect("engine");
+        load_core_templates(&mut engine).expect("core templates");
+        load_card_rules(&mut engine, "guardian-shield").expect("guardian-shield rules should load");
+    }
+
+    /// Guardian Shield rule fires and produces an action-prevent-damage targeting the creature.
+    #[test]
+    fn guardian_shield_rule_produces_targeted_prevention_action() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::targets::Target;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+
+        let mut engine = engine_for(&["guardian-shield"]);
+        let (game, p1, _p2) = make_game_in_first_main();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("gs-1"),
+                definition_id: CardDefinitionId::new("guardian-shield"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+            targets: vec![Target::creature("creature-1")],
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert_eq!(result.actions.len(), 1, "should produce exactly one action");
+        assert!(
+            matches!(
+                &result.actions[0],
+                RulesAction::RegisterPreventionShield { source, target, amount: 0, duration, scope }
+                    if source == "gs-1" && target == "creature-1"
+                    && duration == "until-end-of-turn" && scope == "targeted"
+            ),
+            "guardian-shield should register a targeted prevention shield, got: {:?}",
+            result.actions[0]
+        );
+    }
+
+    /// Guardian Shield rule does not fire when no target is provided.
+    #[test]
+    fn guardian_shield_rule_does_not_fire_without_target() {
+        use crate::domain::events::GameEvent;
+        use crate::domain::events::CardInstanceSnapshot;
+        use crate::domain::types::{CardDefinitionId, CardInstanceId, PlayerId};
+
+        let mut engine = engine_for(&["guardian-shield"]);
+        let (game, p1, _p2) = make_game_in_first_main();
+
+        let event = GameEvent::SpellResolved {
+            card: CardInstanceSnapshot {
+                instance_id: CardInstanceId::new("gs-1"),
+                definition_id: CardDefinitionId::new("guardian-shield"),
+                owner_id: PlayerId::new(&p1),
+            },
+            controller_id: PlayerId::new(&p1),
+            targets: vec![], // no target
+        };
+
+        let result = engine.evaluate(&game, &event).expect("evaluate should succeed");
+        assert!(
+            result.actions.is_empty(),
+            "guardian-shield rule should not fire without a target"
         );
     }
 }
